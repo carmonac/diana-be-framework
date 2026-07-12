@@ -1,0 +1,12 @@
+name: _diana_workspace
+description: Workspace root for the Diana backend framework monorepo.
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+workspace:
+  - packages/diana_annotation
+  - packages/diana
+  - packages/diana_generator
+  - examples/todo_api

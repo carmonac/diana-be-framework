@@ -1,0 +1,364 @@
+import 'dart:convert';
+
+import 'package:build/build.dart';
+import 'package:code_builder/code_builder.dart';
+import 'package:dart_style/dart_style.dart';
+import 'package:glob/glob.dart';
+import 'package:source_gen/source_gen.dart' show spanForElement;
+
+import 'common.dart';
+import 'emit/context_emitter.dart';
+import 'graph/di_graph.dart';
+import 'model/summary.dart';
+import 'readers/library_reader.dart';
+
+/// Aggregating builder. Runs on the library annotated with
+/// `@DianaApplication`, discovers every `.diana.json` summary in the package,
+/// resolves the dependency injection graph and emits the composition root
+/// (`DianaContext`, `buildDianaServer`, `runDiana`) as a standalone
+/// `.diana_app.dart` library.
+class DianaBootstrapBuilder implements Builder {
+  const DianaBootstrapBuilder();
+
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+        '.dart': ['.diana_app.dart'],
+      };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final inputId = buildStep.inputId;
+    if (!inputId.path.startsWith('lib/')) return;
+
+    final source = await buildStep.readAsString(inputId);
+    if (!dianaApplicationPattern.hasMatch(source)) return;
+    if (!await buildStep.resolver.isLibrary(inputId)) return;
+
+    final library = await buildStep.resolver.libraryFor(inputId);
+    LibrarySummary ownSummary;
+    try {
+      ownSummary = readLibrary(library);
+    } on DianaSourceError catch (e) {
+      log.severe(spanForElement(e.element).message(e.message));
+      return;
+    }
+    final app = ownSummary.app;
+    if (app == null) return;
+
+    final summaryIds = await buildStep
+        .findAssets(Glob('lib/**.diana.json'))
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+    final summaries = <LibrarySummary>[
+      for (final id in summaryIds)
+        LibrarySummary.fromJson(
+          (jsonDecode(await buildStep.readAsString(id)) as Map)
+              .cast<String, Object?>(),
+        ),
+    ];
+
+    final appEntries = [
+      for (final s in summaries)
+        if (s.app != null) '${s.app!.className} (${s.libraryUri})',
+    ];
+    if (appEntries.length > 1) {
+      log.severe(
+        'Multiple @DianaApplication classes found: '
+        '${appEntries.join(', ')}. A package must declare exactly one '
+        'application entrypoint.',
+      );
+      return;
+    }
+
+    final result = resolveGraph(summaries);
+    final errors = [...result.errors];
+    if (result.graph != null) {
+      errors.addAll(_checkMiddlewareRefs(result.graph!, summaries));
+    }
+    if (errors.isNotEmpty) {
+      log.severe(
+        'Diana failed to resolve the dependency graph '
+        '(${errors.length} error${errors.length == 1 ? '' : 's'}):\n'
+        '${errors.map((e) => ' • $e').join('\n')}',
+      );
+      return;
+    }
+
+    final output = _emitLibrary(result.graph!, summaries, app);
+    await buildStep.writeAsString(
+      inputId.changeExtension('.diana_app.dart'),
+      output,
+    );
+  }
+
+  /// Every `@UseMiddleware`/`@GlobalMiddleware` type must be a provider in
+  /// the graph and implement Diana's `Middleware` interface.
+  List<String> _checkMiddlewareRefs(
+    DiGraph graph,
+    List<LibrarySummary> summaries,
+  ) {
+    final errors = <String>[];
+
+    void check(TypeRef type, String where) {
+      final provider = graph.byKey['${type.key}|'];
+      if (provider == null) {
+        errors.add(
+          '${type.displayName}, referenced by $where, is not an injectable '
+          'class. Annotate it with @Component (or another injectable '
+          'annotation).',
+        );
+        return;
+      }
+      final implementsMiddleware = provider.info.supertypes.any(
+        (s) =>
+            s.name == 'Middleware' && s.libraryUri.startsWith('package:diana/'),
+      );
+      if (!implementsMiddleware) {
+        errors.add(
+          '${type.displayName}, referenced by $where, does not implement '
+          "Diana's Middleware interface.",
+        );
+      } else if (provider.needsRequestScope) {
+        errors.add(
+          '${type.displayName}, referenced by $where, is request-scoped; '
+          'middleware must be singletons.',
+        );
+      }
+    }
+
+    for (final summary in summaries) {
+      for (final mw in summary.globalMiddleware) {
+        check(mw.type, '@GlobalMiddleware');
+      }
+      for (final controller in summary.controllers) {
+        for (final mw in controller.middleware) {
+          check(mw, '@UseMiddleware on ${controller.type.displayName}');
+        }
+        for (final route in controller.routes) {
+          for (final mw in route.middleware) {
+            check(
+              mw,
+              '@UseMiddleware on '
+              '${controller.type.displayName}.${route.methodName}',
+            );
+          }
+        }
+      }
+    }
+    return errors;
+  }
+
+  String _emitLibrary(
+    DiGraph graph,
+    List<LibrarySummary> summaries,
+    AppInfo app,
+  ) {
+    final emission = emitContext(graph);
+    final names = emission.names;
+
+    final nullableConfigParam = Parameter((p) => p
+      ..name = 'config'
+      ..named = true
+      ..type = TypeReference((t) => t
+        ..symbol = 'DianaConfig'
+        ..url = dianaLib
+        ..isNullable = true));
+
+    final buildContextFn = Method((m) => m
+      ..name = 'buildDianaContext'
+      ..returns = refer('DianaContext')
+      ..optionalParameters.add(nullableConfigParam)
+      ..lambda = true
+      ..body = refer('DianaContext').newInstance([
+        refer('config')
+            .ifNullThen(dianaConfigRef.constInstanceNamed('empty', const [])),
+      ]).code);
+
+    // Global middleware sorted by (order, type name) for determinism.
+    final globalMiddleware = [
+      for (final s in summaries) ...s.globalMiddleware,
+    ]..sort((a, b) {
+        final byOrder = a.order.compareTo(b.order);
+        return byOrder != 0 ? byOrder : a.type.key.compareTo(b.type.key);
+      });
+
+    // Controllers sorted by type; routes stay in declaration order.
+    final controllers = [for (final s in summaries) ...s.controllers]
+      ..sort((a, b) => a.type.key.compareTo(b.type.key));
+
+    Expression providerAccess(TypeRef type) =>
+        names.access('${type.key}|', ctx: refer('ctx'));
+
+    // Exception handlers across all advices, most specific exception type
+    // first (ties broken by advice type then declaration order).
+    final advices = [for (final s in summaries) ...s.advices]
+      ..sort((a, b) => a.type.key.compareTo(b.type.key));
+    final handlers = <(AdviceInfo, HandlerInfo)>[
+      for (final advice in advices)
+        for (final handler in advice.handlers) (advice, handler),
+    ];
+    final handlerOrder = {
+      for (final (i, entry) in handlers.indexed) entry: i,
+    };
+    handlers.sort((a, b) {
+      final byDepth = b.$2.depth.compareTo(a.$2.depth);
+      return byDepth != 0
+          ? byDepth
+          : handlerOrder[a]!.compareTo(handlerOrder[b]!);
+    });
+
+    Method? mapExceptionFn;
+    if (handlers.isNotEmpty) {
+      mapExceptionFn = Method((m) => m
+        ..name = '_mapException'
+        ..returns = TypeReference((t) => t
+          ..symbol = 'FutureOr'
+          ..url = 'dart:async'
+          ..types.add(TypeReference((r) => r
+            ..symbol = 'DianaResponse'
+            ..url = dianaLib
+            ..isNullable = true)))
+        ..requiredParameters.addAll([
+          Parameter((p) => p
+            ..name = 'ctx'
+            ..type = refer('DianaContext')),
+          Parameter((p) => p
+            ..name = 'e'
+            ..type = refer('Object')),
+          Parameter((p) => p
+            ..name = 'req'
+            ..type = refer('DianaRequest', dianaLib)),
+        ])
+        ..body = Block.of([
+          for (final (advice, handler) in handlers)
+            Code.scope((allocate) {
+              final adviceField = names.fields['${advice.type.key}|']!;
+              final excType = allocate(referenceOf(handler.exceptionType));
+              final args = handler.takesRequest ? 'e, req' : 'e';
+              return 'if (e is $excType) '
+                  'return ctx.$adviceField.${handler.methodName}($args);';
+            }),
+          const Code('return null;'),
+        ]));
+    }
+
+    final serverStatements = <Code>[
+      declareFinal('cfg')
+          .assign(refer('config').ifNullThen(dianaConfigRef
+              .property('load')
+              .call([literalString(app.configFile)]).awaited))
+          .statement,
+      declareFinal('ctx')
+          .assign(refer('DianaContext').newInstance([refer('cfg')]))
+          .statement,
+      declareFinal('server')
+          .assign(refer('DianaServer', dianaLib).newInstance([], {
+            'config': refer('cfg'),
+            if (globalMiddleware.isNotEmpty)
+              'globalMiddleware': literalList([
+                for (final mw in globalMiddleware) providerAccess(mw.type),
+              ]),
+            if (mapExceptionFn != null)
+              'exceptionMapper': Method((m) => m
+                ..requiredParameters.addAll([
+                  Parameter((p) => p..name = 'e'),
+                  Parameter((p) => p..name = 'st'),
+                  Parameter((p) => p..name = 'req'),
+                ])
+                ..lambda = true
+                ..body = refer('_mapException')
+                    .call([refer('ctx'), refer('e'), refer('req')]).code).closure,
+          }))
+          .statement,
+    ];
+
+    for (final controller in controllers) {
+      final controllerKey = '${controller.type.key}|';
+      final onRequestScope = names.onRequestScope.contains(controllerKey);
+      for (final route in controller.routes) {
+        final adapterRef =
+            refer(route.adapterName, controller.type.libraryUri);
+        final handler = Method((m) {
+          m.requiredParameters.add(Parameter((p) => p..name = 'req'));
+          if (onRequestScope) {
+            m.body = Block.of([
+              declareFinal('scope')
+                  .assign(
+                      refer('DianaRequestScope').newInstance([refer('ctx')]))
+                  .statement,
+              adapterRef.call([
+                names.access(controllerKey,
+                    ctx: refer('ctx'), scope: refer('scope')),
+                refer('req'),
+              ]).returned.statement,
+            ]);
+          } else {
+            m.lambda = true;
+            m.body = adapterRef.call([
+              names.access(controllerKey, ctx: refer('ctx')),
+              refer('req'),
+            ]).code;
+          }
+        }).closure;
+
+        final routeMiddleware = [...controller.middleware, ...route.middleware];
+        serverStatements.add(refer('server').property('register').call(
+          [
+            refer('HttpMethod', dianaLib)
+                .property(route.httpMethod.toLowerCase()),
+            literalString(joinPaths(controller.basePath, route.path)),
+            handler,
+          ],
+          {
+            if (routeMiddleware.isNotEmpty)
+              'middleware': literalList([
+                for (final mw in routeMiddleware) providerAccess(mw),
+              ]),
+          },
+        ).statement);
+      }
+    }
+    serverStatements.add(refer('server').returned.statement);
+
+    final buildServerFn = Method((m) => m
+      ..name = 'buildDianaServer'
+      ..returns = TypeReference((t) => t
+        ..symbol = 'Future'
+        ..types.add(refer('DianaServer', dianaLib)))
+      ..optionalParameters.add(nullableConfigParam)
+      ..modifier = MethodModifier.async
+      ..body = Block.of(serverStatements));
+
+    final runFn = Method((m) => m
+      ..name = 'runDiana'
+      ..returns = refer('Future<void>')
+      ..optionalParameters.add(nullableConfigParam)
+      ..modifier = MethodModifier.async
+      ..body = Block.of([
+        declareFinal('server')
+            .assign(refer('buildDianaServer')
+                .call([], {'config': refer('config')}).awaited)
+            .statement,
+        refer('server').property('serve').call(const []).awaited.statement,
+      ]));
+
+    final generated = Library((b) => b
+      ..body.addAll([
+        ...emission.specs,
+        buildContextFn,
+        if (mapExceptionFn != null) mapExceptionFn,
+        buildServerFn,
+        runFn,
+      ]));
+
+    final emitter = DartEmitter(
+      allocator: Allocator.simplePrefixing(),
+      orderDirectives: true,
+      useNullSafetySyntax: true,
+    );
+    final raw = '$generatedHeader\n${generated.accept(emitter)}';
+    return DartFormatter(
+      languageVersion: DartFormatter.latestLanguageVersion,
+    ).format(raw);
+  }
+}

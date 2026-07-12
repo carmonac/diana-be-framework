@@ -1,0 +1,23 @@
+name: diana
+description: >-
+  Diana is a Spring-inspired, annotation-driven backend framework for Dart.
+  Compile-time dependency injection, declarative controllers, middleware,
+  configuration and validation — no reflection.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+resolution: workspace
+
+dependencies:
+  collection: ^1.19.0
+  diana_annotation: ^0.1.0
+  meta: ^1.16.0
+  relic: ^1.1.0
+  yaml: ^3.1.0
+
+dev_dependencies:
+  lints: ^5.1.0
+  test: ^1.25.0

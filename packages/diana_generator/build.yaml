@@ -1,0 +1,21 @@
+builders:
+  diana_metadata:
+    import: "package:diana_generator/builder.dart"
+    builder_factories: ["dianaMetadataBuilder"]
+    build_extensions: {".dart": [".diana.json"]}
+    build_to: cache
+    auto_apply: dependents
+    runs_before: ["diana_generator|diana_bootstrap"]
+  diana_part:
+    import: "package:diana_generator/builder.dart"
+    builder_factories: ["dianaPartBuilder"]
+    build_extensions: {".dart": [".diana.dart"]}
+    build_to: source
+    auto_apply: dependents
+  diana_bootstrap:
+    import: "package:diana_generator/builder.dart"
+    builder_factories: ["dianaBootstrapBuilder"]
+    build_extensions: {".dart": [".diana_app.dart"]}
+    build_to: source
+    auto_apply: dependents
+    required_inputs: [".diana.json"]
