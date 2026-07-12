@@ -17,6 +17,7 @@ class ApiKeyMiddleware implements Middleware {
         statusCode: 401,
       );
     }
+    request.attributes['user'] = 'key-holder';
     return await next(request);
   }
 }

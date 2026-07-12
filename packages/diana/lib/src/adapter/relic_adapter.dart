@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:relic/relic.dart' as relic;
 import 'package:web_socket/web_socket.dart' as ws_events;
 
+import '../codec.dart';
 import '../http/method.dart';
 import '../http/request.dart';
 import '../http/response.dart';
@@ -24,7 +25,16 @@ class RelicAdapter {
   final relic.RelicApp _app = relic.RelicApp();
   relic.RelicServer? _server;
 
-  RelicAdapter() {
+  /// Limits stamped onto every [DianaRequest].
+  final DianaRequestLimits limits;
+
+  /// Body codecs stamped onto every [DianaRequest].
+  final BodyCodecRegistry codecs;
+
+  RelicAdapter({
+    this.limits = const DianaRequestLimits(),
+    this.codecs = const BodyCodecRegistry(),
+  }) {
     _app.fallback = (req) => relic.Response.notFound(
           body: relic.Body.fromString(
             '{"error":"not_found","message":"No route matches this path."}',
@@ -37,10 +47,65 @@ class RelicAdapter {
     _app.add(_toRelicMethod(method), path, _wrap(handler));
   }
 
+  /// Mounts a static-file directory under [prefix], using the engine's
+  /// hardened static handler (ETag, Range, conditional requests,
+  /// path-traversal protection).
+  ///
+  /// Directory hits (and, with [spaFallback], any miss under the prefix)
+  /// serve `[directory]/[indexFile]` when it exists.
+  void registerStatic({
+    required String directory,
+    required String prefix,
+    String indexFile = 'index.html',
+    bool spaFallback = false,
+    int cacheMaxAgeSeconds = 3600,
+  }) {
+    final index = File('$directory${Platform.pathSeparator}$indexFile');
+
+    FutureOr<relic.Result> serveIndex(relic.Request req) {
+      if (!index.existsSync()) return relic.Response.notFound();
+      final isRoot = req.remainingPath.segments.isEmpty;
+      if (!isRoot && !spaFallback) return relic.Response.notFound();
+      final handler = relic.StaticHandler.file(
+        index,
+        cacheControl: (_, __) =>
+            relic.CacheControlHeader(maxAge: cacheMaxAgeSeconds),
+      );
+      return handler.call(req);
+    }
+
+    _app.injectAt(
+      prefix,
+      relic.StaticHandler.directory(
+        Directory(directory),
+        defaultHandler: serveIndex,
+        cacheControl: (_, __) =>
+            relic.CacheControlHeader(maxAge: cacheMaxAgeSeconds),
+      ),
+    );
+  }
+
   /// Registers a WebSocket endpoint. The handshake is a GET on [path]; a
   /// fresh handler is obtained from [factory] per connection.
-  void registerWebSocket(String path, WebSocketHandlerFactory factory) {
+  ///
+  /// When [handshake] is provided it runs on the handshake request first:
+  /// returning [upgradeMarker] (compared by identity) proceeds with the
+  /// upgrade — and the request's attributes are copied into the session —
+  /// while any other response blocks it.
+  void registerWebSocket(
+    String path,
+    WebSocketHandlerFactory factory, {
+    DianaHandler? handshake,
+    DianaResponse? upgradeMarker,
+  }) {
     _app.add(relic.Method.get, path, (relic.Request req) async {
+      final dianaRequest = _toDianaRequest(req);
+      if (handshake != null) {
+        final result = await handshake(dianaRequest);
+        if (!identical(result, upgradeMarker)) {
+          return _toRelicResponse(result);
+        }
+      }
       final handler = await factory();
       final uri = req.url;
       final pathParameters = {
@@ -53,7 +118,7 @@ class RelicAdapter {
           uri: uri,
           pathParameters: pathParameters,
           socket: socket,
-        );
+        )..attributes.addAll(dianaRequest.attributes);
         unawaited(_runWebSocket(handler, session, socket));
       });
     });
@@ -93,9 +158,34 @@ class RelicAdapter {
   }
 
   /// Binds the server. A [port] of 0 lets the OS pick one; read it back from
-  /// [port] afterwards.
-  Future<void> serve({required String host, required int port}) async {
-    _server = await _app.serve(address: _parseHost(host), port: port);
+  /// [port] afterwards. Providing [sslCertPath]/[sslKeyPath] serves HTTPS;
+  /// [shared] allows several isolates to bind the same address/port.
+  Future<void> serve({
+    required String host,
+    required int port,
+    String? sslCertPath,
+    String? sslKeyPath,
+    String? sslKeyPassword,
+    bool shared = false,
+  }) async {
+    SecurityContext? security;
+    if (sslCertPath != null || sslKeyPath != null) {
+      if (sslCertPath == null || sslKeyPath == null) {
+        throw ArgumentError(
+          'Both server.ssl.certPath and server.ssl.keyPath must be set to '
+          'enable HTTPS.',
+        );
+      }
+      security = SecurityContext()
+        ..useCertificateChain(sslCertPath)
+        ..usePrivateKey(sslKeyPath, password: sslKeyPassword);
+    }
+    _server = await _app.serve(
+      address: _parseHost(host),
+      port: port,
+      securityContext: security,
+      shared: shared,
+    );
   }
 
   /// The bound port, or `null` before [serve].
@@ -109,8 +199,67 @@ class RelicAdapter {
   relic.Handler _wrap(DianaHandler handler) {
     return (relic.Request req) async {
       final response = await handler(_toDianaRequest(req));
+      if (response.bodyStream != null) return _hijackStream(response);
       return _toRelicResponse(response);
     };
+  }
+
+  /// Streaming responses (SSE) bypass the engine's buffered response path:
+  /// dart:io's `HttpResponse` buffers small writes, which would hold events
+  /// back indefinitely. Hijacking the socket lets every chunk flush
+  /// immediately (manual HTTP/1.1 + chunked framing), and the socket's
+  /// close is the disconnect signal that cancels the source stream.
+  relic.Hijack _hijackStream(DianaResponse response) {
+    return relic.Hijack((channel) {
+      final sink = channel.sink;
+      final head = StringBuffer()
+        ..write('HTTP/1.1 ${response.statusCode} OK\r\n')
+        ..write('content-type: '
+            '${response.mimeType ?? 'application/octet-stream'}\r\n')
+        ..write('transfer-encoding: chunked\r\n')
+        ..write('connection: close\r\n');
+      for (final entry in response.headers.entries) {
+        head.write('${entry.key}: ${entry.value}\r\n');
+      }
+      head.write('\r\n');
+      sink.add(head.toString().codeUnits);
+
+      var finished = false;
+      late final StreamSubscription<List<int>> subscription;
+
+      void finish({bool trailer = false}) {
+        if (finished) return;
+        finished = true;
+        if (trailer) sink.add('0\r\n\r\n'.codeUnits);
+        sink.close();
+      }
+
+      subscription = response.bodyStream!.listen(
+        (chunk) {
+          sink.add('${chunk.length.toRadixString(16)}\r\n'.codeUnits);
+          sink.add(chunk);
+          sink.add('\r\n'.codeUnits);
+        },
+        onError: (Object _) {
+          finish();
+        },
+        onDone: () => finish(trailer: true),
+      );
+
+      // The read side closing (or erroring) means the client went away:
+      // cancel the handler's stream so producers stop.
+      channel.stream.listen(
+        (_) {},
+        onDone: () {
+          unawaited(subscription.cancel());
+          finish();
+        },
+        onError: (Object _) {
+          unawaited(subscription.cancel());
+          finish();
+        },
+      );
+    });
   }
 
   DianaRequest _toDianaRequest(relic.Request req) => DianaRequest(
@@ -124,12 +273,21 @@ class RelicAdapter {
           for (final e in req.headers.entries) e.key: e.value.toList(),
         },
         bodyReader: req.readAsString,
+        bytesReader: req.read,
+        limits: limits,
+        codecs: codecs,
       );
 
   relic.Response _toRelicResponse(DianaResponse response) {
     final mime = response.mimeType;
     relic.Body body;
-    if (response.bodyText != null) {
+    if (response.bodyStream != null) {
+      body = relic.Body.fromDataStream(
+        response.bodyStream!
+            .map((chunk) => chunk is Uint8List ? chunk : Uint8List.fromList(chunk)),
+        mimeType: _parseMime(mime ?? 'application/octet-stream'),
+      );
+    } else if (response.bodyText != null) {
       body = relic.Body.fromString(
         response.bodyText!,
         mimeType: _parseMime(mime ?? 'text/plain'),

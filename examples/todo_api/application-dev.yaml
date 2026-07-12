@@ -1,0 +1,5 @@
+# Overlay applied when the 'dev' profile is active
+# (DIANA_PROFILE=dev, or diana.profile: dev in application.yaml).
+app:
+  info:
+    name: todo_api-dev

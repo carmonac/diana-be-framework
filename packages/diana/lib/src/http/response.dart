@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 /// Diana's HTTP response.
@@ -16,6 +17,10 @@ class DianaResponse {
   /// Response body as raw bytes, or `null`.
   final List<int>? bodyBytes;
 
+  /// Streaming response body (chunked), or `null`. Used by Server-Sent
+  /// Events and other long-lived responses.
+  final Stream<List<int>>? bodyStream;
+
   /// MIME type of the body, e.g. `application/json`.
   final String? mimeType;
 
@@ -24,8 +29,22 @@ class DianaResponse {
     this.headers = const {},
     this.bodyText,
     this.bodyBytes,
+    this.bodyStream,
     this.mimeType,
   });
+
+  /// Streaming (chunked) response.
+  const DianaResponse.stream(
+    Stream<List<int>> body, {
+    int statusCode = 200,
+    String mimeType = 'application/octet-stream',
+    Map<String, String> headers = const {},
+  }) : this(
+          statusCode: statusCode,
+          headers: headers,
+          bodyStream: body,
+          mimeType: mimeType,
+        );
 
   /// JSON response: [data] is encoded with `jsonEncode`.
   DianaResponse.json(
@@ -77,6 +96,7 @@ class DianaResponse {
         headers: headers ?? this.headers,
         bodyText: bodyText,
         bodyBytes: bodyBytes,
+        bodyStream: bodyStream,
         mimeType: mimeType,
       );
 }

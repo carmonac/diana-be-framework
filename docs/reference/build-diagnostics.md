@@ -60,6 +60,40 @@ Function types, records and type variables aren't injectable.
 
 ---
 
+## Lifecycle and scheduling
+
+**`@PostConstruct method X.y must be a public instance method with no parameters returning void or Future<void>.`**
+(Same for `@PreDestroy` and `@Scheduled`.)
+
+**`Class X declares multiple @PostConstruct methods; declare at most one.`**
+(Same for `@PreDestroy`.)
+
+**`@PostConstruct on X requires singleton scope; found transient.`**
+(Same for `@PreDestroy` and `@Scheduled` — per-instance lifecycle on
+transient/request providers is not supported.)
+
+**`@Scheduled on X.y requires exactly one of fixedRate or fixedDelay.`**
+
+---
+
+## JSON (@Json)
+
+**`Unsupported field type T in @Json class X. Supported: String, int, double, bool, num, dynamic, DateTime, enums, List/Map<String, _> of supported types, and nested classes that are @Json or expose fromJson/toJson.`**
+
+**`@Json class X has no public unnamed generative constructor.`**
+
+**`Constructor parameter "p" of @Json class X has no matching field; @Json builds instances by matching constructor parameters to fields by name.`**
+
+**`@Json map fields must have String keys — got Map<int, String> in X.`**
+
+---
+
+## Actuator
+
+**`X implements HealthIndicator but is transient-scoped; health indicators must be singletons.`**
+
+---
+
 ## Application entrypoint
 
 **`Multiple @DianaApplication classes found: A (lib), B (lib). A package must declare exactly one application entrypoint.`**
@@ -92,6 +126,38 @@ Copy the printed line into the file, below the imports.
 
 ---
 
+## Content negotiation
+
+**`@Consumes on X.m lists no MIME types.`**
+(Also raised for `@Produces`.) The list must contain at least one entry.
+
+**`@Consumes on X.m requires a codec-decoded @Body parameter (Map, List or DTO); String, FormData and raw-request bodies bypass codecs.`**
+
+**`@Produces on X.m requires a JSON-encodable return (DTO, List of DTOs, Map or List); String, void and DianaResponse returns are not negotiated.`**
+
+**`X implements BodyCodec but is <scope>-scoped; body codecs must be singletons.`**
+Codecs are discovered through the DI graph and wired once into the server.
+
+---
+
+## Server-Sent Events
+
+**`Route method X.m returns Stream<Y>; supported stream element types are ServerSentEvent or a DTO with toJson().`**
+
+**`@ResponseStatus cannot be combined with a Stream return on X.m; SSE responses are always 200.`**
+
+**`@Produces cannot be combined with a Stream return on X.m; SSE always produces text/event-stream.`**
+
+---
+
+## gRPC
+
+**`@GrpcService class X does not extend a grpc service base class. Extend your protoc-generated XServiceBase (package:grpc Service).`**
+Only classes whose supertype chain reaches `package:grpc`'s `Service`
+qualify — your protoc-generated `XServiceBase` does.
+
+---
+
 ## Middleware
 
 **`X, referenced by @GlobalMiddleware, is not an injectable class. Annotate it with @Component (or another injectable annotation).`**
@@ -101,6 +167,8 @@ Also raised for `@UseMiddleware on Controller` /
 **`X, referenced by ..., does not implement Diana's Middleware interface.`**
 
 **`X, referenced by ..., is request-scoped; middleware must be singletons.`**
+(Also applies to `@UseMiddleware on @WebSocketController X` — handshake
+interceptors.)
 
 **`@UseMiddleware entries must be type literals.`**
 Only `@UseMiddleware([SomeType])` — no expressions.

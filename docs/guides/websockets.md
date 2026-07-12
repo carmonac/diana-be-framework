@@ -84,15 +84,39 @@ class GameSession extends BaseWebSocketHandler {
 }
 ```
 
+## Handshake interceptors
+
+`@UseMiddleware` on a `@WebSocketController` runs the listed
+[middleware](middleware.md) on the **handshake request**:
+
+```dart
+@WebSocketController('/ws/chat/:room')
+@UseMiddleware([ApiKeyMiddleware])
+class ChatHandler extends BaseWebSocketHandler {
+  @override
+  void onOpen(WebSocketSession session) {
+    final user = session.attributes['user'];   // set by the middleware
+    ...
+  }
+}
+```
+
+- A middleware that short-circuits (e.g. returns a 401) **blocks the
+  upgrade** with that response.
+- `request.attributes` set during the handshake are copied into
+  `session.attributes`.
+- Exceptions in handshake middleware go through the normal exception
+  pipeline (advice, `HttpException` mapping).
+- Global middleware do **not** apply to handshakes — interceptors are
+  explicit opt-in (mirroring Spring's `HandshakeInterceptor` registration).
+
 ## What does *not* apply
 
-- **HTTP middleware and `@ControllerAdvice` do not run** for WebSocket
-  traffic. The handshake is a plain GET on the endpoint path handled by the
-  upgrade logic; do authentication in `onOpen` (query parameters or
-  first-message tokens) and close the session when it fails.
+- After the upgrade, middleware and `@ControllerAdvice` play no role in
+  socket traffic; errors reach the handler's `onError`.
 - The [validation](validation.md) machinery targets request bodies; decode
   and validate WebSocket payloads yourself (e.g.
-  `MyDto.fromJson(jsonDecode(message.text))` plus a generated
+  `$MyDtoFromJson(jsonDecode(message.text))` plus a generated
   `$MyDtoValidator`).
 
 ## Build-time checks
@@ -109,7 +133,8 @@ See [build diagnostics](../reference/build-diagnostics.md#websockets).
 One registration per endpoint in `buildDianaServer()`:
 
 ```dart
-server.registerWebSocket('/ws/chat/:room', () => ctx.chatHandler);      // singleton
+server.registerWebSocket('/ws/chat/:room', () => ctx.chatHandler,
+    middleware: [ctx.apiKeyMiddleware]);                                 // singleton
 server.registerWebSocket('/ws/game', () => ctx.createGameSession());    // transient
 ```
 

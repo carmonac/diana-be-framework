@@ -31,13 +31,41 @@ Future<Map<String, String>> dianaTestDeps() async => _cached ??= {
     };
 
 const Map<String, String> _fakeDianaRuntime = {
+  'grpc|lib/grpc.dart': '''
+export 'src/server/service.dart';
+''',
+  'grpc|lib/src/server/service.dart': '''
+abstract class Service {
+  String get \$name;
+}
+''',
   'diana|lib/diana.dart': '''
 export 'package:diana_annotation/diana_annotation.dart';
 
+export 'src/codec.dart';
 export 'src/http/request.dart';
 export 'src/http/response.dart';
 export 'src/middleware.dart';
+export 'src/sse.dart';
 export 'src/websocket.dart';
+''',
+  'diana|lib/src/codec.dart': '''
+abstract interface class BodyCodec {
+  List<String> get mimeTypes;
+  Object? decode(String body);
+  String encode(Object? value);
+}
+''',
+  'diana|lib/src/sse.dart': '''
+class ServerSentEvent {
+  final String data;
+  final String? id;
+  final String? event;
+  final int? retryMs;
+  const ServerSentEvent(this.data, {this.id, this.event, this.retryMs});
+  ServerSentEvent.json(Object? data, {this.id, this.event, this.retryMs})
+      : data = '';
+}
 ''',
   'diana|lib/src/websocket.dart': '''
 import 'dart:async';

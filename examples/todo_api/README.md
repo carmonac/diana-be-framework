@@ -2,8 +2,10 @@
 
 Complete example application for the [Diana framework](../../README.md):
 REST controllers, compile-time DI, global + route middleware, YAML/env
-configuration, DTO validation, `@ControllerAdvice` exception mapping,
-WebSocket chat rooms, and json_serializable interop.
+configuration with profiles, DTO validation, native `@Json` codecs and
+json_serializable interop, `@ControllerAdvice` exception mapping, WebSocket
+chat rooms with handshake auth, file uploads, lifecycle hooks,
+`@Scheduled` jobs, actuator endpoints and a generated OpenAPI spec.
 
 ```bash
 dart run build_runner build
@@ -28,6 +30,18 @@ WebSocket chat (rooms broadcast; try two terminals with
 
 ```bash
 wscat -c ws://localhost:8080/ws/chat/dart
+```
+
+More endpoints to try:
+
+```bash
+curl -X POST localhost:8080/uploads -F doc=@somefile.txt -F description=hi
+MANAGEMENT_ENABLED=true dart run bin/server.dart   # then:
+curl localhost:8080/actuator/health
+curl localhost:8080/actuator/info
+SERVER_OPENAPI_ENABLED=true dart run bin/server.dart
+curl localhost:8080/openapi.json
+DIANA_PROFILE=dev dart run bin/server.dart         # overlays application-dev.yaml
 ```
 
 Run the end-to-end tests with `dart test`.

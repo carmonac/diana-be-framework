@@ -3,6 +3,15 @@
 
 part of 'create_todo_request.dart';
 
+CreateTodoRequest $CreateTodoRequestFromJson(Map<String, dynamic> json) =>
+    CreateTodoRequest(
+      title: json['title'] as String,
+      priority: (json['priority'] as num?)?.toInt(),
+    );
+
+Map<String, dynamic> $CreateTodoRequestToJson(CreateTodoRequest value) =>
+    <String, dynamic>{'title': value.title, 'priority': value.priority};
+
 class $CreateTodoRequestValidator implements Validator<CreateTodoRequest> {
   const $CreateTodoRequestValidator();
 

@@ -25,10 +25,30 @@ Future<DianaResponse> $diana$TodoController$create(
   TodoController c,
   DianaRequest req,
 ) async {
-  final $a0 = CreateTodoRequest.fromJson(await decodeJsonMapBody(req));
+  final $a0$json = await decodeJsonMapBody(req);
+  final $a0 = decodeDto(() => $CreateTodoRequestFromJson($a0$json));
   const $CreateTodoRequestValidator().validate($a0).throwIfInvalid();
   final result = c.create($a0);
   return DianaResponse.json(result.toJson(), statusCode: 201);
+}
+
+Future<DianaResponse> $diana$TodoController$createFromXml(
+  TodoController c,
+  DianaRequest req,
+) async {
+  final $a0$json = await decodeMapBody(
+    req,
+    consumes: const ['application/xml'],
+  );
+  final $a0 = decodeDto(() => $CreateTodoRequestFromJson($a0$json));
+  const $CreateTodoRequestValidator().validate($a0).throwIfInvalid();
+  final result = c.createFromXml($a0);
+  return negotiatedResponse(
+    req,
+    result.toJson(),
+    produces: const ['application/xml', 'application/json'],
+    statusCode: 201,
+  );
 }
 
 Future<DianaResponse> $diana$TodoController$remove(

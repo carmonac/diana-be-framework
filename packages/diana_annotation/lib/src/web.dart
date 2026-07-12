@@ -106,3 +106,58 @@ class ResponseStatus {
   final int code;
   const ResponseStatus(this.code);
 }
+
+/// Restricts the request content types a route (or every route of a
+/// controller) accepts. The body is decoded with the matching registered
+/// `BodyCodec`; other content types get a 415. Method-level replaces
+/// controller-level entirely; without the annotation, JSON is used.
+@Target({TargetKind.classType, TargetKind.method})
+class Consumes {
+  final List<String> mimeTypes;
+  const Consumes(this.mimeTypes);
+}
+
+/// Declares the response content types a route (or controller) can produce.
+/// The response is encoded with the first type the request's `Accept`
+/// header allows (server preference order); nothing acceptable → 406.
+/// Method-level replaces controller-level; without the annotation, JSON.
+@Target({TargetKind.classType, TargetKind.method})
+class Produces {
+  final List<String> mimeTypes;
+  const Produces(this.mimeTypes);
+}
+
+/// Enables CORS for a controller (all routes) or a single route,
+/// **replacing** the global `server.cors.*` policy entirely (route wins
+/// over controller, controller over global — no field merging).
+///
+/// Diana registers the OPTIONS preflight route automatically.
+@Target({TargetKind.classType, TargetKind.method})
+class CrossOrigin {
+  /// Allowed origins; `['*']` allows any.
+  final List<String> origins;
+
+  /// Allowed methods for preflight; `null` = the methods registered on the
+  /// path.
+  final List<String>? methods;
+
+  /// Allowed request headers; `['*']` echoes the preflight request.
+  final List<String> headers;
+
+  /// Response headers exposed to browser scripts.
+  final List<String> exposedHeaders;
+
+  final bool credentials;
+
+  /// Preflight cache lifetime in seconds.
+  final int maxAge;
+
+  const CrossOrigin({
+    this.origins = const ['*'],
+    this.methods,
+    this.headers = const ['*'],
+    this.exposedHeaders = const [],
+    this.credentials = false,
+    this.maxAge = 3600,
+  });
+}

@@ -1,96 +1,74 @@
 # JSON serialization
 
-Diana does not impose a serialization library. It relies on the standard
-Dart convention and **verifies it at build time**:
+Diana gives you three interchangeable ways to serialize DTOs. Route
+adapters detect which one a class uses — at build time, with actionable
+errors.
 
-- A class received with `@Body()` must expose
-  `factory X.fromJson(Map<String, dynamic> json)` (a static `fromJson`
-  method also works).
-- A class returned from a route must expose
-  `Map<String, dynamic> toJson()` (inherited implementations count).
+## Option 1 — `@Json` (recommended: zero boilerplate)
 
-If either is missing, the build fails pointing at the exact route and
-telling you what to add.
-
-## Option 1 — hand-written
+Annotate the class; Diana generates the codec into the part file and route
+adapters use it automatically. No `fromJson`, no `toJson`:
 
 ```dart
+import 'package:diana/diana.dart';
+
+part 'create_todo_request.diana.dart';
+
+@Json()
 class CreateTodoRequest {
+  @NotBlank()                 // validation composes with @Json
   final String title;
+
+  @JsonField(name: 'prio')    // rename the JSON key
   final int? priority;
 
   const CreateTodoRequest({required this.title, this.priority});
-
-  factory CreateTodoRequest.fromJson(Map<String, dynamic> json) =>
-      CreateTodoRequest(
-        title: json['title'] as String? ?? '',
-        priority: json['priority'] as int?,
-      );
-
-  Map<String, dynamic> toJson() => {'title': title, 'priority': priority};
 }
 ```
 
-Full control, no extra dependency. Prefer lenient casts in `fromJson`
-(`as String? ?? ''`) and let [validation](validation.md) produce the
-user-facing errors.
+Supported field types: `String`, `int`, `double`, `bool`, `num`, `dynamic`,
+`DateTime` (ISO-8601), enums (by name), `List<T>` and `Map<String, T>` of
+supported types, nested `@Json` classes (codec-to-codec) or classes
+following the convention below — all optionally nullable. Anything else is
+a build error listing exactly this set.
 
-## Option 2 — json_serializable
+Rules: `part` directive required; public unnamed constructor whose
+parameters match field names. Bodies that don't match the DTO shape
+(wrong types, missing keys, unknown enum values) become **400s**, not 500s.
 
-Diana's part files use the `.diana.dart` suffix precisely so they coexist
-with json_serializable's `.g.dart`:
+Generated names: `$CreateTodoRequestFromJson` / `$CreateTodoRequestToJson`
+— public, callable manually if needed.
 
-```yaml
-dependencies:
-  json_annotation: ^4.9.0
-dev_dependencies:
-  json_serializable: ^6.9.0
-```
+## Option 2 — hand-written convention
 
 ```dart
-import 'package:json_annotation/json_annotation.dart';
-
-part 'todo_dto.g.dart';           // json_serializable
-// part 'todo_dto.diana.dart';    // add if the class also has constraints
-
-@JsonSerializable()
 class TodoDto {
   final int id;
-  final String title;
-  final bool done;
-
-  const TodoDto({required this.id, required this.title, this.done = false});
+  const TodoDto({required this.id});
 
   factory TodoDto.fromJson(Map<String, dynamic> json) =>
-      _$TodoDtoFromJson(json);
-
-  Map<String, dynamic> toJson() => _$TodoDtoToJson(this);
+      TodoDto(id: json['id'] as int);
+  Map<String, dynamic> toJson() => {'id': id};
 }
 ```
 
-One `dart run build_runner build` drives both generators. Mixing styles in
-one project is fine — the
-[todo_api example](../../examples/todo_api) does exactly that.
+Full control; verified at build time (`fromJson` needed for `@Body`,
+`toJson` for returns).
+
+## Option 3 — json_serializable
+
+Diana's `.diana.dart` part files coexist with json_serializable's
+`.g.dart`; one `build_runner` run drives both. The
+[todo_api example](../../examples/todo_api) keeps `TodoDto` on
+json_serializable precisely to prove the interop.
 
 ## What routes accept and return
 
-The exact table of supported `@Body` parameter types and route return
-types lives in the
-[controllers guide](controllers.md#request-bodies). Summary: DTOs,
-`List<Dto>`, `Map<String, dynamic>`, JSON primitives and `String`
-(text/plain), `void` (204) and raw `DianaResponse` — all optionally
-`Future`-wrapped.
+The full table of `@Body` parameter types (including `String` raw bodies
+and `FormData` uploads) and return types is in the
+[controllers guide](controllers.md#request-bodies).
 
 ## Manual JSON responses
 
-`DianaResponse.json(data)` encodes with `jsonEncode`, so anything
-`jsonEncode` accepts works: maps, lists, primitives, and objects whose
-`toJson()` it can call. Prefer passing `dto.toJson()` explicitly for
-compile-time safety.
-
-## Roadmap
-
-A Diana-native JSON generator (deriving `fromJson`/`toJson` from the
-constructor, like json_serializable but integrated with the validator
-generation) is planned post-MVP. The convention-based contract will keep
-working regardless.
+`DianaResponse.json(data)` encodes with `jsonEncode`. Prefer explicit
+`$XToJson(dto)` / `dto.toJson()` for compile-time safety.

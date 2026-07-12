@@ -138,6 +138,17 @@ class InjectableInfo {
   /// Prefix from `@ConfigurationProperties`.
   final String? configPrefix;
 
+  /// `@PostConstruct` method name, if any.
+  final String? postConstruct;
+  final bool postConstructAwaited;
+
+  /// `@PreDestroy` method name, if any.
+  final String? preDestroy;
+  final bool preDestroyAwaited;
+
+  /// `@Scheduled` methods of this provider.
+  final List<ScheduledMethodInfo> scheduled;
+
   const InjectableInfo({
     required this.type,
     required this.scope,
@@ -147,6 +158,11 @@ class InjectableInfo {
     this.ctorParams = const [],
     this.kind = ProviderKind.normal,
     this.configPrefix,
+    this.postConstruct,
+    this.postConstructAwaited = false,
+    this.preDestroy,
+    this.preDestroyAwaited = false,
+    this.scheduled = const [],
   });
 
   /// Unique key of this provider in the graph.
@@ -163,6 +179,12 @@ class InjectableInfo {
           'ctorParams': [for (final p in ctorParams) p.toJson()],
         if (kind != ProviderKind.normal) 'kind': kind.name,
         if (configPrefix != null) 'configPrefix': configPrefix,
+        if (postConstruct != null) 'postConstruct': postConstruct,
+        if (postConstructAwaited) 'postConstructAwaited': true,
+        if (preDestroy != null) 'preDestroy': preDestroy,
+        if (preDestroyAwaited) 'preDestroyAwaited': true,
+        if (scheduled.isNotEmpty)
+          'scheduled': [for (final t in scheduled) t.toJson()],
       };
 
   factory InjectableInfo.fromJson(Map<String, Object?> json) => InjectableInfo(
@@ -182,6 +204,244 @@ class InjectableInfo {
         ],
         kind: ProviderKind.values.byName(json['kind'] as String? ?? 'normal'),
         configPrefix: json['configPrefix'] as String?,
+        postConstruct: json['postConstruct'] as String?,
+        postConstructAwaited: json['postConstructAwaited'] as bool? ?? false,
+        preDestroy: json['preDestroy'] as String?,
+        preDestroyAwaited: json['preDestroyAwaited'] as bool? ?? false,
+        scheduled: [
+          for (final t in (json['scheduled'] as List<Object?>? ?? const []))
+            ScheduledMethodInfo.fromJson((t as Map).cast<String, Object?>()),
+        ],
+      );
+}
+
+/// One `@Scheduled` method of a provider.
+class ScheduledMethodInfo {
+  final String methodName;
+  final int? fixedRateMs;
+  final int? fixedDelayMs;
+  final int initialDelayMs;
+
+  const ScheduledMethodInfo({
+    required this.methodName,
+    this.fixedRateMs,
+    this.fixedDelayMs,
+    this.initialDelayMs = 0,
+  });
+
+  Map<String, Object?> toJson() => {
+        'method': methodName,
+        if (fixedRateMs != null) 'fixedRate': fixedRateMs,
+        if (fixedDelayMs != null) 'fixedDelay': fixedDelayMs,
+        if (initialDelayMs != 0) 'initialDelay': initialDelayMs,
+      };
+
+  factory ScheduledMethodInfo.fromJson(Map<String, Object?> json) =>
+      ScheduledMethodInfo(
+        methodName: json['method'] as String,
+        fixedRateMs: json['fixedRate'] as int?,
+        fixedDelayMs: json['fixedDelay'] as int?,
+        initialDelayMs: json['initialDelay'] as int? ?? 0,
+      );
+}
+
+/// A `@CrossOrigin` policy on a controller or route.
+class CorsInfo {
+  final List<String> origins;
+  final List<String>? methods;
+  final List<String> headers;
+  final List<String> exposedHeaders;
+  final bool credentials;
+  final int maxAge;
+
+  const CorsInfo({
+    this.origins = const ['*'],
+    this.methods,
+    this.headers = const ['*'],
+    this.exposedHeaders = const [],
+    this.credentials = false,
+    this.maxAge = 3600,
+  });
+
+  Map<String, Object?> toJson() => {
+        'origins': origins,
+        if (methods != null) 'methods': methods,
+        'headers': headers,
+        if (exposedHeaders.isNotEmpty) 'exposedHeaders': exposedHeaders,
+        if (credentials) 'credentials': true,
+        'maxAge': maxAge,
+      };
+
+  factory CorsInfo.fromJson(Map<String, Object?> json) => CorsInfo(
+        origins: (json['origins'] as List).cast<String>(),
+        methods: (json['methods'] as List?)?.cast<String>(),
+        headers: (json['headers'] as List).cast<String>(),
+        exposedHeaders:
+            (json['exposedHeaders'] as List?)?.cast<String>() ?? const [],
+        credentials: json['credentials'] as bool? ?? false,
+        maxAge: json['maxAge'] as int,
+      );
+}
+
+
+/// One bindable parameter of a route, for OpenAPI generation.
+class RouteParamApi {
+  /// `path`, `query` or `header`.
+  final String kind;
+  final String name;
+  final TypeRef type;
+  final bool required;
+  final String? defaultValue;
+
+  const RouteParamApi({
+    required this.kind,
+    required this.name,
+    required this.type,
+    required this.required,
+    this.defaultValue,
+  });
+
+  Map<String, Object?> toJson() => {
+        'kind': kind,
+        'name': name,
+        'type': type.toJson(),
+        if (required) 'required': true,
+        if (defaultValue != null) 'default': defaultValue,
+      };
+
+  factory RouteParamApi.fromJson(Map<String, Object?> json) => RouteParamApi(
+        kind: json['kind'] as String,
+        name: json['name'] as String,
+        type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
+        required: json['required'] as bool? ?? false,
+        defaultValue: json['default'] as String?,
+      );
+}
+
+/// API surface of one route (parameters, body, response) for OpenAPI.
+class RouteApi {
+  final List<RouteParamApi> params;
+
+  /// `dto`, `dtoList`, `map`, `list`, `text` or `form`; null = no body.
+  final String? bodyShape;
+  final TypeRef? bodyType;
+
+  /// `dto`, `dtoList`, `raw`, `text`, `void` or `response`.
+  final String returnShape;
+  final TypeRef? returnType;
+  final int? status;
+
+  /// From `@Consumes`; null = JSON default.
+  final List<String>? consumes;
+
+  /// From `@Produces`; null = JSON default.
+  final List<String>? produces;
+
+  const RouteApi({
+    this.params = const [],
+    this.bodyShape,
+    this.bodyType,
+    required this.returnShape,
+    this.returnType,
+    this.status,
+    this.consumes,
+    this.produces,
+  });
+
+  Map<String, Object?> toJson() => {
+        if (params.isNotEmpty) 'params': [for (final p in params) p.toJson()],
+        if (bodyShape != null) 'bodyShape': bodyShape,
+        if (bodyType != null) 'bodyType': bodyType!.toJson(),
+        'returnShape': returnShape,
+        if (returnType != null) 'returnType': returnType!.toJson(),
+        if (status != null) 'status': status,
+        if (consumes != null) 'consumes': consumes,
+        if (produces != null) 'produces': produces,
+      };
+
+  factory RouteApi.fromJson(Map<String, Object?> json) => RouteApi(
+        params: [
+          for (final p in (json['params'] as List<Object?>? ?? const []))
+            RouteParamApi.fromJson((p as Map).cast<String, Object?>()),
+        ],
+        bodyShape: json['bodyShape'] as String?,
+        bodyType: json['bodyType'] == null
+            ? null
+            : TypeRef.fromJson(
+                (json['bodyType'] as Map).cast<String, Object?>()),
+        returnShape: json['returnShape'] as String,
+        returnType: json['returnType'] == null
+            ? null
+            : TypeRef.fromJson(
+                (json['returnType'] as Map).cast<String, Object?>()),
+        status: json['status'] as int?,
+        consumes: (json['consumes'] as List?)?.cast<String>(),
+        produces: (json['produces'] as List?)?.cast<String>(),
+      );
+}
+
+/// A DTO field, with JSON name and validation constraints, for OpenAPI
+/// schema generation.
+class DtoFieldInfo {
+  final String name;
+  final String jsonName;
+  final TypeRef type;
+  final bool nullable;
+
+  /// Enum constant names when the field type is an enum.
+  final List<String>? enumValues;
+
+  /// Validation constraints (keys: minLength, maxLength, min, max, pattern,
+  /// email, notBlank, notEmpty).
+  final Map<String, Object?> constraints;
+
+  const DtoFieldInfo({
+    required this.name,
+    required this.jsonName,
+    required this.type,
+    required this.nullable,
+    this.enumValues,
+    this.constraints = const {},
+  });
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        if (jsonName != name) 'jsonName': jsonName,
+        'type': type.toJson(),
+        if (nullable) 'nullable': true,
+        if (enumValues != null) 'enumValues': enumValues,
+        if (constraints.isNotEmpty) 'constraints': constraints,
+      };
+
+  factory DtoFieldInfo.fromJson(Map<String, Object?> json) => DtoFieldInfo(
+        name: json['name'] as String,
+        jsonName: json['jsonName'] as String? ?? json['name'] as String,
+        type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
+        nullable: json['nullable'] as bool? ?? false,
+        enumValues: (json['enumValues'] as List?)?.cast<String>(),
+        constraints:
+            (json['constraints'] as Map?)?.cast<String, Object?>() ?? const {},
+      );
+}
+
+/// A DTO exposed in the API (a `@Json` class or a validated class).
+class DtoInfo {
+  final TypeRef type;
+  final List<DtoFieldInfo> fields;
+
+  const DtoInfo({required this.type, this.fields = const []});
+
+  Map<String, Object?> toJson() => {
+        'type': type.toJson(),
+        'fields': [for (final f in fields) f.toJson()],
+      };
+
+  factory DtoInfo.fromJson(Map<String, Object?> json) => DtoInfo(
+        type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
+        fields: [
+          for (final f in (json['fields'] as List<Object?>? ?? const []))
+            DtoFieldInfo.fromJson((f as Map).cast<String, Object?>()),
+        ],
       );
 }
 
@@ -197,6 +457,10 @@ class RouteInfo {
   /// file.
   final String adapterName;
   final List<TypeRef> middleware;
+  final CorsInfo? cors;
+
+  /// API surface for OpenAPI generation.
+  final RouteApi? api;
 
   const RouteInfo({
     required this.httpMethod,
@@ -204,6 +468,8 @@ class RouteInfo {
     required this.methodName,
     required this.adapterName,
     this.middleware = const [],
+    this.cors,
+    this.api,
   });
 
   Map<String, Object?> toJson() => {
@@ -213,6 +479,8 @@ class RouteInfo {
         'adapter': adapterName,
         if (middleware.isNotEmpty)
           'middleware': [for (final t in middleware) t.toJson()],
+        if (cors != null) 'cors': cors!.toJson(),
+        if (api != null) 'api': api!.toJson(),
       };
 
   factory RouteInfo.fromJson(Map<String, Object?> json) => RouteInfo(
@@ -224,6 +492,12 @@ class RouteInfo {
           for (final t in (json['middleware'] as List<Object?>? ?? const []))
             TypeRef.fromJson((t as Map).cast<String, Object?>()),
         ],
+        cors: json['cors'] == null
+            ? null
+            : CorsInfo.fromJson((json['cors'] as Map).cast<String, Object?>()),
+        api: json['api'] == null
+            ? null
+            : RouteApi.fromJson((json['api'] as Map).cast<String, Object?>()),
       );
 }
 
@@ -233,12 +507,14 @@ class ControllerInfo {
   final String basePath;
   final List<TypeRef> middleware;
   final List<RouteInfo> routes;
+  final CorsInfo? cors;
 
   const ControllerInfo({
     required this.type,
     required this.basePath,
     this.middleware = const [],
     this.routes = const [],
+    this.cors,
   });
 
   Map<String, Object?> toJson() => {
@@ -247,6 +523,7 @@ class ControllerInfo {
         if (middleware.isNotEmpty)
           'middleware': [for (final t in middleware) t.toJson()],
         'routes': [for (final r in routes) r.toJson()],
+        if (cors != null) 'cors': cors!.toJson(),
       };
 
   factory ControllerInfo.fromJson(Map<String, Object?> json) => ControllerInfo(
@@ -260,6 +537,23 @@ class ControllerInfo {
           for (final r in (json['routes'] as List<Object?>? ?? const []))
             RouteInfo.fromJson((r as Map).cast<String, Object?>()),
         ],
+        cors: json['cors'] == null
+            ? null
+            : CorsInfo.fromJson((json['cors'] as Map).cast<String, Object?>()),
+      );
+}
+
+/// A `@GrpcService` class.
+class GrpcServiceInfo {
+  final TypeRef type;
+
+  const GrpcServiceInfo({required this.type});
+
+  Map<String, Object?> toJson() => {'type': type.toJson()};
+
+  factory GrpcServiceInfo.fromJson(Map<String, Object?> json) =>
+      GrpcServiceInfo(
+        type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
       );
 }
 
@@ -268,13 +562,29 @@ class WebSocketInfo {
   final TypeRef type;
   final String path;
 
-  const WebSocketInfo({required this.type, required this.path});
+  /// Handshake interceptors from `@UseMiddleware` on the class.
+  final List<TypeRef> middleware;
 
-  Map<String, Object?> toJson() => {'type': type.toJson(), 'path': path};
+  const WebSocketInfo({
+    required this.type,
+    required this.path,
+    this.middleware = const [],
+  });
+
+  Map<String, Object?> toJson() => {
+        'type': type.toJson(),
+        'path': path,
+        if (middleware.isNotEmpty)
+          'middleware': [for (final t in middleware) t.toJson()],
+      };
 
   factory WebSocketInfo.fromJson(Map<String, Object?> json) => WebSocketInfo(
         type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
         path: json['path'] as String,
+        middleware: [
+          for (final t in (json['middleware'] as List<Object?>? ?? const []))
+            TypeRef.fromJson((t as Map).cast<String, Object?>()),
+        ],
       );
 }
 
@@ -372,7 +682,9 @@ class LibrarySummary {
   final String libraryUri;
   final List<InjectableInfo> injectables;
   final List<ControllerInfo> controllers;
+  final List<DtoInfo> dtos;
   final List<WebSocketInfo> webSockets;
+  final List<GrpcServiceInfo> grpcServices;
   final List<GlobalMiddlewareInfo> globalMiddleware;
   final List<AdviceInfo> advices;
   final AppInfo? app;
@@ -381,7 +693,9 @@ class LibrarySummary {
     required this.libraryUri,
     this.injectables = const [],
     this.controllers = const [],
+    this.dtos = const [],
     this.webSockets = const [],
+    this.grpcServices = const [],
     this.globalMiddleware = const [],
     this.advices = const [],
     this.app,
@@ -390,7 +704,9 @@ class LibrarySummary {
   bool get isEmpty =>
       injectables.isEmpty &&
       controllers.isEmpty &&
+      dtos.isEmpty &&
       webSockets.isEmpty &&
+      grpcServices.isEmpty &&
       globalMiddleware.isEmpty &&
       advices.isEmpty &&
       app == null;
@@ -401,8 +717,11 @@ class LibrarySummary {
           'injectables': [for (final i in injectables) i.toJson()],
         if (controllers.isNotEmpty)
           'controllers': [for (final c in controllers) c.toJson()],
+        if (dtos.isNotEmpty) 'dtos': [for (final d in dtos) d.toJson()],
         if (webSockets.isNotEmpty)
           'webSockets': [for (final w in webSockets) w.toJson()],
+        if (grpcServices.isNotEmpty)
+          'grpcServices': [for (final g in grpcServices) g.toJson()],
         if (globalMiddleware.isNotEmpty)
           'globalMiddleware': [for (final m in globalMiddleware) m.toJson()],
         if (advices.isNotEmpty)
@@ -420,9 +739,18 @@ class LibrarySummary {
           for (final c in (json['controllers'] as List<Object?>? ?? const []))
             ControllerInfo.fromJson((c as Map).cast<String, Object?>()),
         ],
+        dtos: [
+          for (final d in (json['dtos'] as List<Object?>? ?? const []))
+            DtoInfo.fromJson((d as Map).cast<String, Object?>()),
+        ],
         webSockets: [
           for (final w in (json['webSockets'] as List<Object?>? ?? const []))
             WebSocketInfo.fromJson((w as Map).cast<String, Object?>()),
+        ],
+        grpcServices: [
+          for (final g
+              in (json['grpcServices'] as List<Object?>? ?? const []))
+            GrpcServiceInfo.fromJson((g as Map).cast<String, Object?>()),
         ],
         globalMiddleware: [
           for (final m

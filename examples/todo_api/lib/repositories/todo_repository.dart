@@ -16,6 +16,21 @@ class InMemoryTodoRepository implements TodoRepository {
   };
   int _nextId = 2;
 
+  /// Set by [warmUp] — demonstrates `@PostConstruct` running during
+  /// application initialization, before the server accepts traffic.
+  bool warmedUp = false;
+  bool shutDown = false;
+
+  @PostConstruct()
+  Future<void> warmUp() async {
+    warmedUp = true;
+  }
+
+  @PreDestroy()
+  void shutdown() {
+    shutDown = true;
+  }
+
   @override
   List<TodoDto> findAll({int limit = 20}) =>
       _todos.values.take(limit).toList();

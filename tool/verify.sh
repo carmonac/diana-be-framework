@@ -7,19 +7,36 @@ cd "$(dirname "$0")/.."
 echo "==> dart pub get"
 dart pub get
 
-echo "==> build_runner build (examples/todo_api)"
-(cd examples/todo_api && dart run build_runner build)
+for example in todo_api greeter_grpc; do
+  echo "==> build_runner build (examples/$example)"
+  (cd "examples/$example" && dart run build_runner build)
+done
 
 echo "==> dart analyze"
 dart analyze --fatal-infos
 
-echo "==> tests: packages/diana"
-(cd packages/diana && dart test)
+for package in diana diana_generator diana_grpc; do
+  echo "==> tests: packages/$package"
+  (cd "packages/$package" && dart test)
+done
 
-echo "==> tests: packages/diana_generator"
-(cd packages/diana_generator && dart test)
+for example in todo_api greeter_grpc; do
+  echo "==> tests: examples/$example"
+  (cd "examples/$example" && dart test)
+done
 
-echo "==> tests: examples/todo_api"
-(cd examples/todo_api && dart test)
+for example in todo_api greeter_grpc; do
+  echo "==> determinism: examples/$example rebuild must be byte-identical"
+  (
+    cd "examples/$example"
+    find lib \( -name "*.diana*.dart" -o -name "*.g.dart" \) | sort \
+      | xargs shasum > "/tmp/diana_determinism_${example}_1"
+    find lib \( -name "*.diana*.dart" -o -name "*.g.dart" \) -delete
+    dart run build_runner build > /dev/null
+    find lib \( -name "*.diana*.dart" -o -name "*.g.dart" \) | sort \
+      | xargs shasum > "/tmp/diana_determinism_${example}_2"
+    diff "/tmp/diana_determinism_${example}_1" "/tmp/diana_determinism_${example}_2"
+  )
+done
 
 echo "==> OK"

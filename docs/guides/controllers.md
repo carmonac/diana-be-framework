@@ -111,6 +111,7 @@ Body handling is strict and automatic:
 | `String` | `200`, `text/plain` |
 | `void` | **204 No Content** |
 | `DianaResponse` | passed through unchanged (full control) |
+| `Stream<ServerSentEvent>` / `Stream<Dto>` | `200`, `text/event-stream` — see [Server-Sent Events](server-sent-events.md) |
 | `Future<...>` of any of the above | awaited, then as above |
 
 - `@ResponseStatus(code)` overrides the success status (`201` for a POST,
@@ -120,6 +121,9 @@ Body handling is strict and automatic:
   body with the success status.
 - Returning a type with neither `toJson()` nor JSON-primitive shape is a
   build error that tells you what to add.
+- Bodies and responses default to JSON; routes opt into other formats
+  (XML, custom codecs) with `@Consumes`/`@Produces` — see
+  [Content negotiation](content-negotiation.md).
 
 ## Errors thrown from handlers
 

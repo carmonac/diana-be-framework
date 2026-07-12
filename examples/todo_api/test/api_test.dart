@@ -164,6 +164,23 @@ void main() {
     expect(body, {'name': 'todo_api', 'version': '1.0.0'});
   });
 
+  test('@CrossOrigin enables CORS + automatic preflight on /info', () async {
+    final client = HttpClient();
+    try {
+      final preflight = await client.openUrl(
+          'OPTIONS', Uri.parse('http://127.0.0.1:$port/info'));
+      preflight.headers.set('origin', 'https://dashboard.example');
+      preflight.headers.set('access-control-request-method', 'GET');
+      final res = await preflight.close();
+      expect(res.statusCode, 204);
+      expect(res.headers.value('access-control-allow-origin'),
+          'https://dashboard.example');
+      await res.drain<void>();
+    } finally {
+      client.close();
+    }
+  });
+
   test('global middleware stamps every response', () async {
     final client = HttpClient();
     try {

@@ -1,6 +1,24 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
+import '../codec.dart';
 import 'method.dart';
+
+/// Per-request limits, configured on the server and consulted by binding
+/// helpers (generated code never touches configuration).
+class DianaRequestLimits {
+  /// Maximum accepted multipart body size in bytes.
+  final int multipartMaxBytes;
+
+  /// SSE keep-alive comment interval in seconds (0 disables).
+  final int sseHeartbeatSeconds;
+
+  const DianaRequestLimits({
+    this.multipartMaxBytes = 10 * 1024 * 1024,
+    this.sseHeartbeatSeconds = 15,
+  });
+}
 
 /// Diana's view of an incoming HTTP request.
 ///
@@ -19,8 +37,15 @@ class DianaRequest {
   /// Request-scoped attribute bag for middleware → handler communication.
   final Map<String, Object?> attributes = {};
 
+  /// Limits enforced by binding helpers (multipart size, ...).
+  final DianaRequestLimits limits;
+
+  /// Body codecs available to this request (JSON always included).
+  final BodyCodecRegistry codecs;
+
   final Map<String, List<String>> _headers;
   final Future<String> Function() _bodyReader;
+  final Stream<Uint8List> Function()? _bytesReader;
   Future<String>? _cachedBody;
 
   DianaRequest({
@@ -29,10 +54,14 @@ class DianaRequest {
     this.pathParameters = const {},
     Map<String, List<String>> headers = const {},
     Future<String> Function()? bodyReader,
+    Stream<Uint8List> Function()? bytesReader,
+    this.limits = const DianaRequestLimits(),
+    this.codecs = const BodyCodecRegistry(),
   })  : _headers = {
           for (final e in headers.entries) e.key.toLowerCase(): e.value,
         },
-        _bodyReader = bodyReader ?? (() async => '');
+        _bodyReader = bodyReader ?? (() async => ''),
+        _bytesReader = bytesReader;
 
   /// Path component of the request, always starting with `/`.
   String get path => uri.path.isEmpty ? '/' : uri.path;
@@ -56,4 +85,16 @@ class DianaRequest {
   /// Reads the request body as a string. Subsequent calls return the cached
   /// result, so middleware and parameter binding can both read it.
   Future<String> readBodyAsString() => _cachedBody ??= _bodyReader();
+
+  /// Reads the request body as a byte stream (single subscription — used by
+  /// multipart decoding; prefer [readBodyAsString] for text).
+  Stream<Uint8List> readBodyAsBytes() {
+    final reader = _bytesReader;
+    if (reader != null) return reader();
+    // Fall back to the string reader (tests constructing DianaRequest
+    // directly usually provide only bodyReader).
+    return Stream.fromFuture(
+      readBodyAsString().then((s) => Uint8List.fromList(utf8.encode(s))),
+    );
+  }
 }

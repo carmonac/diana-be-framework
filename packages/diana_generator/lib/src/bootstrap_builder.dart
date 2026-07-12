@@ -10,6 +10,7 @@ import 'common.dart';
 import 'emit/context_emitter.dart';
 import 'graph/di_graph.dart';
 import 'model/summary.dart';
+import 'openapi/openapi_builder.dart';
 import 'readers/library_reader.dart';
 
 /// Aggregating builder. Runs on the library annotated with
@@ -75,6 +76,9 @@ class DianaBootstrapBuilder implements Builder {
     if (result.graph != null) {
       errors.addAll(_checkMiddlewareRefs(result.graph!, summaries));
       errors.addAll(_checkWebSockets(result.graph!, summaries));
+      errors.addAll(_checkHealthIndicators(result.graph!));
+      errors.addAll(_checkBodyCodecs(result.graph!));
+      errors.addAll(_checkGrpcServices(result.graph!, summaries));
     }
     if (errors.isNotEmpty) {
       log.severe(
@@ -130,6 +134,12 @@ class DianaBootstrapBuilder implements Builder {
     for (final summary in summaries) {
       for (final mw in summary.globalMiddleware) {
         check(mw.type, '@GlobalMiddleware');
+      }
+      for (final ws in summary.webSockets) {
+        for (final mw in ws.middleware) {
+          check(mw, '@UseMiddleware on @WebSocketController '
+              '${ws.type.displayName}');
+        }
       }
       for (final controller in summary.controllers) {
         for (final mw in controller.middleware) {
@@ -188,6 +198,93 @@ class DianaBootstrapBuilder implements Builder {
     return errors;
   }
 
+  /// `HealthIndicator` implementations must be singletons (the aggregated
+  /// endpoint holds direct references).
+  List<String> _checkHealthIndicators(DiGraph graph) {
+    final errors = <String>[];
+    for (final provider in graph.ordered) {
+      final implementsIndicator = provider.info.supertypes.any(
+        (s) =>
+            s.name == 'HealthIndicator' &&
+            s.libraryUri.startsWith('package:diana/'),
+      );
+      if (implementsIndicator &&
+          (provider.scope != 'singleton' || provider.needsRequestScope)) {
+        errors.add(
+          '${provider.info.type.displayName} implements HealthIndicator but '
+          'is ${provider.scope}-scoped; health indicators must be '
+          'singletons.',
+        );
+      }
+    }
+    return errors;
+  }
+
+  /// `BodyCodec` implementations must be singletons (the registry holds
+  /// direct references).
+  List<String> _checkBodyCodecs(DiGraph graph) {
+    final errors = <String>[];
+    for (final provider in graph.ordered) {
+      final implementsCodec = provider.info.supertypes.any(
+        (s) =>
+            s.name == 'BodyCodec' &&
+            s.libraryUri.startsWith('package:diana/'),
+      );
+      if (implementsCodec &&
+          (provider.scope != 'singleton' || provider.needsRequestScope)) {
+        errors.add(
+          '${provider.info.type.displayName} implements BodyCodec but is '
+          '${provider.scope}-scoped; body codecs must be singletons.',
+        );
+      }
+    }
+    return errors;
+  }
+
+  /// `@GrpcService` classes must extend package:grpc's `Service` (via a
+  /// protoc-generated `XServiceBase`).
+  List<String> _checkGrpcServices(
+    DiGraph graph,
+    List<LibrarySummary> summaries,
+  ) {
+    final errors = <String>[];
+    for (final summary in summaries) {
+      for (final service in summary.grpcServices) {
+        final provider = graph.byKey['${service.type.key}|'];
+        final extendsService = provider != null &&
+            provider.info.supertypes.any(
+              (s) =>
+                  s.name == 'Service' &&
+                  s.libraryUri.startsWith('package:grpc/'),
+            );
+        if (!extendsService) {
+          errors.add(
+            '@GrpcService class ${service.type.displayName} does not extend '
+            'a grpc service base class. Extend your protoc-generated '
+            'XServiceBase (package:grpc Service).',
+          );
+        }
+      }
+    }
+    return errors;
+  }
+
+  Expression _corsPolicyExpr(CorsInfo cors) =>
+      refer('CorsPolicy', dianaLib).newInstance([], {
+        'allowedOrigins':
+            literalList([for (final o in cors.origins) literalString(o)]),
+        if (cors.methods != null)
+          'allowedMethods':
+              literalList([for (final m in cors.methods!) literalString(m)]),
+        'allowedHeaders':
+            literalList([for (final h in cors.headers) literalString(h)]),
+        if (cors.exposedHeaders.isNotEmpty)
+          'exposedHeaders': literalList(
+              [for (final h in cors.exposedHeaders) literalString(h)]),
+        if (cors.credentials) 'allowCredentials': literalBool(true),
+        'maxAgeSeconds': literalNum(cors.maxAge),
+      });
+
   String _emitLibrary(
     DiGraph graph,
     List<LibrarySummary> summaries,
@@ -204,14 +301,21 @@ class DianaBootstrapBuilder implements Builder {
         ..url = dianaLib
         ..isNullable = true));
 
+    final overridesParam = Parameter((p) => p
+      ..name = 'overrides'
+      ..named = true
+      ..type = refer('DianaOverrides')
+      ..defaultTo = const Code('const DianaOverrides()'));
+
     final buildContextFn = Method((m) => m
       ..name = 'buildDianaContext'
       ..returns = refer('DianaContext')
-      ..optionalParameters.add(nullableConfigParam)
+      ..optionalParameters.addAll([nullableConfigParam, overridesParam])
       ..lambda = true
       ..body = refer('DianaContext').newInstance([
         refer('config')
             .ifNullThen(dianaConfigRef.constInstanceNamed('empty', const [])),
+        refer('overrides'),
       ]).code);
 
     // Global middleware sorted by (order, type name) for determinism.
@@ -228,6 +332,15 @@ class DianaBootstrapBuilder implements Builder {
 
     Expression providerAccess(TypeRef type) =>
         names.access('${type.key}|', ctx: refer('ctx'));
+
+    // Body codecs discovered through the DI graph (sorted for determinism).
+    final bodyCodecProviders = [
+      for (final provider in graph.ordered)
+        if (provider.info.supertypes.any((s) =>
+            s.name == 'BodyCodec' &&
+            s.libraryUri.startsWith('package:diana/')))
+          provider,
+    ];
 
     // Exception handlers across all advices, most specific exception type
     // first (ties broken by advice type then declaration order).
@@ -289,7 +402,8 @@ class DianaBootstrapBuilder implements Builder {
               .call([literalString(app.configFile)]).awaited))
           .statement,
       declareFinal('ctx')
-          .assign(refer('DianaContext').newInstance([refer('cfg')]))
+          .assign(refer('DianaContext')
+              .newInstance([refer('cfg'), refer('overrides')]))
           .statement,
       declareFinal('server')
           .assign(refer('DianaServer', dianaLib).newInstance([], {
@@ -297,6 +411,11 @@ class DianaBootstrapBuilder implements Builder {
             if (globalMiddleware.isNotEmpty)
               'globalMiddleware': literalList([
                 for (final mw in globalMiddleware) providerAccess(mw.type),
+              ]),
+            if (bodyCodecProviders.isNotEmpty)
+              'bodyCodecs': literalList([
+                for (final codec in bodyCodecProviders)
+                  refer('ctx').property(names.fields[codec.key]!),
               ]),
             if (mapExceptionFn != null)
               'exceptionMapper': Method((m) => m
@@ -342,6 +461,7 @@ class DianaBootstrapBuilder implements Builder {
         }).closure;
 
         final routeMiddleware = [...controller.middleware, ...route.middleware];
+        final cors = route.cors ?? controller.cors;
         serverStatements.add(refer('server').property('register').call(
           [
             refer('HttpMethod', dianaLib)
@@ -354,10 +474,67 @@ class DianaBootstrapBuilder implements Builder {
               'middleware': literalList([
                 for (final mw in routeMiddleware) providerAccess(mw),
               ]),
+            if (cors != null) 'cors': _corsPolicyExpr(cors),
           },
         ).statement);
       }
     }
+    // Actuator endpoints, guarded at runtime by management.enabled.
+    final healthIndicators = <ResolvedProvider>[];
+    for (final provider in graph.ordered) {
+      final implementsIndicator = provider.info.supertypes.any(
+        (s) =>
+            s.name == 'HealthIndicator' &&
+            s.libraryUri.startsWith('package:diana/'),
+      );
+      if (implementsIndicator) healthIndicators.add(provider);
+    }
+    serverStatements.add(Code.scope((allocate) {
+      final httpMethod = allocate(refer('HttpMethod', dianaLib));
+      final healthHandler =
+          allocate(refer('healthEndpointHandler', dianaLib));
+      final infoHandler = allocate(refer('infoEndpointHandler', dianaLib));
+      final indicators = healthIndicators
+          .map((p) => 'ctx.${names.fields[p.key]!}')
+          .join(', ');
+      return '''
+if (cfg.get<bool>('management.enabled', defaultValue: false)) {
+  server.register(
+    $httpMethod.get,
+    '/actuator/health',
+    $healthHandler([$indicators]),
+  );
+  server.register(
+    $httpMethod.get,
+    '/actuator/info',
+    $infoHandler(cfg),
+  );
+}
+''';
+    }));
+
+    // OpenAPI: served at GET /openapi.json when server.openapi.enabled.
+    serverStatements.add(Code.scope((allocate) {
+      final httpMethod =
+          allocate(refer('HttpMethod', dianaLib));
+      final dianaResponse = allocate(refer('DianaResponse', dianaLib));
+      final patch = allocate(refer('patchOpenApiInfo', dianaLib));
+      return '''
+if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
+  final openApiBody = $patch(dianaOpenApiJson, cfg);
+  server.register(
+    $httpMethod.get,
+    '/openapi.json',
+    (req) => $dianaResponse(
+      statusCode: 200,
+      bodyText: openApiBody,
+      mimeType: 'application/json',
+    ),
+  );
+}
+''';
+    }));
+
     // WebSocket endpoints, sorted by path for deterministic output.
     final webSockets = [for (final s in summaries) ...s.webSockets]
       ..sort((a, b) => a.path.compareTo(b.path));
@@ -365,40 +542,243 @@ class DianaBootstrapBuilder implements Builder {
       final factory = Method((m) => m
         ..lambda = true
         ..body = names.access('${ws.type.key}|', ctx: refer('ctx')).code).closure;
-      serverStatements.add(refer('server')
-          .property('registerWebSocket')
-          .call([literalString(ws.path), factory]).statement);
+      serverStatements.add(refer('server').property('registerWebSocket').call(
+        [literalString(ws.path), factory],
+        {
+          if (ws.middleware.isNotEmpty)
+            'middleware': literalList([
+              for (final mw in ws.middleware) providerAccess(mw),
+            ]),
+        },
+      ).statement);
     }
 
-    serverStatements.add(refer('server').returned.statement);
+    // gRPC services (sorted for determinism); referenced by URL string so
+    // the generator itself never depends on diana_grpc.
+    const dianaGrpcLib = 'package:diana_grpc/diana_grpc.dart';
+    final grpcServices = [for (final s in summaries) ...s.grpcServices]
+      ..sort((a, b) => a.type.key.compareTo(b.type.key));
+
+    if (grpcServices.isNotEmpty) {
+      serverStatements.add(declareFinal('grpcServer')
+          .assign(refer('DianaGrpcServer', dianaGrpcLib).newInstance([
+            refer('cfg')
+          ], {
+            'services': literalList([
+              for (final service in grpcServices)
+                refer('ctx').property(
+                    names.fields['${service.type.key}|']!),
+            ]),
+          }))
+          .statement);
+    }
+
+    serverStatements.add(refer('DianaApp')
+        .newInstance([
+          refer('ctx'),
+          refer('server'),
+          if (grpcServices.isNotEmpty) refer('grpcServer'),
+        ])
+        .returned
+        .statement);
+
+    // Scheduled tasks across all singleton providers.
+    final scheduledEntries = <({String field, ScheduledMethodInfo task})>[];
+    for (final provider in graph.ordered) {
+      for (final task in provider.info.scheduled) {
+        scheduledEntries.add((field: names.fields[provider.key]!, task: task));
+      }
+    }
+
+    final appClass = Class((c) {
+      c
+        ..name = 'DianaApp'
+        ..docs.add('/// The assembled application: context, server and '
+            'lifecycle entrypoints.')
+        ..fields.addAll([
+          Field((f) => f
+            ..name = 'context'
+            ..modifier = FieldModifier.final$
+            ..type = refer('DianaContext')),
+          Field((f) => f
+            ..name = 'server'
+            ..modifier = FieldModifier.final$
+            ..type = refer('DianaServer', dianaLib)),
+          if (grpcServices.isNotEmpty)
+            Field((f) => f
+              ..name = 'grpcServer'
+              ..modifier = FieldModifier.final$
+              ..type = refer('DianaGrpcServer', dianaGrpcLib)),
+        ])
+        ..constructors
+            .add(Constructor((ctor) => ctor.requiredParameters.addAll([
+                  Parameter((p) => p
+                    ..name = 'context'
+                    ..toThis = true),
+                  Parameter((p) => p
+                    ..name = 'server'
+                    ..toThis = true),
+                  if (grpcServices.isNotEmpty)
+                    Parameter((p) => p
+                      ..name = 'grpcServer'
+                      ..toThis = true),
+                ])));
+      if (scheduledEntries.isEmpty && grpcServices.isEmpty) {
+        c.methods.addAll([
+          Method((m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..lambda = true
+            ..body =
+                refer('context').property('initialize').call(const []).code),
+          Method((m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>')
+            ..lambda = true
+            ..body = refer('context').property('dispose').call(const []).code),
+        ]);
+      } else {
+        if (scheduledEntries.isNotEmpty) {
+          c.fields.add(Field((f) => f
+            ..name = 'scheduler'
+            ..late = true
+            ..modifier = FieldModifier.final$
+            ..type = refer('DianaScheduler', dianaLib)
+            ..assignment = Code.scope((allocate) {
+              final scheduler = allocate(refer('DianaScheduler', dianaLib));
+              final buffer = StringBuffer('$scheduler()');
+              for (final entry in scheduledEntries) {
+                final task = entry.task;
+                buffer.write('\n    ..schedule(task: () async => '
+                    'context.${entry.field}.${task.methodName}(), ');
+                if (task.fixedRateMs != null) {
+                  buffer.write('fixedRateMs: ${task.fixedRateMs}');
+                } else {
+                  buffer.write('fixedDelayMs: ${task.fixedDelayMs}');
+                }
+                if (task.initialDelayMs != 0) {
+                  buffer.write(', initialDelayMs: ${task.initialDelayMs}');
+                }
+                buffer.write(')');
+              }
+              return buffer.toString();
+            })));
+        }
+        c.methods.addAll([
+          Method((m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..body = Block.of([
+              refer('context')
+                  .property('initialize')
+                  .call(const [])
+                  .awaited
+                  .statement,
+              if (scheduledEntries.isNotEmpty)
+                refer('scheduler').property('start').call(const []).statement,
+              if (grpcServices.isNotEmpty)
+                refer('grpcServer')
+                    .property('serve')
+                    .call(const [])
+                    .awaited
+                    .statement,
+            ])),
+          Method((m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..body = Block.of([
+              if (grpcServices.isNotEmpty)
+                refer('grpcServer')
+                    .property('shutdown')
+                    .call(const [])
+                    .awaited
+                    .statement,
+              if (scheduledEntries.isNotEmpty)
+                refer('scheduler')
+                    .property('stop')
+                    .call(const [])
+                    .awaited
+                    .statement,
+              refer('context')
+                  .property('dispose')
+                  .call(const [])
+                  .awaited
+                  .statement,
+            ])),
+        ]);
+      }
+    });
+
+    final buildAppFn = Method((m) => m
+      ..name = 'buildDianaApp'
+      ..returns = refer('Future<DianaApp>')
+      ..optionalParameters.addAll([nullableConfigParam, overridesParam])
+      ..modifier = MethodModifier.async
+      ..body = Block.of(serverStatements));
 
     final buildServerFn = Method((m) => m
       ..name = 'buildDianaServer'
       ..returns = TypeReference((t) => t
         ..symbol = 'Future'
         ..types.add(refer('DianaServer', dianaLib)))
-      ..optionalParameters.add(nullableConfigParam)
+      ..optionalParameters.addAll([nullableConfigParam, overridesParam])
       ..modifier = MethodModifier.async
-      ..body = Block.of(serverStatements));
+      ..body = Block.of([
+        declareFinal('app')
+            .assign(refer('buildDianaApp').call([], {
+              'config': refer('config'),
+              'overrides': refer('overrides'),
+            }).awaited)
+            .statement,
+        refer('app').property('server').returned.statement,
+      ]));
 
     final runFn = Method((m) => m
       ..name = 'runDiana'
       ..returns = refer('Future<void>')
-      ..optionalParameters.add(nullableConfigParam)
-      ..modifier = MethodModifier.async
-      ..body = Block.of([
-        declareFinal('server')
-            .assign(refer('buildDianaServer')
-                .call([], {'config': refer('config')}).awaited)
-            .statement,
-        refer('server').property('serve').call(const []).awaited.statement,
-      ]));
+      ..optionalParameters.addAll([nullableConfigParam, overridesParam])
+      ..body = refer('DianaRuntime', dianaLib).property('run').call([
+        Method((b) => b
+          ..modifier = MethodModifier.async
+          ..body = Block.of([
+            declareFinal('app')
+                .assign(refer('buildDianaApp').call([], {
+                  'config': refer('config'),
+                  'overrides': refer('overrides'),
+                }).awaited)
+                .statement,
+            refer('DianaRunnable', dianaLib)
+                .newInstance([], {
+                  'server': refer('app').property('server'),
+                  'initialize': refer('app').property('initialize'),
+                  'dispose': refer('app').property('dispose'),
+                })
+                .returned
+                .statement,
+          ])).closure,
+      ]).code
+      ..lambda = true);
+
+    final openApiJson = _jsonStringLiteral(
+        jsonEncode(buildOpenApiDocument(summaries)));
+    final openApiConst = Field((f) => f
+      ..name = 'dianaOpenApiJson'
+      ..modifier = FieldModifier.constant
+      ..type = refer('String')
+      ..docs.add('/// Build-time OpenAPI 3 document (info patched from '
+          'config at startup).')
+      ..assignment = Code(openApiJson));
 
     final generated = Library((b) => b
       ..body.addAll([
         ...emission.specs,
+        appClass,
         buildContextFn,
         if (mapExceptionFn != null) mapExceptionFn,
+        openApiConst,
+        buildAppFn,
         buildServerFn,
         runFn,
       ]));
@@ -413,4 +793,13 @@ class DianaBootstrapBuilder implements Builder {
       languageVersion: DartFormatter.latestLanguageVersion,
     ).format(raw);
   }
+}
+
+/// Escapes a JSON document into a single-quoted Dart string literal.
+String _jsonStringLiteral(String value) {
+  final escaped = value
+      .replaceAll('\\', '\\\\')
+      .replaceAll(r'$', r'\$')
+      .replaceAll("'", r"\'");
+  return "'$escaped'";
 }

@@ -61,7 +61,33 @@ class TodoController {
 - **WebSockets** — Spring-style `@WebSocketController('/ws/path')` on a
   `WebSocketHandler` implementation: lifecycle callbacks
   (`onOpen`/`onMessage`/`onError`/`onClose`), typed sessions with path
-  parameters and attributes, shared or per-connection handler instances.
+  parameters and attributes, shared or per-connection handler instances,
+  and `@UseMiddleware` handshake interceptors.
+- **Lifecycle & operations** — `@PostConstruct`/`@PreDestroy` hooks,
+  graceful shutdown on SIGINT/SIGTERM, `DianaOverrides` for tests
+  (`@MockBean`-style), configuration profiles
+  (`application-{profile}.yaml`), HTTPS, experimental multi-isolate
+  serving.
+- **Native JSON** — `@Json`/`@JsonField` generate the codecs; DTOs carry
+  zero serialization boilerplate (hand-written and json_serializable DTOs
+  keep working).
+- **Web essentials** — CORS (`@CrossOrigin` + config, automatic
+  preflight), static file serving with SPA fallback, multipart uploads
+  (`@Body() FormData`) with size limits, raw text bodies, `Accept`-based
+  406 guard.
+- **Platform** — build-time OpenAPI 3 document served at `/openapi.json`,
+  actuator-style `/actuator/health` (via `HealthIndicator`) and
+  `/actuator/info`, `@Scheduled` fixed-rate/fixed-delay tasks.
+- **Content negotiation** — pluggable `BodyCodec` formats discovered
+  through DI (XML included: `@Component() class AppXmlCodec extends
+  XmlCodec {}`), with Spring-style `@Consumes`/`@Produces` on controllers
+  or routes (415/406 semantics, projected into OpenAPI).
+- **Server-Sent Events** — return `Stream<ServerSentEvent>` (or
+  `Stream<Dto>`) from a route: spec-compliant `text/event-stream` with
+  keep-alive heartbeats, unbuffered writes and disconnect cleanup.
+- **gRPC** — `@GrpcService()` on your protoc-generated service: it joins
+  the DI graph and is served next to HTTP (own port, shared lifecycle) via
+  the optional [`diana_grpc`](packages/diana_grpc) package.
 
 ## Documentation
 
@@ -80,11 +106,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.1.0
+  diana: ^0.3.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.1.0
+  diana_generator: ^0.3.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -135,8 +161,10 @@ Future<void> main() => runDiana();
 ```
 
 The generator emits `lib/app.diana_app.dart` containing the wired
-`DianaContext`, `buildDianaServer()` and `runDiana()`. In tests, call
-`buildDianaServer()` and `server.serve(port: 0)` to get an ephemeral port.
+`DianaContext`, `buildDianaApp()`, `buildDianaServer()` and `runDiana()`
+(which adds lifecycle + graceful shutdown). In tests, call
+`buildDianaServer()` and `server.serve(port: 0)` for an ephemeral port, and
+pass `overrides:` to swap providers.
 
 ## Packages
 
@@ -145,7 +173,9 @@ The generator emits `lib/app.diana_app.dart` containing the wired
 | [`packages/diana`](packages/diana) | Runtime: server, pipeline, config, validation helpers. Re-exports the annotations. |
 | [`packages/diana_annotation`](packages/diana_annotation) | The annotations. Pure constants, no dependencies. |
 | [`packages/diana_generator`](packages/diana_generator) | The build_runner builders: metadata extraction, DI graph resolution, code emission. |
-| [`examples/todo_api`](examples/todo_api) | Complete example: controllers, DI, middleware, config, validation, advice. |
+| [`packages/diana_grpc`](packages/diana_grpc) | Optional gRPC runtime (`DianaGrpcServer`) — the only package depending on `package:grpc`. |
+| [`examples/todo_api`](examples/todo_api) | Complete example: controllers, DI, middleware, config, validation, advice, XML, SSE. |
+| [`examples/greeter_grpc`](examples/greeter_grpc) | gRPC + HTTP side by side from one DI graph. |
 
 ## How it works
 
@@ -166,10 +196,7 @@ Three builders run in sequence:
 Dart ≥ 3.6 (pub workspaces). From the repo root:
 
 ```bash
-dart pub get
-cd examples/todo_api && dart run build_runner build && cd ../..
-dart analyze
-dart test packages/diana packages/diana_generator examples/todo_api
+tool/verify.sh   # pub get, builds, analyze, all test suites, determinism
 ```
 
 ### Hot reload
@@ -181,7 +208,9 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-Early but functional MVP. Planned next: request-scoped providers exercised
-end-to-end, Diana-native JSON codegen, OpenAPI generation, WebSocket
-handshake interceptors and STOMP-style messaging, cross-package component
-scanning, profiles (`application-dev.yaml`).
+v0.3: the Spring-parity feature set above — including content negotiation
+(XML), Server-Sent Events and gRPC — fully tested. Planned next:
+STOMP-style messaging over WebSockets, cron expressions for `@Scheduled`,
+cross-package component scanning (modules), DI-discovered gRPC
+interceptors, TLS for the gRPC listener, richer OpenAPI schemas for
+convention DTOs.

@@ -6,10 +6,12 @@ import 'package:source_gen/source_gen.dart' show spanForElement;
 import 'common.dart';
 import 'emit/adapter_emitter.dart';
 import 'emit/config_props_emitter.dart';
+import 'emit/json_emitter.dart';
 import 'emit/validator_emitter.dart';
 import 'readers/adapter_reader.dart';
 import 'readers/checkers.dart';
 import 'readers/config_props_reader.dart';
+import 'readers/json_reader.dart';
 import 'readers/library_reader.dart' show DianaSourceError;
 import 'readers/validator_reader.dart';
 
@@ -37,6 +39,9 @@ class DianaPartBuilder implements Builder {
     final sections = <String>[];
     try {
       for (final cls in library.classes) {
+        if (isJsonClass(cls)) {
+          sections.add(emitJsonCodecs(readJsonClass(cls)));
+        }
         if (classNeedsValidator(cls)) {
           sections.add(emitValidator(readValidator(cls)));
         }

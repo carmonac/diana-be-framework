@@ -20,6 +20,26 @@ const headerChecker = TypeChecker.fromUrl('$_base/web.dart#Header');
 const bodyChecker = TypeChecker.fromUrl('$_base/web.dart#Body');
 const responseStatusChecker =
     TypeChecker.fromUrl('$_base/web.dart#ResponseStatus');
+const crossOriginChecker = TypeChecker.fromUrl('$_base/web.dart#CrossOrigin');
+const consumesChecker = TypeChecker.fromUrl('$_base/web.dart#Consumes');
+const producesChecker = TypeChecker.fromUrl('$_base/web.dart#Produces');
+
+// gRPC
+const grpcServiceChecker = TypeChecker.fromUrl('$_base/grpc.dart#GrpcService');
+
+// JSON
+const jsonChecker = TypeChecker.fromUrl('$_base/json.dart#Json');
+const jsonFieldChecker = TypeChecker.fromUrl('$_base/json.dart#JsonField');
+
+// Lifecycle
+const postConstructChecker =
+    TypeChecker.fromUrl('$_base/lifecycle.dart#PostConstruct');
+const preDestroyChecker =
+    TypeChecker.fromUrl('$_base/lifecycle.dart#PreDestroy');
+
+// Scheduling
+const scheduledChecker =
+    TypeChecker.fromUrl('$_base/scheduling.dart#Scheduled');
 
 // WebSocket
 const webSocketControllerChecker =

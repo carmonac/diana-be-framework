@@ -48,6 +48,16 @@ class UnsupportedMediaTypeException extends HttpException {
       : super(415, message, reason: 'unsupported_media_type');
 }
 
+class PayloadTooLargeException extends HttpException {
+  const PayloadTooLargeException(String message)
+      : super(413, message, reason: 'payload_too_large');
+}
+
+class NotAcceptableException extends HttpException {
+  const NotAcceptableException(String message)
+      : super(406, message, reason: 'not_acceptable');
+}
+
 class UnprocessableEntityException extends HttpException {
   const UnprocessableEntityException(String message)
       : super(422, message, reason: 'unprocessable_entity');

@@ -92,10 +92,13 @@ Binds a request header, case-insensitively. Same type/nullability rules as
 ### `@Body()`
 
 **Target:** parameter.
-Binds the JSON request body. Parameter type: a DTO with `fromJson`,
-`Map<String, dynamic>`, `List<Dto>`, or a `List` of JSON primitives. Wrong
-content type → 415; malformed/empty/mis-shaped JSON → 400. If the DTO has
-constraint annotations, its generated validator runs before the handler.
+Binds the request body. Parameter types: a DTO (`@Json`, hand-written
+`fromJson`, or json_serializable), `Map<String, dynamic>`, `List<Dto>`, a
+`List` of JSON primitives, `String` (raw text, any content type) or
+`FormData` (multipart / urlencoded — see
+[uploads](../guides/controllers.md#request-bodies)). Wrong content type →
+415; malformed/mis-shaped bodies → 400; oversized multipart → 413. DTO
+validators run before the handler.
 
 ### `@ResponseStatus(int code)`
 
@@ -103,6 +106,76 @@ constraint annotations, its generated validator runs before the handler.
 Overrides the success status code (e.g. `201`). Applies to JSON, text and
 `void` returns; ignored when the method returns `DianaResponse` (which
 carries its own status).
+
+### `@CrossOrigin({origins, methods, headers, exposedHeaders, credentials, maxAge})`
+
+**Target:** class (controller) or method (route).
+Enables CORS with a policy that **fully replaces** the global
+`server.cors.*` configuration (route > controller > global). Diana
+registers the OPTIONS preflight automatically. Fields mirror the config
+keys — see [CORS](../guides/cors-and-static.md#cors).
+
+### `@Consumes(List<String> mimeTypes)`
+
+**Target:** class (controller) or method (route); method replaces
+controller entirely.
+Restricts the request content types the route accepts; the body is decoded
+with the matching registered `BodyCodec` (other content types → 415). The
+listed set **replaces** the JSON default. Requires a codec-decoded `@Body`
+parameter (`Map`, `List` or DTO). See
+[Content negotiation](../guides/content-negotiation.md).
+
+### `@Produces(List<String> mimeTypes)`
+
+**Target:** class (controller) or method (route); method replaces
+controller entirely.
+Declares the response formats the route can produce; the response is
+encoded with the first type the request's `Accept` header allows (server
+preference order; nothing acceptable → 406). Applies to JSON-encodable
+returns only; cannot be combined with `Stream` returns. See
+[Content negotiation](../guides/content-negotiation.md).
+
+---
+
+## Lifecycle
+
+### `@PostConstruct()` / `@PreDestroy()`
+
+**Target:** method (public instance, no parameters, `void`/`Future<void>`;
+at most one of each per class; singleton providers only).
+Run after construction during `initialize()` (dependency order) and during
+graceful shutdown in `dispose()` (reverse order). See the
+[lifecycle guide](../guides/lifecycle.md).
+
+---
+
+## Scheduling
+
+### `@Scheduled({int? fixedRate, int? fixedDelay, int initialDelay = 0})`
+
+**Target:** method (same signature rules as lifecycle hooks; singleton
+providers only). Exactly one of `fixedRate`/`fixedDelay` (milliseconds).
+Tasks start after initialization and stop on shutdown; `fixedRate` skips
+overlapping ticks, `fixedDelay` re-arms after completion. See
+[Observability](../guides/observability.md#scheduled-tasks).
+
+---
+
+## JSON
+
+### `@Json()`
+
+**Target:** class.
+Generates `$XFromJson`/`$XToJson` into the class's part file; route
+adapters use them automatically for `@Body` parameters and return values —
+no `fromJson`/`toJson` boilerplate. Supported field types are listed in the
+[JSON guide](../guides/json.md). Requires a `part` directive and a public
+unnamed constructor whose parameters match field names.
+
+### `@JsonField({String? name})`
+
+**Target:** field (inside a `@Json` class).
+Renames the field's JSON key.
 
 ---
 
@@ -120,9 +193,26 @@ class joins the DI graph:
 - `Scope.transient` — a fresh handler per connection.
 - `Scope.request` — build error (not applicable to WebSockets).
 
-Endpoint paths must be unique across the application. HTTP middleware and
-`@ControllerAdvice` do not apply to WebSocket traffic. See the
+Endpoint paths must be unique across the application. `@UseMiddleware` on
+the class runs as **handshake interceptors** (blocking the upgrade on
+short-circuit and propagating request attributes into the session); global
+middleware and `@ControllerAdvice` do not apply to socket traffic. See the
 [WebSockets guide](../guides/websockets.md).
+
+---
+
+## gRPC
+
+### `@GrpcService()`
+
+**Target:** class (must extend a protoc-generated `XServiceBase`, i.e. a
+`package:grpc` `Service`).
+Registers the class as a gRPC service: it joins the DI graph as a
+singleton (constructor injection, `@Value`, lifecycle apply) and the
+generated `DianaApp` serves all `@GrpcService` classes on `grpc.port`
+through `package:diana_grpc` (a dependency your app must declare). Cannot
+be combined with other role annotations. See the
+[gRPC guide](../guides/grpc.md).
 
 ---
 

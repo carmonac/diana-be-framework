@@ -3,13 +3,17 @@
 /// source spans.
 library;
 
+import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:source_gen/source_gen.dart' show TypeChecker;
 
 import '../model/adapter_model.dart';
+import '../model/summary.dart' show TypeRef;
 import 'checkers.dart';
-import 'library_reader.dart' show DianaSourceError, adapterNameFor;
+import 'json_reader.dart' show isJsonClass;
+import 'library_reader.dart' show DianaSourceError, adapterNameFor, typeRefOf;
 import 'validator_reader.dart' show classNeedsValidator;
 
 /// Reads every route adapter of a `@RestController` class.
@@ -31,6 +35,25 @@ AdapterModel _readAdapter(ClassElement cls, MethodElement method) {
     params.add(_readParam(param, where));
   }
 
+  // @Consumes/@Produces: method-level replaces controller-level entirely.
+  final consumes = _mimeListOf(consumesChecker, method, cls, 'Consumes', where);
+  final produces = _mimeListOf(producesChecker, method, cls, 'Produces', where);
+  if (consumes != null) {
+    final hasCodecBody = params.any((p) =>
+        p.kind == BindingKind.bodyMap ||
+        p.kind == BindingKind.bodyList ||
+        p.kind == BindingKind.bodyDto ||
+        p.kind == BindingKind.bodyDtoList);
+    if (!hasCodecBody) {
+      throw DianaSourceError(
+        method,
+        '@Consumes on $where requires a codec-decoded @Body parameter '
+        '(Map, List or DTO); String, FormData and raw-request bodies '
+        'bypass codecs.',
+      );
+    }
+  }
+
   final statusAnn = responseStatusChecker.firstAnnotationOf(method);
   final status = statusAnn?.getField('code')?.toIntValue();
 
@@ -44,7 +67,45 @@ AdapterModel _readAdapter(ClassElement cls, MethodElement method) {
   ReturnKind kind;
   var jsonShape = JsonShape.raw;
   var nullableResult = false;
-  if (returnType is VoidType) {
+  String? returnDtoName;
+  var returnJsonGenerated = false;
+  TypeRef? returnTypeRef;
+  SseShape? sseShape;
+  if (returnType is InterfaceType && returnType.isDartAsyncStream) {
+    kind = ReturnKind.sse;
+    final element = returnType.typeArguments.single;
+    if (_isDiana(element, 'ServerSentEvent')) {
+      sseShape = SseShape.event;
+    } else if (element is InterfaceType &&
+        element.element is ClassElement &&
+        !_isJsonPrimitiveOrCollection(element)) {
+      returnJsonGenerated = _requireToJson(element, method, where);
+      returnDtoName = element.element.name;
+      returnTypeRef = typeRefOf(element, method);
+      sseShape = SseShape.dto;
+    } else {
+      throw DianaSourceError(
+        method,
+        'Route method $where returns '
+        'Stream<${element.getDisplayString()}>; supported stream element '
+        'types are ServerSentEvent or a DTO with toJson().',
+      );
+    }
+    if (status != null) {
+      throw DianaSourceError(
+        method,
+        '@ResponseStatus cannot be combined with a Stream return on '
+        '$where; SSE responses are always 200.',
+      );
+    }
+    if (produces != null) {
+      throw DianaSourceError(
+        method,
+        '@Produces cannot be combined with a Stream return on $where; '
+        'SSE always produces text/event-stream.',
+      );
+    }
+  } else if (returnType is VoidType) {
     kind = ReturnKind.voidLike;
   } else if (_isDiana(returnType, 'DianaResponse')) {
     kind = ReturnKind.response;
@@ -58,10 +119,16 @@ AdapterModel _readAdapter(ClassElement cls, MethodElement method) {
       jsonShape = JsonShape.raw;
     } else if (returnType.isDartCoreList) {
       final element = returnType.typeArguments.single;
-      _requireToJson(element, method, where);
+      returnJsonGenerated = _requireToJson(element, method, where);
+      returnDtoName =
+          element is InterfaceType ? element.element.name : null;
+      returnTypeRef =
+          element is InterfaceType ? typeRefOf(element, method) : null;
       jsonShape = JsonShape.dtoList;
     } else {
-      _requireToJson(returnType, method, where);
+      returnJsonGenerated = _requireToJson(returnType, method, where);
+      returnDtoName = returnType.element.name;
+      returnTypeRef = typeRefOf(returnType, method);
       jsonShape = JsonShape.dto;
     }
   } else if (returnType is DynamicType) {
@@ -76,6 +143,15 @@ AdapterModel _readAdapter(ClassElement cls, MethodElement method) {
     );
   }
 
+  if (produces != null && kind != ReturnKind.json && kind != ReturnKind.sse) {
+    throw DianaSourceError(
+      method,
+      '@Produces on $where requires a JSON-encodable return (DTO, List of '
+      'DTOs, Map or List); String, void and DianaResponse returns are not '
+      'negotiated.',
+    );
+  }
+
   return AdapterModel(
     className: cls.name!,
     methodName: method.name!,
@@ -86,7 +162,39 @@ AdapterModel _readAdapter(ClassElement cls, MethodElement method) {
     nullableResult: nullableResult,
     awaited: awaited,
     status: status,
+    returnDtoName: returnDtoName,
+    returnJsonGenerated: returnJsonGenerated,
+    returnTypeRef: returnTypeRef,
+    consumes: consumes,
+    produces: produces,
+    sseShape: sseShape,
   );
+}
+
+/// Reads a `@Consumes`/`@Produces` MIME list, method level winning over
+/// controller level. Returns null when neither is annotated.
+List<String>? _mimeListOf(
+  TypeChecker checker,
+  MethodElement method,
+  ClassElement cls,
+  String annotation,
+  String where,
+) {
+  final ann =
+      checker.firstAnnotationOf(method) ?? checker.firstAnnotationOf(cls);
+  if (ann == null) return null;
+  final mimes = ann
+      .getField('mimeTypes')
+      ?.toListValue()
+      ?.map((DartObject e) => e.toStringValue()!)
+      .toList();
+  if (mimes == null || mimes.isEmpty) {
+    throw DianaSourceError(
+      method,
+      '@$annotation on $where lists no MIME types.',
+    );
+  }
+  return mimes;
 }
 
 AdapterParam _readParam(FormalParameterElement param, String where) {
@@ -149,16 +257,22 @@ AdapterParam _readParam(FormalParameterElement param, String where) {
       isNamed: param.isNamed,
       httpName: path.getField('name')?.toStringValue() ?? param.name!,
       typeDisplay: typeDisplay,
+      typeRef: typeRefOf(type, param),
+      apiRequired: true,
     );
   }
+  final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
   if (query != null) {
+    final defaultValue = query.getField('defaultValue')?.toStringValue();
     return AdapterParam(
       kind: BindingKind.query,
       paramName: param.name!,
       isNamed: param.isNamed,
       httpName: query.getField('name')?.toStringValue() ?? param.name!,
-      defaultValue: query.getField('defaultValue')?.toStringValue(),
+      defaultValue: defaultValue,
       typeDisplay: typeDisplay,
+      typeRef: typeRefOf(type, param),
+      apiRequired: !nullable && defaultValue == null,
     );
   }
   return AdapterParam(
@@ -167,6 +281,8 @@ AdapterParam _readParam(FormalParameterElement param, String where) {
     isNamed: param.isNamed,
     httpName: header!.getField('name')?.toStringValue() ?? param.name!,
     typeDisplay: typeDisplay,
+    typeRef: typeRefOf(type, param),
+    apiRequired: !nullable,
   );
 }
 
@@ -176,7 +292,27 @@ AdapterParam _readBodyParam(FormalParameterElement param, String where) {
     throw DianaSourceError(
       param,
       '@Body parameter "${param.name}" of $where has unsupported type '
-      '${type.getDisplayString()}.',
+      '${type.getDisplayString()}. Supported: a DTO with fromJson, '
+      'Map<String, dynamic>, List, String (raw text) or FormData '
+      '(multipart/urlencoded).',
+    );
+  }
+  if (type.isDartCoreString) {
+    return AdapterParam(
+      kind: BindingKind.bodyText,
+      paramName: param.name!,
+      isNamed: param.isNamed,
+      httpName: '',
+      typeDisplay: 'String',
+    );
+  }
+  if (_isDiana(type, 'FormData')) {
+    return AdapterParam(
+      kind: BindingKind.bodyForm,
+      paramName: param.name!,
+      isNamed: param.isNamed,
+      httpName: '',
+      typeDisplay: 'FormData',
     );
   }
   if (type.isDartCoreMap) {
@@ -200,7 +336,7 @@ AdapterParam _readBodyParam(FormalParameterElement param, String where) {
         typeDisplay: element.getDisplayString(),
       );
     }
-    _requireFromJson(element, param, where);
+    final elementGenerated = _requireFromJson(element, param, where);
     return AdapterParam(
       kind: BindingKind.bodyDtoList,
       paramName: param.name!,
@@ -209,9 +345,12 @@ AdapterParam _readBodyParam(FormalParameterElement param, String where) {
       typeDisplay: type.getDisplayString(),
       dtoName: element.getDisplayString(),
       validate: _needsValidation(element),
+      jsonGenerated: elementGenerated,
+      typeRef:
+          element is InterfaceType ? typeRefOf(element, param) : null,
     );
   }
-  _requireFromJson(type, param, where);
+  final generated = _requireFromJson(type, param, where);
   return AdapterParam(
     kind: BindingKind.bodyDto,
     paramName: param.name!,
@@ -220,6 +359,8 @@ AdapterParam _readBodyParam(FormalParameterElement param, String where) {
     typeDisplay: type.getDisplayString(),
     dtoName: type.element.name,
     validate: _needsValidation(type),
+    jsonGenerated: generated,
+    typeRef: typeRefOf(type, param),
   );
 }
 
@@ -258,9 +399,12 @@ bool _isJsonPrimitiveOrCollection(InterfaceType type) {
   return false;
 }
 
-void _requireFromJson(DartType type, Element context, String where) {
+/// Returns true when the class is `@Json` (generated codec); false when it
+/// follows the `fromJson` convention. Throws otherwise.
+bool _requireFromJson(DartType type, Element context, String where) {
   final cls = type is InterfaceType ? type.element : null;
   final name = type.getDisplayString();
+  if (cls is ClassElement && isJsonClass(cls)) return true;
   final hasFactory = cls is ClassElement &&
       (cls.constructors.any((c) => c.name == 'fromJson') ||
           cls.methods.any((m) => m.isStatic && m.name == 'fromJson'));
@@ -268,17 +412,24 @@ void _requireFromJson(DartType type, Element context, String where) {
     throw DianaSourceError(
       context,
       '$name is used with @Body in $where but has no '
-      '`factory $name.fromJson(Map<String, dynamic>)`. Write one manually '
-      'or generate it with json_serializable (both work with Diana).',
+      '`factory $name.fromJson(Map<String, dynamic>)`. Annotate the class '
+      'with @Json, write one manually, or generate it with '
+      'json_serializable (all work with Diana).',
     );
   }
+  return false;
 }
 
-void _requireToJson(DartType type, Element context, String where) {
+/// Returns true when the class is `@Json` (generated codec); false when it
+/// exposes `toJson()`. Throws otherwise.
+bool _requireToJson(DartType type, Element context, String where) {
   var inner = type;
-  if (inner is InterfaceType && _isJsonPrimitiveOrCollection(inner)) return;
-  if (inner is DynamicType) return;
+  if (inner is InterfaceType && _isJsonPrimitiveOrCollection(inner)) {
+    return false;
+  }
+  if (inner is DynamicType) return false;
   final cls = inner is InterfaceType ? inner.element : null;
+  if (cls is ClassElement && isJsonClass(cls)) return true;
   final hasToJson = cls != null &&
       [cls, ...cls.allSupertypes.map((s) => s.element)]
           .expand((e) => e.methods)
@@ -287,10 +438,12 @@ void _requireToJson(DartType type, Element context, String where) {
     throw DianaSourceError(
       context,
       '${inner.getDisplayString()} is returned from route method $where but '
-      'has no `Map<String, dynamic> toJson()`. Write one manually or '
-      'generate it with json_serializable (both work with Diana).',
+      'has no `Map<String, dynamic> toJson()`. Annotate the class with '
+      '@Json, write one manually, or generate it with json_serializable '
+      '(all work with Diana).',
     );
   }
+  return false;
 }
 
 bool _needsValidation(DartType type) {

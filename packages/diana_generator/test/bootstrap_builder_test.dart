@@ -1,5 +1,6 @@
 import 'package:build_test/build_test.dart';
 import 'package:diana_generator/src/bootstrap_builder.dart';
+import 'package:diana_generator/src/common.dart';
 import 'package:diana_generator/src/metadata_builder.dart';
 import 'package:test/test.dart';
 
@@ -23,8 +24,12 @@ Future<void> expectBootstrap(
     outputs: expectedErrors.isEmpty
         ? {
             'a|lib/app.diana_app.dart': decodedMatches(output),
-            for (final path in sources.keys)
-              'a|${path.replaceFirst('.dart', '.diana.json')}': anything,
+            // The metadata builder skips libraries without Diana annotations
+            // (quick-check regex), so only those sources produce a summary.
+            for (final e in sources.entries)
+              if (dianaAnnotationPattern.hasMatch(e.value) ||
+                  dianaApplicationPattern.hasMatch(e.value))
+                'a|${e.key.replaceFirst('.dart', '.diana.json')}': anything,
           }
         : null,
     onLog: (record) {
@@ -69,7 +74,7 @@ class CounterService {
 ''',
       },
       output: allOf(
-        contains('late final _i2.MemRepo memRepo = _i2.MemRepo();'),
+        contains('late final _i2.MemRepo memRepo = _overrides.memRepo ?? _i2.MemRepo();'),
         contains('late final _i2.CounterService counterService ='),
         contains('_i2.CounterService(memRepo)'),
         contains('DianaContext buildDianaContext'),
@@ -95,7 +100,8 @@ class Ids {
 ''',
       },
       output: allOf(
-        contains('_i2.UuidFactory createUuidFactory() => _i2.UuidFactory();'),
+        contains('_i2.UuidFactory createUuidFactory() =>'),
+        contains('_overrides.uuidFactory ?? _i2.UuidFactory()'),
         contains('_i2.Ids(createUuidFactory())'),
       ),
     );
@@ -237,8 +243,8 @@ class ErrorAdvice {
       },
     );
     expect(logs, isEmpty);
-    final derived = generated!.indexOf('is _i2.DerivedError');
-    final base = generated!.indexOf('is _i2.BaseError');
+    final derived = generated!.indexOf(RegExp(r'is _i\d+\.DerivedError'));
+    final base = generated!.indexOf(RegExp(r'is _i\d+\.BaseError'));
     expect(derived, isNot(-1));
     expect(base, isNot(-1));
     expect(derived, lessThan(base),
@@ -360,6 +366,110 @@ class RequestHandler extends BaseWebSocketHandler {}
     );
   });
 
+  test('emits initialize/dispose with lifecycle hooks in topo order',
+      () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/service.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Repository()
+class Repo {
+  @PostConstruct()
+  Future<void> connect() async {}
+
+  @PreDestroy()
+  void disconnect() {}
+}
+
+@Service()
+class Api {
+  Api(this.repo);
+  final Repo repo;
+
+  @PostConstruct()
+  void warm() {}
+}
+''',
+      },
+      output: allOf([
+        contains('await repo.connect();'),
+        contains('api.warm();'),
+        contains('repo.disconnect();'),
+        contains('class DianaOverrides'),
+        contains('_overrides.repo ?? _i2.Repo()'),
+        contains('class DianaApp'),
+        contains('Future<DianaApp> buildDianaApp'),
+        contains('DianaRuntime.run'),
+      ]),
+    );
+  });
+
+  test('rejects invalid lifecycle signatures and scopes', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/bad.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Service()
+class BadSignature {
+  @PostConstruct()
+  int setup(String arg) => 0;
+}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        '@PostConstruct method BadSignature.setup must be a public instance '
+            'method with no parameters returning void or Future<void>.',
+      ],
+    );
+
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/bad.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Component(scope: Scope.transient)
+class Ephemeral {
+  @PreDestroy()
+  void cleanup() {}
+}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        '@PreDestroy on Ephemeral requires singleton scope; found transient.',
+      ],
+    );
+
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/bad.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Service()
+class Doubled {
+  @PostConstruct()
+  void a() {}
+
+  @PostConstruct()
+  void b() {}
+}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        'Class Doubled declares multiple @PostConstruct methods; declare at '
+            'most one.',
+      ],
+    );
+  });
+
   test('supports custom methods via @HttpRoute', () async {
     await expectBootstrap(
       {
@@ -374,7 +484,7 @@ class HealthController {
 }
 ''',
       },
-      output: contains('_i1.HttpMethod.head'),
+      output: contains('HttpMethod.head'),
     );
   });
 
@@ -415,6 +525,112 @@ class Greeter {
       output: contains(
         "config.get<String>('app.greeting', defaultValue: 'hi')",
       ),
+    );
+  });
+
+
+  test('wires BodyCodec singletons into DianaServer', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/codec.dart': '''
+import 'package:diana/diana.dart';
+
+@Component()
+class AppXmlCodec implements BodyCodec {
+  @override
+  List<String> get mimeTypes => const ['application/xml'];
+
+  @override
+  Object? decode(String body) => null;
+
+  @override
+  String encode(Object? value) => '';
+}
+''',
+      },
+      output: contains('bodyCodecs: [ctx.appXmlCodec]'),
+    );
+  });
+
+  test('rejects non-singleton body codecs', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/codec.dart': '''
+import 'package:diana/diana.dart';
+
+@Component(scope: Scope.transient)
+class AppXmlCodec implements BodyCodec {
+  @override
+  List<String> get mimeTypes => const ['application/xml'];
+
+  @override
+  Object? decode(String body) => null;
+
+  @override
+  String encode(Object? value) => '';
+}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        'AppXmlCodec implements BodyCodec but is transient-scoped; '
+            'body codecs must be singletons.',
+      ],
+    );
+  });
+
+  test('wires @GrpcService classes into DianaApp.grpcServer', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        // Mimics protoc output: the base class lives in its own library and
+        // imports grpc internally (user code never names grpc's Service,
+        // which would clash with Diana's @Service annotation).
+        'lib/greeter_base.dart': r'''
+import 'package:grpc/grpc.dart';
+
+class GreeterServiceBase extends Service {
+  @override
+  String get $name => 'greeter.Greeter';
+}
+''',
+        'lib/svc.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+import 'greeter_base.dart';
+
+@GrpcService()
+class GreeterService extends GreeterServiceBase {}
+''',
+      },
+      output: allOf([
+        contains('final grpcServer = '),
+        contains('DianaGrpcServer(cfg, services: [ctx.greeterService])'),
+        contains('await grpcServer.serve();'),
+        contains('await grpcServer.shutdown();'),
+      ]),
+    );
+  });
+
+  test('rejects @GrpcService classes not extending grpc Service', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/svc.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@GrpcService()
+class NotAService {}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        '@GrpcService class NotAService does not extend a grpc service '
+            'base class. Extend your protoc-generated XServiceBase '
+            '(package:grpc Service).',
+      ],
     );
   });
 }

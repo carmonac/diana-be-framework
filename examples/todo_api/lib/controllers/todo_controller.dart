@@ -24,6 +24,14 @@ class TodoController {
   @ResponseStatus(201)
   TodoDto create(@Body() CreateTodoRequest body) => service.create(body);
 
+  /// XML in, XML or JSON out (negotiated by Accept) — same DTO pipeline.
+  @Post('/xml')
+  @ResponseStatus(201)
+  @Consumes(['application/xml'])
+  @Produces(['application/xml', 'application/json'])
+  TodoDto createFromXml(@Body() CreateTodoRequest body) =>
+      service.create(body);
+
   @Delete('/:id')
   @UseMiddleware([ApiKeyMiddleware])
   void remove(@PathParam() int id) => service.delete(id);

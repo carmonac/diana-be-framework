@@ -92,6 +92,23 @@ Future<List<dynamic>> decodeJsonListBody(DianaRequest request) async {
   return decoded;
 }
 
+/// Runs a DTO decode ([decode] wraps `fromJson`/generated codecs) and turns
+/// shape mismatches (`TypeError`, `FormatException`, enum `ArgumentError`)
+/// into 400s instead of 500s.
+T decodeDto<T>(T Function() decode) {
+  try {
+    return decode();
+  } on HttpException {
+    rethrow;
+  } catch (e) {
+    if (e is TypeError || e is FormatException || e is ArgumentError) {
+      throw BadRequestException(
+          'JSON body does not match the expected shape: $e');
+    }
+    rethrow;
+  }
+}
+
 Future<Object?> _decodeJsonBody(DianaRequest request) async {
   final contentType = request.header('content-type');
   if (contentType != null) {

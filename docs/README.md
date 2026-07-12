@@ -34,7 +34,23 @@ Task-oriented explanations of each feature:
 - [Error handling](guides/error-handling.md) — the `HttpException`
   hierarchy, `@ControllerAdvice`, the exception pipeline
 - [WebSockets](guides/websockets.md) — `@WebSocketController`, the
-  handler lifecycle, sessions, broadcast patterns
+  handler lifecycle, sessions, broadcast patterns, handshake interceptors
+- [Application lifecycle](guides/lifecycle.md) — `@PostConstruct`/
+  `@PreDestroy`, graceful shutdown, `DianaApp`, test overrides
+- [CORS and static files](guides/cors-and-static.md) — `@CrossOrigin`,
+  preflight, static serving and SPA fallback
+- [Content negotiation](guides/content-negotiation.md) — `BodyCodec`,
+  `@Consumes`/`@Produces`, the built-in XML codec
+- [Server-Sent Events](guides/server-sent-events.md) — `Stream` returns,
+  heartbeats, disconnect handling
+- [gRPC](guides/grpc.md) — `@GrpcService`, `package:diana_grpc`, serving
+  gRPC next to HTTP
+- [OpenAPI](guides/openapi.md) — the build-time generated spec and
+  `/openapi.json`
+- [Observability](guides/observability.md) — `/actuator/health`, `/info`,
+  `@Scheduled` tasks
+- [Operations](guides/operations.md) — HTTPS, multi-isolate serving,
+  configuration profiles
 - [JSON serialization](guides/json.md) — the `fromJson`/`toJson`
   convention, json_serializable interop
 - [Testing](guides/testing.md) — unit tests, wiring tests, end-to-end HTTP
@@ -47,11 +63,13 @@ Complete API documentation — every public symbol and every diagnostic:
 - [Annotations](reference/annotations.md) — all annotations with fields,
   defaults, targets and examples
 - [Runtime API](reference/runtime.md) — every public class and function in
-  `package:diana`
+  `package:diana` (and `package:diana_grpc`)
 - [Generated code](reference/generated-code.md) — what the generator emits,
   naming conventions, `part` directives
 - [Build diagnostics](reference/build-diagnostics.md) — every build error
   Diana can report and how to fix it
+- [Configuration keys](reference/config-keys.md) — every `server.*`,
+  `management.*`, `grpc.*` and profile key Diana reads
 
 ## Requirements
 
@@ -60,5 +78,5 @@ Complete API documentation — every public symbol and every diagnostic:
 
 ## Versioning and stability
 
-Diana is currently `0.1.0` — a functional MVP. APIs may change before
-`1.0.0`. The [roadmap](../README.md#status--roadmap) lists what's planned.
+Diana is currently `0.3.0`. APIs may change before `1.0.0`. The
+[roadmap](../README.md#status--roadmap) lists what's planned.

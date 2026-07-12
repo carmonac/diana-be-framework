@@ -5,6 +5,7 @@ import '../config/app_info_props.dart';
 part 'info_controller.diana.dart';
 
 @RestController('/info')
+@CrossOrigin(origins: ['https://dashboard.example'])
 class InfoController {
   final AppInfoProps info;
 

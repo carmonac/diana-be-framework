@@ -34,6 +34,9 @@ class ContextNames {
   /// providerKey -> factory method name (transients, on their owner class).
   final Map<String, String> methods = {};
 
+  /// providerKey -> field name on the generated `DianaOverrides` class.
+  final Map<String, String> overrideFields = {};
+
   /// Providers that live on `DianaRequestScope` instead of `DianaContext`.
   final Set<String> onRequestScope = {};
 
@@ -78,8 +81,11 @@ ContextEmission emitContext(DiGraph graph) {
     if (provider.scope == 'transient') {
       names.methods[provider.key] =
           allocate('create${provider.info.type.name}');
+      names.overrideFields[provider.key] = allocate(base);
     } else {
-      names.fields[provider.key] = allocate(base);
+      final field = allocate(base);
+      names.fields[provider.key] = field;
+      names.overrideFields[provider.key] = field;
     }
     if (provider.needsRequestScope) {
       names.onRequestScope.add(provider.key);
@@ -116,22 +122,30 @@ ContextEmission emitContext(DiGraph graph) {
       return onScopeDep ? refer(field) : ctxProp(field);
     }
 
+    Expression construction;
     if (provider.info.kind == ProviderKind.configProps) {
-      return refer(
+      construction = refer(
         '\$${provider.info.type.name}FromConfig',
         provider.info.type.libraryUri,
       ).call([configExpr()]);
-    }
-    final positional = <Expression>[];
-    final named = <String, Expression>{};
-    for (final dep in provider.deps) {
-      if (dep.param.isNamed) {
-        named[dep.param.name] = depExpr(dep);
-      } else {
-        positional.add(depExpr(dep));
+    } else {
+      final positional = <Expression>[];
+      final named = <String, Expression>{};
+      for (final dep in provider.deps) {
+        if (dep.param.isNamed) {
+          named[dep.param.name] = depExpr(dep);
+        } else {
+          positional.add(depExpr(dep));
+        }
       }
+      construction =
+          referenceOf(provider.info.type).newInstance(positional, named);
     }
-    return referenceOf(provider.info.type).newInstance(positional, named);
+    final overridesExpr =
+        onScope ? refer('_ctx').property('_overrides') : refer('_overrides');
+    return overridesExpr
+        .property(names.overrideFields[provider.key]!)
+        .ifNullThen(construction);
   }
 
   Field providerField(ResolvedProvider provider, {required bool onScope}) =>
@@ -149,6 +163,66 @@ ContextEmission emitContext(DiGraph graph) {
         ..lambda = true
         ..body = construct(provider, onScope: onScope).code);
 
+  final overridesClass = Class((c) {
+    c
+      ..name = 'DianaOverrides'
+      ..docs.add('/// Per-provider overrides for tests: a non-null field '
+          'replaces the real provider everywhere it is injected.')
+      ..constructors.add(Constructor((ctor) {
+        ctor.constant = true;
+        for (final provider in graph.ordered) {
+          ctor.optionalParameters.add(Parameter((p) => p
+            ..name = names.overrideFields[provider.key]!
+            ..named = true
+            ..toThis = true));
+        }
+      }));
+    for (final provider in graph.ordered) {
+      c.fields.add(Field((f) => f
+        ..name = names.overrideFields[provider.key]!
+        ..modifier = FieldModifier.final$
+        ..type = TypeReference((t) => t
+          ..symbol = provider.info.type.name
+          ..url = provider.info.type.libraryUri
+          ..isNullable = true)));
+    }
+  });
+
+  final initializables = [
+    for (final provider in graph.ordered)
+      if (!provider.needsRequestScope && provider.scope != 'transient')
+        provider,
+  ];
+
+  final initializeMethod = Method((m) => m
+    ..name = 'initialize'
+    ..returns = refer('Future<void>')
+    ..modifier = MethodModifier.async
+    ..docs.add('/// Constructs every singleton in dependency order and '
+        'runs @PostConstruct hooks.')
+    ..body = Block.of([
+      for (final provider in initializables)
+        provider.info.postConstruct == null
+            ? Code('${names.fields[provider.key]!};')
+            : Code('${provider.info.postConstructAwaited ? 'await ' : ''}'
+                '${names.fields[provider.key]!}'
+                '.${provider.info.postConstruct}();'),
+    ]));
+
+  final disposeMethod = Method((m) => m
+    ..name = 'dispose'
+    ..returns = refer('Future<void>')
+    ..modifier = MethodModifier.async
+    ..docs.add('/// Runs @PreDestroy hooks in reverse dependency order; '
+        'call after initialize().')
+    ..body = Block.of([
+      for (final provider in initializables.reversed)
+        if (provider.info.preDestroy != null)
+          Code('${provider.info.preDestroyAwaited ? 'await ' : ''}'
+              '${names.fields[provider.key]!}'
+              '.${provider.info.preDestroy}();'),
+    ]));
+
   final contextClass = Class((c) {
     c
       ..name = 'DianaContext'
@@ -156,10 +230,18 @@ ContextEmission emitContext(DiGraph graph) {
         ..name = 'config'
         ..modifier = FieldModifier.final$
         ..type = dianaConfigRef))
-      ..constructors.add(Constructor((ctor) => ctor.requiredParameters.add(
-          Parameter((p) => p
-            ..name = 'config'
-            ..toThis = true))));
+      ..fields.add(Field((f) => f
+        ..name = '_overrides'
+        ..modifier = FieldModifier.final$
+        ..type = refer('DianaOverrides')))
+      ..constructors.add(Constructor((ctor) => ctor
+        ..requiredParameters.add(Parameter((p) => p
+          ..name = 'config'
+          ..toThis = true))
+        ..optionalParameters.add(Parameter((p) => p
+          ..name = '_overrides'
+          ..toThis = true
+          ..defaultTo = const Code('const DianaOverrides()')))));
     for (final provider in graph.ordered) {
       if (provider.needsRequestScope) continue;
       if (provider.scope == 'transient') {
@@ -168,6 +250,7 @@ ContextEmission emitContext(DiGraph graph) {
         c.fields.add(providerField(provider, onScope: false));
       }
     }
+    c.methods.addAll([initializeMethod, disposeMethod]);
   });
 
   Class? scopeClass;
@@ -195,7 +278,7 @@ ContextEmission emitContext(DiGraph graph) {
   }
 
   return ContextEmission(
-    [contextClass, if (scopeClass != null) scopeClass],
+    [contextClass, overridesClass, if (scopeClass != null) scopeClass],
     names,
   );
 }

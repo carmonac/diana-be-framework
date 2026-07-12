@@ -43,6 +43,7 @@ Directly constructible — useful in unit tests.
 | `List<String> headerAll(String name)` | All values of a header. |
 | `Future<String> readBodyAsString()` | Reads the body; the first read is cached, so multiple readers (middleware + binding) are safe. |
 | `Map<String, Object?> attributes` | Per-request bag for middleware → handler communication. |
+| `BodyCodecRegistry codecs` | Registered body codecs (JSON always available) — consulted by the `@Consumes`/`@Produces` helpers. Stamped by the server, like `limits`. |
 
 ### `DianaResponse`
 
@@ -56,14 +57,25 @@ generated adapter build one; return a `DianaResponse` for full control.
 | `DianaResponse.text(String body, {statusCode = 200, headers})` | `text/plain` |
 | `DianaResponse.noContent({headers})` | `204`, empty body |
 | `DianaResponse.bytes(List<int> body, {statusCode = 200, mimeType = 'application/octet-stream', headers})` | binary |
+| `DianaResponse.stream(Stream<List<int>> body, {statusCode = 200, mimeType = 'application/octet-stream', headers})` | streaming (chunked) — used by SSE |
 
 | Member | Description |
 |---|---|
 | `int statusCode` | HTTP status. |
 | `Map<String, String> headers` | Extra headers (content type travels in `mimeType`). |
-| `String? bodyText` / `List<int>? bodyBytes` | The body (at most one set). |
+| `String? bodyText` / `List<int>? bodyBytes` / `Stream<List<int>>? bodyStream` | The body (at most one set). Stream bodies are written unbuffered with chunked framing. |
 | `String? mimeType` | Body MIME type. |
-| `copyWith({statusCode, headers})` | Copy preserving the body — the idiomatic way for middleware to add headers. |
+| `copyWith({statusCode, headers})` | Copy preserving the body (including a stream body) — the idiomatic way for middleware to add headers. |
+
+### `DianaRequestLimits`
+
+`const DianaRequestLimits({int multipartMaxBytes = 10485760, int
+sseHeartbeatSeconds = 15})` — limits stamped onto every request by the
+server (from `server.multipart.maxSize` and `server.sse.heartbeatSeconds`),
+consulted by binding helpers. Exposed as `DianaRequest.limits`.
+
+`DianaRequest` also exposes `Stream<Uint8List> readBodyAsBytes()` for raw
+byte access (used by multipart decoding).
 
 ---
 
@@ -104,6 +116,112 @@ status; anything else → opaque 500 (details to `onUnhandled`).
 Both functions are used by `DianaServer` internally and exported for
 advanced composition and tests.
 
+### CORS (`cors.dart`)
+
+- `CorsPolicy({allowedOrigins = ['*'], allowedMethods, allowedHeaders = ['*'], exposedHeaders = [], allowCredentials = false, maxAgeSeconds = 3600})`
+  — `allowOriginFor(origin)` returns the `Access-Control-Allow-Origin`
+  value or `null` (not allowed); `CorsPolicy.fromConfig(config)` builds the
+  global policy (or `null` when disabled).
+- `DianaHandler withCors(CorsPolicy, DianaHandler)` — adds CORS headers to
+  actual responses.
+- `DianaHandler corsPreflightHandler(Map<HttpMethod, CorsPolicy>)` — the
+  automatic OPTIONS handler.
+
+### Content negotiation (`content.dart`)
+
+`bool acceptsMime(String acceptHeader, String mime)` — wildcard-aware
+`Accept` matching (`q=0` excludes; other q-values ignored). The server
+wraps every route: incompatible `Accept` ⇒ empty 406.
+
+### Body codecs (`codec.dart`)
+
+- `abstract interface class BodyCodec { List<String> mimeTypes; Object?
+  decode(String body); String encode(Object? value); }` — translates a
+  wire format to/from `Map`/`List`/scalars. Implement on a **singleton**
+  injectable; the generator wires it into the server. First `mimeTypes`
+  entry is the canonical response type; `decode` throws `FormatException`
+  on malformed input.
+- `JsonBodyCodec` — the built-in JSON codec (also matched for `…+json`).
+- `BodyCodecRegistry([List<BodyCodec> extra])` — `BodyCodec?
+  forMime(String mime)` (parameters like `; charset=` ignored; JSON
+  fallback built in). Travels on requests as `DianaRequest.codecs`.
+- `Future<Map<String, dynamic>> decodeMapBody(DianaRequest, {required
+  List<String> consumes})` / `decodeListBody` — decode the body with the
+  codec matching its content type, restricted to `consumes`. 415 when the
+  content type isn't listed or has no codec; 400 for malformed input or
+  the wrong shape. Generated `@Consumes` adapters call these.
+- `DianaResponse negotiatedResponse(DianaRequest, Object? payload,
+  {required List<String> produces, int statusCode = 200})` — encodes with
+  the first `produces` entry the `Accept` header allows;
+  `NotAcceptableException` (406) when none is. Generated `@Produces`
+  adapters call this.
+
+See [Content negotiation](../guides/content-negotiation.md).
+
+### XML (`xml_codec.dart`)
+
+`class XmlCodec implements BodyCodec` — `application/xml` and `text/xml`
+with a fixed Map↔XML convention (root name ignored, repeated siblings and
+`<item>` children become lists, scalar inference, attributes ignored;
+encode root is `<response>`). Register with
+`@Component() class AppXmlCodec extends XmlCodec {}`. Convention details in
+[the guide](../guides/content-negotiation.md#the-xml-convention).
+
+### Server-Sent Events (`sse.dart`)
+
+- `ServerSentEvent(String data, {String? id, String? event, int?
+  retryMs})` + `ServerSentEvent.json(Object? data, …)` (JSON-encodes the
+  payload).
+- `Stream<List<int>> encodeSse(Stream<ServerSentEvent> events, {int
+  heartbeatSeconds = 0})` — spec-compliant framing with optional
+  `: keep-alive` comments; cancelling the result cancels the source.
+- `String encodeSseEvent(ServerSentEvent)` — frames a single event.
+- `DianaResponse sseResponse(DianaRequest, Stream<ServerSentEvent>)` —
+  200 `text/event-stream`, `cache-control: no-cache`, heartbeat from
+  `request.limits.sseHeartbeatSeconds`. What generated `Stream` routes
+  return.
+
+See [Server-Sent Events](../guides/server-sent-events.md).
+
+### Multipart (`multipart.dart`)
+
+- `UploadedFile { String name; String? filename; String? contentType; Uint8List bytes; int size; }`
+- `FormData { Map<String, String> fields; List<UploadedFile> files; UploadedFile? file(name); }`
+- `Future<FormData> decodeFormBody(DianaRequest)` — parses
+  `multipart/form-data` (with the size guard → 413) and
+  `application/x-www-form-urlencoded`; other types ⇒ 415.
+
+### Health (`health.dart`)
+
+- `HealthIndicator { String get name; Future<HealthStatus> health(); }` —
+  implement on a singleton provider; discovered via the DI graph.
+- `HealthStatus.up([details]) / HealthStatus.down([details])`.
+- `healthEndpointHandler(List<HealthIndicator>)` /
+  `infoEndpointHandler(DianaConfig)` — the generated `/actuator/*` handlers.
+
+### Scheduler (`scheduler.dart`)
+
+`DianaScheduler({onError})` — `schedule({required task, int? fixedRateMs,
+int? fixedDelayMs, int initialDelayMs = 0})`, `start()`, `Future<void>
+stop()` (cancels timers, awaits in-flight runs). Semantics in
+[Observability](../guides/observability.md#scheduled-tasks).
+
+### Runtime (`runtime.dart`)
+
+- `DianaRunnable({required server, required initialize, required dispose})`
+  — what the generated bootstrap hands to the runtime.
+- `DianaRuntime.run(bootstrap, {int? isolates, bool installSignalHandlers =
+  true, Future<void>? shutdownTrigger})` — bootstrap → initialize → serve →
+  wait for shutdown → close (drain) → dispose. `isolates` defaults to
+  `server.isolates`; see
+  [operations](../guides/operations.md#multi-isolate-serving-experimental).
+
+### OpenAPI (`openapi.dart`)
+
+`String patchOpenApiInfo(String document, DianaConfig config)` — patches
+`info.title`/`info.version` from `server.openapi.*` into the generated
+document.
+
 ---
 
 ## Server
@@ -115,6 +233,7 @@ DianaServer({
   DianaConfig config = const DianaConfig.empty(),
   List<Middleware> globalMiddleware = const [],
   ExceptionMapper? exceptionMapper,
+  List<BodyCodec> bodyCodecs = const [],
   void Function(Object error, StackTrace stackTrace)? onUnhandled,
 })
 ```
@@ -126,8 +245,8 @@ for custom `onUnhandled` logging or programmatic route registration.
 | Member | Description |
 |---|---|
 | `void register(HttpMethod method, String path, DianaHandler handler, {List<Middleware> middleware})` | Registers a route. `middleware` is the controller+route chain; global middleware wrap around it. Every route is wrapped in the error boundary. |
-| `void registerWebSocket(String path, WebSocketHandlerFactory factory)` | Registers a WebSocket endpoint; `factory` runs once per connection. Middleware and the error boundary do not apply — errors reach the handler's `onError`. |
-| `Future<void> serve({int? port, bool quiet = false})` | Binds to `server.host`/`server.port` from config (defaults `0.0.0.0:8080`). `port` overrides — pass `0` for an OS-assigned port in tests. Prints `[diana] Listening on …` unless `quiet`. |
+| `void registerWebSocket(String path, WebSocketHandlerFactory factory, {List<Middleware> middleware})` | Registers a WebSocket endpoint; `factory` runs once per connection. `middleware` run as handshake interceptors (short-circuit blocks the upgrade; request attributes propagate into the session); after the upgrade, errors reach the handler's `onError`. |
+| `Future<void> serve({int? port, bool quiet = false, bool shared = false})` | Binds to `server.host`/`server.port` (defaults `0.0.0.0:8080`); HTTPS when `server.ssl.*` is set; mounts static files and CORS preflights. `port: 0` for ephemeral; `shared` allows several isolates on one port. |
 | `int? get port` | The bound port (`null` before `serve`). |
 | `Future<void> close()` | Stops the server. |
 | `DianaConfig config`, `List<Middleware> globalMiddleware`, `ExceptionMapper? exceptionMapper`, `onUnhandled` | The values passed at construction. |
@@ -192,8 +311,10 @@ Produces the handler for a new connection; generated code passes
 |---|---|
 | `DianaConfig(Map<String, Object?> values, {Map<String, String>? environment})` | From flattened dot-keys; pass `environment` to enable env overrides (tests inject fakes). |
 | `const DianaConfig.empty()` | No values, no environment. |
-| `static Future<DianaConfig> load(String path, {Map<String, String>? environment})` | Loads a YAML file (missing file ⇒ env-only config), flattens nested maps to dot-keys, overlays `Platform.environment` (or the given map). |
-| `T get<T>(String key, {T? defaultValue})` | Reads and coerces. Precedence: environment, then file. Missing key: `defaultValue` if given, `null` if `T` is nullable, otherwise throws `ConfigException` naming the key and its environment variable. Uncoercible value ⇒ `ConfigException`. |
+| `static Future<DianaConfig> load(String path, {Map<String, String>? environment})` | Loads YAML (missing file ⇒ env-only), applies profile overlays (`DIANA_PROFILE` / `diana.profile` → `application-{p}.yaml` in order), flattens to dot-keys, overlays the environment. |
+| `List<String> activeProfiles` | Profiles applied by `load`. |
+| `Map<String, Object?> section(String prefix)` | Flattened keys under `prefix.` (stripped), env overrides applied. |
+| `T get<T>(String key, {T? defaultValue})` | Reads and coerces scalars **and typed lists** (`List<String>`/`List<int>`/… from YAML lists or comma-separated env values). Precedence: environment, then file. Missing key: `defaultValue` if given, `null` if `T` nullable, else `ConfigException`. |
 | `bool contains(String key)` | Whether any source has the key. |
 | `static String envNameFor(String key)` | `server.port` → `SERVER_PORT` (upper-case; dots and dashes → underscores). |
 
@@ -221,6 +342,7 @@ content-type check (→ 415).
 | `T bindHeader<T>(DianaRequest r, String name)` | Case-insensitive; same nullability rules. |
 | `Future<Map<String, dynamic>> decodeJsonMapBody(DianaRequest r)` | Non-JSON content type ⇒ 415; empty/malformed/non-object ⇒ 400. |
 | `Future<List<dynamic>> decodeJsonListBody(DianaRequest r)` | Same, expecting an array. |
+| `T decodeDto<T>(T Function() decode)` | Wraps DTO construction; shape mismatches (`TypeError`/`FormatException`/enum errors) become 400s. |
 
 `bool` binding accepts `true`/`1`/`false`/`0` (case-insensitive).
 
@@ -284,7 +406,9 @@ Subclasses (constructor → status/reason):
 | `NotFoundException([message = 'Not found'])` | 404 | `not_found` |
 | `ConflictException(message)` | 409 | `conflict` |
 | `UnsupportedMediaTypeException(message)` | 415 | `unsupported_media_type` |
+| `PayloadTooLargeException(message)` | 413 | `payload_too_large` |
 | `UnprocessableEntityException(message)` | 422 | `unprocessable_entity` |
+| `NotAcceptableException(message)` | 406 | `not_acceptable` |
 | `InternalServerErrorException([message])` | 500 | `internal_server_error` |
 
 ### `ValidationException`
@@ -302,10 +426,42 @@ here because they are the API you actually call:
 
 | Symbol | Description |
 |---|---|
-| `class DianaContext` | The DI container: `config` plus one typed member per provider. |
+| `class DianaContext` | The DI container: `config` plus one typed member per provider, and `initialize()`/`dispose()` lifecycle methods. |
+| `class DianaOverrides` | One nullable slot per provider for test overrides. |
 | `class DianaRequestScope` | Present only when request-scoped providers exist. |
-| `DianaContext buildDianaContext({DianaConfig? config})` | Constructs the graph (no HTTP). Default config: empty. |
-| `Future<DianaServer> buildDianaServer({DianaConfig? config})` | Loads config (or uses the override), builds the context, registers every route with its middleware and the advice chain. |
-| `Future<void> runDiana({DianaConfig? config})` | `buildDianaServer` + `serve()`. |
+| `class DianaApp` | `context` + `server` + `initialize()`/`dispose()` (starts/stops the scheduler when `@Scheduled` tasks exist; serves/stops `grpcServer` when `@GrpcService` classes exist). |
+| `DianaContext buildDianaContext({DianaConfig? config, DianaOverrides overrides})` | Constructs the graph (no HTTP). |
+| `Future<DianaApp> buildDianaApp({DianaConfig? config, DianaOverrides overrides})` | Loads config, builds the context, registers routes/WebSockets/actuator/OpenAPI. |
+| `Future<DianaServer> buildDianaServer({DianaConfig? config, DianaOverrides overrides})` | `buildDianaApp(...).server`. |
+| `Future<void> runDiana({DianaConfig? config, DianaOverrides overrides})` | `DianaRuntime.run` over `buildDianaApp` — lifecycle + graceful shutdown. |
+| `const String dianaOpenApiJson` | The build-time OpenAPI document. |
 
 See [Generated code](generated-code.md) for naming and structure details.
+
+---
+
+## gRPC (`package:diana_grpc`)
+
+Lives in its own package — the only one depending on `package:grpc`
+(HTTP-only apps carry no gRPC dependency). Re-exports `Service`,
+`ServiceCall` and `Interceptor` from `package:grpc`.
+
+### `DianaGrpcServer`
+
+```dart
+DianaGrpcServer(DianaConfig config,
+    {required List<Service> services, List<Interceptor> interceptors = const []})
+```
+
+Wraps `package:grpc`'s server with Diana configuration and lifecycle. The
+generator constructs one per app with every `@GrpcService` instance and
+exposes it as `DianaApp.grpcServer`.
+
+| Member | Description |
+|---|---|
+| `bool get enabled` | `grpc.enabled` (default `true`). |
+| `Future<void> serve({int? port, bool quiet = false})` | Binds `grpc.host:grpc.port` (defaults `0.0.0.0:9090`). No-op when disabled. Fails fast (`StateError`) when `server.isolates > 1` — gRPC serving is single-isolate. |
+| `int? get port` | Bound port (`null` before `serve` or when disabled). |
+| `Future<void> shutdown()` | Stops the server, waiting for in-flight calls. |
+
+See the [gRPC guide](../guides/grpc.md).
