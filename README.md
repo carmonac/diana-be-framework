@@ -59,6 +59,17 @@ class TodoController {
   exceptions, dispatched by subtype specificity. Unhandled errors become
   opaque 500s (details never leak to clients).
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/README.md):
+[getting started](docs/getting-started.md) ·
+[step-by-step tutorial](docs/tutorial.md) ·
+[feature guides](docs/README.md#guides) ·
+[complete reference](docs/README.md#reference) (annotations, runtime API,
+generated code, build diagnostics) ·
+[architecture](docs/architecture.md) ·
+[troubleshooting & FAQ](docs/troubleshooting.md).
+
 ## Quickstart
 
 **1. Depend on Diana:**

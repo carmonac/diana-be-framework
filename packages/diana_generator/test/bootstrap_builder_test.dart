@@ -273,6 +273,24 @@ class BadAdvice {
     );
   });
 
+  test('supports custom methods via @HttpRoute', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/web.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@RestController('/health')
+class HealthController {
+  @HttpRoute('HEAD', '/status')
+  void status() {}
+}
+''',
+      },
+      output: contains('_i1.HttpMethod.head'),
+    );
+  });
+
   test('rejects multiple @DianaApplication classes in one package', () async {
     await expectBootstrap(
       {
