@@ -74,6 +74,7 @@ class DianaBootstrapBuilder implements Builder {
     final errors = [...result.errors];
     if (result.graph != null) {
       errors.addAll(_checkMiddlewareRefs(result.graph!, summaries));
+      errors.addAll(_checkWebSockets(result.graph!, summaries));
     }
     if (errors.isNotEmpty) {
       log.severe(
@@ -142,6 +143,45 @@ class DianaBootstrapBuilder implements Builder {
               '${controller.type.displayName}.${route.methodName}',
             );
           }
+        }
+      }
+    }
+    return errors;
+  }
+
+  /// Every `@WebSocketController` must implement Diana's `WebSocketHandler`
+  /// interface, and endpoint paths must be unique.
+  List<String> _checkWebSockets(
+    DiGraph graph,
+    List<LibrarySummary> summaries,
+  ) {
+    final errors = <String>[];
+    final byPath = <String, WebSocketInfo>{};
+    for (final summary in summaries) {
+      for (final ws in summary.webSockets) {
+        final provider = graph.byKey['${ws.type.key}|'];
+        final implementsHandler = provider != null &&
+            provider.info.supertypes.any(
+              (s) =>
+                  s.name == 'WebSocketHandler' &&
+                  s.libraryUri.startsWith('package:diana/'),
+            );
+        if (!implementsHandler) {
+          errors.add(
+            '@WebSocketController class ${ws.type.displayName} '
+            "(${summary.libraryUri}) does not implement Diana's "
+            'WebSocketHandler interface. Implement it, or extend '
+            'BaseWebSocketHandler.',
+          );
+        }
+        final existing = byPath[ws.path];
+        if (existing != null) {
+          errors.add(
+            'Duplicate WebSocket path "${ws.path}": handled by both '
+            '${existing.type.displayName} and ${ws.type.displayName}.',
+          );
+        } else {
+          byPath[ws.path] = ws;
         }
       }
     }
@@ -318,6 +358,18 @@ class DianaBootstrapBuilder implements Builder {
         ).statement);
       }
     }
+    // WebSocket endpoints, sorted by path for deterministic output.
+    final webSockets = [for (final s in summaries) ...s.webSockets]
+      ..sort((a, b) => a.path.compareTo(b.path));
+    for (final ws in webSockets) {
+      final factory = Method((m) => m
+        ..lambda = true
+        ..body = names.access('${ws.type.key}|', ctx: refer('ctx')).code).closure;
+      serverStatements.add(refer('server')
+          .property('registerWebSocket')
+          .call([literalString(ws.path), factory]).statement);
+    }
+
     serverStatements.add(refer('server').returned.statement);
 
     final buildServerFn = Method((m) => m

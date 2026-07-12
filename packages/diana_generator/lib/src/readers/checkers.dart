@@ -21,6 +21,10 @@ const bodyChecker = TypeChecker.fromUrl('$_base/web.dart#Body');
 const responseStatusChecker =
     TypeChecker.fromUrl('$_base/web.dart#ResponseStatus');
 
+// WebSocket
+const webSocketControllerChecker =
+    TypeChecker.fromUrl('$_base/websocket.dart#WebSocketController');
+
 // Middleware
 const globalMiddlewareChecker =
     TypeChecker.fromUrl('$_base/middleware.dart#GlobalMiddleware');

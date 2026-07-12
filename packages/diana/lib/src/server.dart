@@ -5,6 +5,7 @@ import 'config.dart';
 import 'http/method.dart';
 import 'middleware.dart';
 import 'pipeline.dart';
+import 'websocket.dart';
 
 /// Diana's HTTP server: routes registered by generated code, composed with
 /// middleware and the exception boundary, served over the HTTP engine.
@@ -51,6 +52,16 @@ class DianaServer {
       onUnhandled: onUnhandled,
     );
     _adapter.register(method, path, guarded);
+  }
+
+  /// Registers a WebSocket endpoint at [path]. [factory] produces the
+  /// handler per connection: a constant closure over a singleton for shared
+  /// handlers, or a call to a transient factory for per-connection state.
+  ///
+  /// The HTTP middleware chain and exception boundary do not apply to
+  /// WebSocket traffic; errors reach the handler's `onError`.
+  void registerWebSocket(String path, WebSocketHandlerFactory factory) {
+    _adapter.registerWebSocket(path, factory);
   }
 
   /// Starts the server on `server.host`/`server.port` from [config]

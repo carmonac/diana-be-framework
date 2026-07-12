@@ -28,6 +28,7 @@ class DianaSourceError implements Exception {
 LibrarySummary readLibrary(LibraryElement library) {
   final injectables = <InjectableInfo>[];
   final controllers = <ControllerInfo>[];
+  final webSockets = <WebSocketInfo>[];
   final globalMiddleware = <GlobalMiddlewareInfo>[];
   final advices = <AdviceInfo>[];
   AppInfo? app;
@@ -35,6 +36,7 @@ LibrarySummary readLibrary(LibraryElement library) {
   for (final cls in library.classes) {
     final injectableAnn = injectableChecker.firstAnnotationOf(cls);
     final controllerAnn = restControllerChecker.firstAnnotationOf(cls);
+    final wsAnn = webSocketControllerChecker.firstAnnotationOf(cls);
     final gmAnn = globalMiddlewareChecker.firstAnnotationOf(cls);
     final adviceAnn = controllerAdviceChecker.firstAnnotationOf(cls);
     final configPropsAnn = configPropsChecker.firstAnnotationOf(cls);
@@ -43,6 +45,7 @@ LibrarySummary readLibrary(LibraryElement library) {
     final roles = [
       if (injectableAnn != null) '@Injectable/@Service/@Repository/@Component',
       if (controllerAnn != null) '@RestController',
+      if (wsAnn != null) '@WebSocketController',
       if (gmAnn != null) '@GlobalMiddleware',
       if (adviceAnn != null) '@ControllerAdvice',
       if (configPropsAnn != null) '@ConfigurationProperties',
@@ -82,6 +85,26 @@ LibrarySummary readLibrary(LibraryElement library) {
         ctorParams: _ctorParams(cls),
       ));
       controllers.add(_controllerFrom(cls, selfType, controllerAnn));
+    } else if (wsAnn != null) {
+      final scope = _scopeName(wsAnn.getField('scope'));
+      if (scope == 'request') {
+        throw DianaSourceError(
+          cls,
+          '@WebSocketController class ${cls.name} cannot be request-scoped; '
+          'use Scope.singleton (shared handler) or Scope.transient '
+          '(one handler per connection).',
+        );
+      }
+      injectables.add(InjectableInfo(
+        type: selfType,
+        scope: scope,
+        supertypes: _supertypeRefs(cls),
+        ctorParams: _ctorParams(cls),
+      ));
+      webSockets.add(WebSocketInfo(
+        type: selfType,
+        path: wsAnn.getField('path')!.toStringValue()!,
+      ));
     } else if (gmAnn != null) {
       injectables.add(InjectableInfo(
         type: selfType,
@@ -116,6 +139,7 @@ LibrarySummary readLibrary(LibraryElement library) {
     libraryUri: library.uri.toString(),
     injectables: injectables,
     controllers: controllers,
+    webSockets: webSockets,
     globalMiddleware: globalMiddleware,
     advices: advices,
     app: app,

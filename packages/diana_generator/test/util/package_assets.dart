@@ -37,6 +37,48 @@ export 'package:diana_annotation/diana_annotation.dart';
 export 'src/http/request.dart';
 export 'src/http/response.dart';
 export 'src/middleware.dart';
+export 'src/websocket.dart';
+''',
+  'diana|lib/src/websocket.dart': '''
+import 'dart:async';
+
+sealed class WebSocketMessage {}
+
+final class TextMessage extends WebSocketMessage {
+  final String text;
+  TextMessage(this.text);
+}
+
+abstract interface class WebSocketSession {
+  bool sendText(String text);
+}
+
+abstract interface class WebSocketHandler {
+  FutureOr<void> onOpen(WebSocketSession session);
+  FutureOr<void> onMessage(WebSocketSession session, WebSocketMessage message);
+  FutureOr<void> onError(
+      WebSocketSession session, Object error, StackTrace stackTrace);
+  FutureOr<void> onClose(WebSocketSession session, int? code, String? reason);
+}
+
+abstract class BaseWebSocketHandler implements WebSocketHandler {
+  const BaseWebSocketHandler();
+
+  @override
+  FutureOr<void> onOpen(WebSocketSession session) {}
+
+  @override
+  FutureOr<void> onMessage(
+      WebSocketSession session, WebSocketMessage message) {}
+
+  @override
+  FutureOr<void> onError(
+      WebSocketSession session, Object error, StackTrace stackTrace) {}
+
+  @override
+  FutureOr<void> onClose(
+      WebSocketSession session, int? code, String? reason) {}
+}
 ''',
   'diana|lib/src/http/request.dart': '''
 class DianaRequest {}

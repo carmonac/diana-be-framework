@@ -127,6 +127,11 @@ up per request. Diana composes middleware itself rather than using the
 engine's mechanism so that the three-level ordering is deterministic and
 middleware get DI.
 
+WebSocket endpoints bypass the HTTP pipeline: the adapter answers the
+handshake with the engine's upgrade result and pumps the socket's event
+stream into the handler's `onOpen`/`onMessage`/`onError`/`onClose`
+callbacks, wrapping the engine socket in Diana's `WebSocketSession`.
+
 ## Testing strategy (the framework's own)
 
 - **Graph logic**: table-driven tests over hand-built summaries, asserting

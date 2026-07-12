@@ -33,6 +33,8 @@ Task-oriented explanations of each feature:
   the error response format
 - [Error handling](guides/error-handling.md) — the `HttpException`
   hierarchy, `@ControllerAdvice`, the exception pipeline
+- [WebSockets](guides/websockets.md) — `@WebSocketController`, the
+  handler lifecycle, sessions, broadcast patterns
 - [JSON serialization](guides/json.md) — the `fromJson`/`toJson`
   convention, json_serializable interop
 - [Testing](guides/testing.md) — unit tests, wiring tests, end-to-end HTTP

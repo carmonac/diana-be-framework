@@ -12,3 +12,4 @@ export 'src/exceptions.dart';
 export 'src/middleware.dart';
 export 'src/validation.dart';
 export 'src/web.dart';
+export 'src/websocket.dart';

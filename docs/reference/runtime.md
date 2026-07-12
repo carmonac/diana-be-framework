@@ -126,6 +126,7 @@ for custom `onUnhandled` logging or programmatic route registration.
 | Member | Description |
 |---|---|
 | `void register(HttpMethod method, String path, DianaHandler handler, {List<Middleware> middleware})` | Registers a route. `middleware` is the controller+route chain; global middleware wrap around it. Every route is wrapped in the error boundary. |
+| `void registerWebSocket(String path, WebSocketHandlerFactory factory)` | Registers a WebSocket endpoint; `factory` runs once per connection. Middleware and the error boundary do not apply — errors reach the handler's `onError`. |
 | `Future<void> serve({int? port, bool quiet = false})` | Binds to `server.host`/`server.port` from config (defaults `0.0.0.0:8080`). `port` overrides — pass `0` for an OS-assigned port in tests. Prints `[diana] Listening on …` unless `quiet`. |
 | `int? get port` | The bound port (`null` before `serve`). |
 | `Future<void> close()` | Stops the server. |
@@ -133,6 +134,53 @@ for custom `onUnhandled` logging or programmatic route registration.
 
 Unmatched routes get `404 {"error":"not_found","message":"No route matches
 this path."}`.
+
+---
+
+## WebSockets
+
+### `sealed class WebSocketMessage`
+
+`final class TextMessage { String text; }` ·
+`final class BinaryMessage { Uint8List data; }` — pattern-match in
+`onMessage`.
+
+### `abstract interface class WebSocketSession`
+
+One live connection (Spring: `WebSocketSession`).
+
+| Member | Description |
+|---|---|
+| `String id` | Unique per connection (`ws-1`, `ws-2`, …). |
+| `Uri uri` | The URI the client connected to. |
+| `Map<String, String> pathParameters` | Route `:name` parameters. |
+| `Map<String, String> queryParameters` | Handshake query string. |
+| `Map<String, Object?> attributes` | Per-connection bag, alive for the session. |
+| `bool isOpen` | Whether the connection is open (may briefly report `true` after an undetected peer disconnect). |
+| `bool sendText(String)` / `bool sendBytes(Uint8List)` | Send a frame; `false` when already closed (never throws). |
+| `Future<void> close([int? code, String? reason])` | Close (`code`: 1000 or 3000–4999; `reason` ≤ 123 UTF-8 bytes). |
+
+### `abstract interface class WebSocketHandler`
+
+Endpoint lifecycle (Spring: `WebSocketHandler`). All callbacks may return
+`FutureOr<void>`; frames of one connection dispatch sequentially.
+
+```dart
+onOpen(session);
+onMessage(session, message);
+onError(session, error, stackTrace);   // connection closes (1011) after
+onClose(session, code, reason);        // always called last
+```
+
+### `abstract class BaseWebSocketHandler implements WebSocketHandler`
+
+No-op implementations of all four callbacks — extend and override what you
+need. `const` constructor.
+
+### `typedef WebSocketHandlerFactory = FutureOr<WebSocketHandler> Function()`
+
+Produces the handler for a new connection; generated code passes
+`() => ctx.handler` (singleton) or `() => ctx.createHandler()` (transient).
 
 ---
 

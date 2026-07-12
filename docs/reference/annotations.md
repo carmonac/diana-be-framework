@@ -106,6 +106,26 @@ carries its own status).
 
 ---
 
+## WebSockets
+
+### `@WebSocketController(String path, [Scope scope = Scope.singleton])`
+
+**Target:** class (must implement `WebSocketHandler`, e.g. by extending
+`BaseWebSocketHandler`).
+Registers the class as a WebSocket endpoint at `path` (which may contain
+`:name` parameters, exposed via `WebSocketSession.pathParameters`). The
+class joins the DI graph:
+
+- `Scope.singleton` (default) — one shared handler for all connections.
+- `Scope.transient` — a fresh handler per connection.
+- `Scope.request` — build error (not applicable to WebSockets).
+
+Endpoint paths must be unique across the application. HTTP middleware and
+`@ControllerAdvice` do not apply to WebSocket traffic. See the
+[WebSockets guide](../guides/websockets.md).
+
+---
+
 ## Middleware
 
 ### `@GlobalMiddleware({int order = 0})`

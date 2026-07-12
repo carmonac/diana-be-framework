@@ -117,6 +117,10 @@ Future<void> runDiana({DianaConfig? config});
    controllers sorted by type for deterministic output, routes in
    declaration order, `middleware:` holding the controller-level then
    route-level chain.
+5. registers every WebSocket endpoint (sorted by path):
+   `server.registerWebSocket('/ws/x', () => ctx.handler)` for singleton
+   handlers, `() => ctx.createHandler()` for transient (per-connection)
+   ones.
 
 ## Interop with other generators
 

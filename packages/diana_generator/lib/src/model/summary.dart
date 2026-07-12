@@ -263,6 +263,21 @@ class ControllerInfo {
       );
 }
 
+/// A `@WebSocketController` class.
+class WebSocketInfo {
+  final TypeRef type;
+  final String path;
+
+  const WebSocketInfo({required this.type, required this.path});
+
+  Map<String, Object?> toJson() => {'type': type.toJson(), 'path': path};
+
+  factory WebSocketInfo.fromJson(Map<String, Object?> json) => WebSocketInfo(
+        type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
+        path: json['path'] as String,
+      );
+}
+
 /// A `@GlobalMiddleware` class.
 class GlobalMiddlewareInfo {
   final TypeRef type;
@@ -357,6 +372,7 @@ class LibrarySummary {
   final String libraryUri;
   final List<InjectableInfo> injectables;
   final List<ControllerInfo> controllers;
+  final List<WebSocketInfo> webSockets;
   final List<GlobalMiddlewareInfo> globalMiddleware;
   final List<AdviceInfo> advices;
   final AppInfo? app;
@@ -365,6 +381,7 @@ class LibrarySummary {
     required this.libraryUri,
     this.injectables = const [],
     this.controllers = const [],
+    this.webSockets = const [],
     this.globalMiddleware = const [],
     this.advices = const [],
     this.app,
@@ -373,6 +390,7 @@ class LibrarySummary {
   bool get isEmpty =>
       injectables.isEmpty &&
       controllers.isEmpty &&
+      webSockets.isEmpty &&
       globalMiddleware.isEmpty &&
       advices.isEmpty &&
       app == null;
@@ -383,6 +401,8 @@ class LibrarySummary {
           'injectables': [for (final i in injectables) i.toJson()],
         if (controllers.isNotEmpty)
           'controllers': [for (final c in controllers) c.toJson()],
+        if (webSockets.isNotEmpty)
+          'webSockets': [for (final w in webSockets) w.toJson()],
         if (globalMiddleware.isNotEmpty)
           'globalMiddleware': [for (final m in globalMiddleware) m.toJson()],
         if (advices.isNotEmpty)
@@ -399,6 +419,10 @@ class LibrarySummary {
         controllers: [
           for (final c in (json['controllers'] as List<Object?>? ?? const []))
             ControllerInfo.fromJson((c as Map).cast<String, Object?>()),
+        ],
+        webSockets: [
+          for (final w in (json['webSockets'] as List<Object?>? ?? const []))
+            WebSocketInfo.fromJson((w as Map).cast<String, Object?>()),
         ],
         globalMiddleware: [
           for (final m

@@ -5,9 +5,9 @@ library;
 /// annotations? Avoids resolving libraries that can't be relevant.
 final RegExp dianaAnnotationPattern = RegExp(
   r'@(Injectable|Service|Repository|Component|RestController|'
-  r'GlobalMiddleware|UseMiddleware|ControllerAdvice|ConfigurationProperties|'
-  r'DianaApplication|NotNull|NotEmpty|NotBlank|Min|Max|Size|Pattern|Email|'
-  r'Valid)\b',
+  r'WebSocketController|GlobalMiddleware|UseMiddleware|ControllerAdvice|'
+  r'ConfigurationProperties|DianaApplication|NotNull|NotEmpty|NotBlank|Min|'
+  r'Max|Size|Pattern|Email|Valid)\b',
 );
 
 /// Pre-check for the application entrypoint annotation only.

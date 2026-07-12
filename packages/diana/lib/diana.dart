@@ -18,3 +18,4 @@ export 'src/middleware.dart';
 export 'src/pipeline.dart';
 export 'src/server.dart';
 export 'src/validation.dart';
+export 'src/websocket.dart';

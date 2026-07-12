@@ -16,6 +16,7 @@ dependencies:
   diana_annotation: ^0.1.0
   meta: ^1.16.0
   relic: ^1.1.0
+  web_socket: ^1.0.0
   yaml: ^3.1.0
 
 dev_dependencies:

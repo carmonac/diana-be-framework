@@ -107,6 +107,17 @@ Only `@UseMiddleware([SomeType])` — no expressions.
 
 ---
 
+## WebSockets
+
+**`@WebSocketController class X (lib) does not implement Diana's WebSocketHandler interface. Implement it, or extend BaseWebSocketHandler.`**
+
+**`Duplicate WebSocket path "/ws/x": handled by both A and B.`**
+Each endpoint path maps to exactly one handler class.
+
+**`@WebSocketController class X cannot be request-scoped; use Scope.singleton (shared handler) or Scope.transient (one handler per connection).`**
+
+---
+
 ## Configuration
 
 **`@Value parameter "p" of X must be String, int, double, bool or num — got T.`**

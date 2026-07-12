@@ -58,6 +58,10 @@ class TodoController {
   responses, plus `@ControllerAdvice`/`@ExceptionHandler` to map domain
   exceptions, dispatched by subtype specificity. Unhandled errors become
   opaque 500s (details never leak to clients).
+- **WebSockets** — Spring-style `@WebSocketController('/ws/path')` on a
+  `WebSocketHandler` implementation: lifecycle callbacks
+  (`onOpen`/`onMessage`/`onError`/`onClose`), typed sessions with path
+  parameters and attributes, shared or per-connection handler instances.
 
 ## Documentation
 
@@ -178,5 +182,6 @@ the DI graph rewrite the bootstrap file and need a process restart.
 ## Status / Roadmap
 
 Early but functional MVP. Planned next: request-scoped providers exercised
-end-to-end, Diana-native JSON codegen, OpenAPI generation, WebSocket support,
-cross-package component scanning, profiles (`application-dev.yaml`).
+end-to-end, Diana-native JSON codegen, OpenAPI generation, WebSocket
+handshake interceptors and STOMP-style messaging, cross-package component
+scanning, profiles (`application-dev.yaml`).

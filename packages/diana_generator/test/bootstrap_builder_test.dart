@@ -273,6 +273,93 @@ class BadAdvice {
     );
   });
 
+  test('registers WebSocket endpoints for singleton and transient handlers',
+      () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/ws.dart': '''
+import 'package:diana/diana.dart';
+
+@WebSocketController('/ws/echo')
+class EchoHandler extends BaseWebSocketHandler {}
+
+@WebSocketController('/ws/chat', Scope.transient)
+class ChatHandler extends BaseWebSocketHandler {
+  ChatHandler(this.echo);
+  final EchoHandler echo;
+}
+''',
+      },
+      output: allOf(
+        contains("server.registerWebSocket('/ws/chat', "
+            '() => ctx.createChatHandler());'),
+        contains("server.registerWebSocket('/ws/echo', () => ctx.echoHandler);"),
+      ),
+    );
+  });
+
+  test('rejects @WebSocketController classes without the handler interface',
+      () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/ws.dart': '''
+import 'package:diana/diana.dart';
+
+@WebSocketController('/ws/echo')
+class NotAHandler {}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        '@WebSocketController class NotAHandler (package:a/ws.dart) does '
+            "not implement Diana's WebSocketHandler interface. Implement it, "
+            'or extend BaseWebSocketHandler.',
+      ],
+    );
+  });
+
+  test('rejects duplicate WebSocket paths and request scope', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/ws.dart': '''
+import 'package:diana/diana.dart';
+
+@WebSocketController('/ws/echo')
+class HandlerA extends BaseWebSocketHandler {}
+
+@WebSocketController('/ws/echo')
+class HandlerB extends BaseWebSocketHandler {}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        'Duplicate WebSocket path "/ws/echo": handled by both HandlerA and '
+            'HandlerB.',
+      ],
+    );
+
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/ws.dart': '''
+import 'package:diana/diana.dart';
+
+@WebSocketController('/ws/echo', Scope.request)
+class RequestHandler extends BaseWebSocketHandler {}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        '@WebSocketController class RequestHandler cannot be request-scoped; '
+            'use Scope.singleton (shared handler) or Scope.transient '
+            '(one handler per connection).',
+      ],
+    );
+  });
+
   test('supports custom methods via @HttpRoute', () async {
     await expectBootstrap(
       {
