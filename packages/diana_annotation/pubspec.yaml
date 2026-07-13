@@ -1,6 +1,6 @@
 name: diana_annotation
 description: Annotations for the Diana backend framework. Pure constants, no runtime dependencies.
-version: 0.3.0
+version: 0.6.0
 publish_to: none
 
 environment:

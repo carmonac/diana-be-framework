@@ -161,6 +161,48 @@ overlapping ticks, `fixedDelay` re-arms after completion. See
 
 ---
 
+## Events
+
+### `@EventListener()`
+
+**Target:** method (public instance, exactly one positional parameter — the
+event type, a non-nullable class — returning `void`/`Future<void>`;
+singleton providers only).
+Registers the method as an application-event listener: it receives every
+event published through `DianaEventPublisher` whose type matches the
+parameter (subtypes included). Listeners are registered before
+`initialize()`, dispatched in registration order and awaited. See the
+[events guide](../guides/events.md).
+
+---
+
+## Authentication & authorization
+
+These require the `diana_auth` package (the runtime types they wire in live
+there). See the [auth guide](../guides/auth.md).
+
+### `@Secured()`
+
+**Target:** class (REST/WebSocket controller or gRPC service) or route
+method; method replaces controller.
+Requires an authenticated principal — anonymous requests get **401**. The
+generator appends a guard after the authentication middleware.
+
+### `@RolesAllowed(List<String> roles)`
+
+**Target:** same as `@Secured`.
+Requires the principal to hold **any** of `roles` (401 anonymous, 403
+authenticated-but-missing-role). Implies `@Secured`.
+
+### `@Principal()`
+
+**Target:** route-method parameter.
+Binds the authenticated principal (`AuthPrincipal` or a subclass). A
+non-nullable parameter throws 401 when unauthenticated; a nullable one
+receives `null`.
+
+---
+
 ## JSON
 
 ### `@Json()`
@@ -213,6 +255,22 @@ generated `DianaApp` serves all `@GrpcService` classes on `grpc.port`
 through `package:diana_grpc` (a dependency your app must declare). Cannot
 be combined with other role annotations. See the
 [gRPC guide](../guides/grpc.md).
+
+---
+
+## Persistence
+
+Requires the `diana_data` package (the `Database` it works with lives
+there). See the [persistence guide](../guides/persistence.md).
+
+### `@Transactional()`
+
+**Target:** method (must return `Future`) or class (all public
+`Future`-returning methods) on a `@Service`/`@Component`/`@Repository`
+provider that is **extendable** (not `final`/`base`/`sealed`).
+Runs the method inside a database transaction via a generated proxy
+subclass. Nesting joins the enclosing transaction as a savepoint
+(propagation REQUIRED); an uncaught exception rolls back and rethrows.
 
 ---
 

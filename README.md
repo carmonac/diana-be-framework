@@ -88,6 +88,21 @@ class TodoController {
 - **gRPC** — `@GrpcService()` on your protoc-generated service: it joins
   the DI graph and is served next to HTTP (own port, shared lifecycle) via
   the optional [`diana_grpc`](packages/diana_grpc) package.
+- **Application events** — Spring-style `@EventListener` methods and an
+  injectable `DianaEventPublisher`: awaited local dispatch with subtype
+  matching, plus `broadcast()` to deliver an event to every isolate when
+  serving multi-isolate.
+- **Security** — the optional [`diana_auth`](packages/diana_auth) package:
+  pluggable authenticator strategies (JWT Bearer with in-package HS256,
+  HTTP Basic, API key), `@Secured`/`@RolesAllowed` guards (401/403) and
+  `@Principal` binding, enforced across HTTP, WebSocket handshakes and
+  gRPC.
+- **Persistence** — the optional [`diana_data`](packages/diana_data) package:
+  an injectable `Database` query executor over
+  [knex_dart](https://pub.dev/packages/knex_dart), Spring-style
+  `@Transactional` methods with ambient (savepoint-nesting) transactions,
+  opt-in SQL migrations and a database health check — driver-agnostic
+  (you pick Postgres/SQLite/…).
 
 ## Documentation
 
@@ -106,11 +121,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.3.0
+  diana: ^0.6.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.3.0
+  diana_generator: ^0.6.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -174,8 +189,11 @@ pass `overrides:` to swap providers.
 | [`packages/diana_annotation`](packages/diana_annotation) | The annotations. Pure constants, no dependencies. |
 | [`packages/diana_generator`](packages/diana_generator) | The build_runner builders: metadata extraction, DI graph resolution, code emission. |
 | [`packages/diana_grpc`](packages/diana_grpc) | Optional gRPC runtime (`DianaGrpcServer`) — the only package depending on `package:grpc`. |
-| [`examples/todo_api`](examples/todo_api) | Complete example: controllers, DI, middleware, config, validation, advice, XML, SSE. |
+| [`packages/diana_auth`](packages/diana_auth) | Optional security: authenticator strategies, guards, JWT — the only package depending on `package:crypto`. |
+| [`packages/diana_data`](packages/diana_data) | Optional persistence: injectable query executor, `@Transactional`, migrations — the only package depending on `knex_dart`. |
+| [`examples/todo_api`](examples/todo_api) | Complete example: controllers, DI, middleware, config, validation, advice, XML, SSE, events, auth. |
 | [`examples/greeter_grpc`](examples/greeter_grpc) | gRPC + HTTP side by side from one DI graph. |
+| [`examples/blog_api`](examples/blog_api) | Persistence with diana_data over SQLite: migrations, repository, transactions. |
 
 ## How it works
 
@@ -208,9 +226,10 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.3: the Spring-parity feature set above — including content negotiation
-(XML), Server-Sent Events and gRPC — fully tested. Planned next:
-STOMP-style messaging over WebSockets, cron expressions for `@Scheduled`,
-cross-package component scanning (modules), DI-discovered gRPC
-interceptors, TLS for the gRPC listener, richer OpenAPI schemas for
-convention DTOs.
+v0.6: the Spring-parity feature set above — including content negotiation
+(XML), Server-Sent Events, gRPC, application events with a cross-isolate
+bridge, authentication/authorization (`diana_auth`) and persistence with
+`@Transactional` (`diana_data`) — fully tested. Planned next: Spring-Data
+style query-method generation, caching (`@Cacheable`), observability
+(Prometheus/OpenTelemetry), STOMP-style messaging over WebSockets, cron
+expressions for `@Scheduled`, RS256/JWKS token verification.

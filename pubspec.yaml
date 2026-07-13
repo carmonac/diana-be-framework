@@ -9,6 +9,9 @@ workspace:
   - packages/diana_annotation
   - packages/diana
   - packages/diana_generator
+  - packages/diana_auth
+  - packages/diana_data
   - packages/diana_grpc
+  - examples/blog_api
   - examples/todo_api
   - examples/greeter_grpc

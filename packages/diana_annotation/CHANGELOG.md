@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0
+
+- New annotation: `@Transactional` (method/class) for the `diana_data`
+  package.
+
+## 0.5.0
+
+- New annotations: `@Secured`, `@RolesAllowed` (controllers/routes/gRPC
+  services) and `@Principal` (route parameters) for the `diana_auth`
+  package.
+
+## 0.4.0
+
+- New annotation: `@EventListener` (method-level) — registers an
+  application-event listener on a singleton provider.
+
 ## 0.3.0
 
 - New annotations: `@Consumes`/`@Produces` (content negotiation, method

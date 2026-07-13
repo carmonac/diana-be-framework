@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.6.0
+
+- `@Transactional` support: reads annotated methods (capturing full
+  signatures), injects diana_data's `Database` into `@Repository`/service
+  providers via a framework-injectable seam, opens/migrates/closes the
+  connection in the context lifecycle, and emits `$Tx$X` proxy subclasses
+  that wrap each transactional method in an ambient transaction. New
+  connector-cardinality and `@Transactional` placement/signature
+  diagnostics. Apps without data emit byte-identical output.
+
+## 0.5.0
+
+- `@Secured`/`@RolesAllowed` support: `SecurityInfo` captured on routes,
+  controllers, WebSocket controllers and gRPC services (method replaces
+  controller); guards from `diana_auth` (referenced by import URL only)
+  appended last in HTTP route and WebSocket handshake middleware; a
+  `grpcAuthInterceptor` wired from the app's `AuthenticationMiddleware`
+  (server-wide). New diagnostics for empty roles, misplaced annotations
+  and gRPC security. `@Principal` parameter binding via `bindPrincipal`.
+  OpenAPI gains a bearer scheme and per-operation `security`. Apps without
+  security emit byte-identical output.
+
+## 0.4.0
+
+- `@EventListener` support: listener methods are validated (signature,
+  non-nullable class-typed event parameter, singleton scope) and
+  registered on a `DianaEventBus` in the generated `DianaContext`
+  constructor; `DianaEventPublisher` constructor parameters are satisfied
+  by the context's bus; `runDiana` hands the bus to the runtime for the
+  cross-isolate bridge. Apps without events emit byte-identical output.
+
 ## 0.3.0
 
 - `@Consumes`/`@Produces` classification and emission: annotated routes

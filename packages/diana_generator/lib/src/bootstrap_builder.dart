@@ -13,6 +13,10 @@ import 'model/summary.dart';
 import 'openapi/openapi_builder.dart';
 import 'readers/library_reader.dart';
 
+/// diana_auth guard/interceptor types are referenced by import URL only —
+/// the generator never depends on diana_auth (mirrors `dianaGrpcLib`).
+const String _dianaAuthLib = 'package:diana_auth/diana_auth.dart';
+
 /// Aggregating builder. Runs on the library annotated with
 /// `@DianaApplication`, discovers every `.diana.json` summary in the package,
 /// resolves the dependency injection graph and emits the composition root
@@ -79,6 +83,8 @@ class DianaBootstrapBuilder implements Builder {
       errors.addAll(_checkHealthIndicators(result.graph!));
       errors.addAll(_checkBodyCodecs(result.graph!));
       errors.addAll(_checkGrpcServices(result.graph!, summaries));
+      errors.addAll(_checkGrpcSecurity(result.graph!, summaries));
+      errors.addAll(_checkDatabase(result.graph!));
     }
     if (errors.isNotEmpty) {
       log.severe(
@@ -243,6 +249,104 @@ class DianaBootstrapBuilder implements Builder {
 
   /// `@GrpcService` classes must extend package:grpc's `Service` (via a
   /// protoc-generated `XServiceBase`).
+  /// True when [a] and [b] describe the same security requirement.
+  bool _sameSecurity(SecurityInfo? a, SecurityInfo? b) {
+    if (a == null || b == null) return identical(a, b) || (a == null && b == null);
+    final ar = a.roles, br = b.roles;
+    if (ar == null || br == null) return ar == null && br == null;
+    return ar.toSet().containsAll(br) && br.toSet().containsAll(ar);
+  }
+
+  /// The single `AuthenticationMiddleware` provider (diana_auth) in the
+  /// graph, or `null` when absent or ambiguous.
+  List<ResolvedProvider> _authMiddlewareProviders(DiGraph graph) => [
+        for (final provider in graph.ordered)
+          if (provider.info.supertypes.any(
+            (s) =>
+                s.name == 'AuthenticationMiddleware' &&
+                s.libraryUri.startsWith('package:diana_auth/'),
+          ))
+            provider,
+      ];
+
+  /// The `DatabaseConnector` providers in the graph (discovered by
+  /// supertype).
+  List<ResolvedProvider> _connectorProviders(DiGraph graph) => [
+        for (final provider in graph.ordered)
+          if (provider.info.supertypes.any(
+            (s) =>
+                s.name == 'DatabaseConnector' &&
+                s.libraryUri.startsWith('package:diana_data/'),
+          ))
+            provider,
+      ];
+
+  /// When the app uses diana_data (injects `Database` or declares
+  /// `@Transactional`), it needs exactly one `DatabaseConnector` to open the
+  /// connection.
+  List<String> _checkDatabase(DiGraph graph) {
+    final connectors = _connectorProviders(graph);
+    if (!graph.usesData && connectors.isEmpty) return const [];
+    if (connectors.isEmpty) {
+      return [
+        '@Transactional/Database injection found but no DatabaseConnector '
+        'provider was declared. Add a @Component extending diana_data\'s '
+        'DatabaseConnector.',
+      ];
+    }
+    if (connectors.length > 1) {
+      return [
+        'Multiple DatabaseConnector providers: '
+        '${connectors.map((p) => '${p.info.type.displayName} '
+            '(${p.declaredIn})').join(', ')}. Declare exactly one.',
+      ];
+    }
+    return const [];
+  }
+
+  /// gRPC interceptors are server-wide, so v1 requires every `@GrpcService`
+  /// to declare identical security and exactly one singleton
+  /// `AuthenticationMiddleware` to enforce it.
+  List<String> _checkGrpcSecurity(
+    DiGraph graph,
+    List<LibrarySummary> summaries,
+  ) {
+    final services = [for (final s in summaries) ...s.grpcServices];
+    final secured = services.where((s) => s.security != null).toList();
+    if (secured.isEmpty) return const [];
+
+    final errors = <String>[];
+    final reference = secured.first;
+    for (final service in services) {
+      if (!_sameSecurity(service.security, reference.security)) {
+        errors.add(
+          'gRPC security is server-wide in this version; all @GrpcService '
+          'classes must declare identical @Secured/@RolesAllowed (found '
+          'differing declarations on ${reference.type.displayName} and '
+          '${service.type.displayName}).',
+        );
+        break;
+      }
+    }
+
+    final providers = _authMiddlewareProviders(graph);
+    final singletons = providers
+        .where((p) => p.scope == 'singleton' && !p.needsRequestScope)
+        .toList();
+    if (singletons.length != 1) {
+      final found = providers.isEmpty
+          ? 'none'
+          : '${providers.length}: '
+              '${providers.map((p) => p.info.type.displayName).join(', ')}';
+      errors.add(
+        '@Secured/@RolesAllowed on @GrpcService ${reference.type.displayName} '
+        "requires exactly one singleton provider extending diana_auth's "
+        'AuthenticationMiddleware; found $found.',
+      );
+    }
+    return errors;
+  }
+
   List<String> _checkGrpcServices(
     DiGraph graph,
     List<LibrarySummary> summaries,
@@ -268,6 +372,102 @@ class DianaBootstrapBuilder implements Builder {
     }
     return errors;
   }
+
+  /// Generates `$Tx$X` proxy subclasses for every provider with
+  /// `@Transactional` methods: each override wraps `super.method(...)` in an
+  /// ambient transaction via the injected `Database`.
+  List<Spec> _transactionalProxies(DiGraph graph) {
+    final proxies = <Spec>[];
+    for (final provider in graph.ordered) {
+      final txMethods = provider.info.transactionalMethods;
+      if (txMethods.isEmpty) continue;
+      final base = provider.info.type;
+
+      proxies.add(Class((c) {
+        c
+          ..name = '\$Tx\$${base.name}'
+          ..extend = referenceOf(base)
+          ..fields.add(Field((f) => f
+            ..name = '_db'
+            ..modifier = FieldModifier.final$
+            ..type = refer('Database', dianaDataLib)));
+
+        // Constructor: (Database _db, <base ctor params>) : super(<forward>).
+        final forwardPositional = <String>[];
+        final forwardNamed = <String>[];
+        c.constructors.add(Constructor((ctor) {
+          ctor.requiredParameters.add(Parameter((p) => p
+            ..name = '_db'
+            ..toThis = true));
+          for (final param in provider.info.ctorParams) {
+            if (param.isNamed) {
+              ctor.optionalParameters.add(Parameter((p) => p
+                ..name = param.name
+                ..named = true
+                ..required = true
+                ..type = referenceOf(param.type)));
+              forwardNamed.add('${param.name}: ${param.name}');
+            } else {
+              ctor.requiredParameters.add(Parameter((p) => p
+                ..name = param.name
+                ..type = referenceOf(param.type)));
+              forwardPositional.add(param.name);
+            }
+          }
+          final superArgs =
+              [...forwardPositional, ...forwardNamed].join(', ');
+          ctor.initializers.add(Code('super($superArgs)'));
+        }));
+
+        // One override per @Transactional method.
+        for (final method in txMethods) {
+          final forwardArgs = <String>[];
+          c.methods.add(Method((m) {
+            m
+              ..annotations.add(refer('override'))
+              ..name = method.methodName
+              ..returns = referenceOf(method.returnType);
+            for (final param in method.params) {
+              final p = Parameter((b) {
+                b
+                  ..name = param.name
+                  ..type = referenceOf(param.type);
+                if (param.defaultCode != null) {
+                  b.defaultTo = Code(param.defaultCode!);
+                }
+                if (param.kind == 'named') b.named = true;
+              });
+              switch (param.kind) {
+                case 'named':
+                  m.optionalParameters.add(p);
+                  forwardArgs.add('${param.name}: ${param.name}');
+                case 'optionalPositional':
+                  m.optionalParameters.add(p);
+                  forwardArgs.add(param.name);
+                default:
+                  m.requiredParameters.add(p);
+                  forwardArgs.add(param.name);
+              }
+            }
+            m
+              ..lambda = true
+              ..body = Code('_db.runTransactional(() => '
+                  'super.${method.methodName}(${forwardArgs.join(', ')}))');
+          }));
+        }
+      }));
+    }
+    return proxies;
+  }
+
+  /// A `const SecuredGuard()` / `const RolesGuard([...])` from diana_auth
+  /// (referenced by URL string only — the generator never depends on it).
+  Expression _guardExpr(SecurityInfo security) => security.roles == null
+      ? refer('SecuredGuard', _dianaAuthLib).constInstance(const [])
+      : refer('RolesGuard', _dianaAuthLib).constInstance([
+          literalConstList(
+              [for (final r in security.roles!) literalString(r)]),
+        ]);
 
   Expression _corsPolicyExpr(CorsInfo cors) =>
       refer('CorsPolicy', dianaLib).newInstance([], {
@@ -460,8 +660,15 @@ class DianaBootstrapBuilder implements Builder {
           }
         }).closure;
 
-        final routeMiddleware = [...controller.middleware, ...route.middleware];
         final cors = route.cors ?? controller.cors;
+        final security = route.security ?? controller.security;
+        // Guards run after any authentication middleware and immediately
+        // before the handler ⇒ appended last in the per-route chain.
+        final routeMiddleware = <Expression>[
+          for (final mw in controller.middleware) providerAccess(mw),
+          for (final mw in route.middleware) providerAccess(mw),
+          if (security != null) _guardExpr(security),
+        ];
         serverStatements.add(refer('server').property('register').call(
           [
             refer('HttpMethod', dianaLib)
@@ -471,9 +678,7 @@ class DianaBootstrapBuilder implements Builder {
           ],
           {
             if (routeMiddleware.isNotEmpty)
-              'middleware': literalList([
-                for (final mw in routeMiddleware) providerAccess(mw),
-              ]),
+              'middleware': literalList(routeMiddleware),
             if (cors != null) 'cors': _corsPolicyExpr(cors),
           },
         ).statement);
@@ -542,13 +747,17 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
       final factory = Method((m) => m
         ..lambda = true
         ..body = names.access('${ws.type.key}|', ctx: refer('ctx')).code).closure;
+      // Guards run as handshake interceptors, after the (controller-level)
+      // authentication middleware and last before the upgrade.
+      final wsMiddleware = <Expression>[
+        for (final mw in ws.middleware) providerAccess(mw),
+        if (ws.security != null) _guardExpr(ws.security!),
+      ];
       serverStatements.add(refer('server').property('registerWebSocket').call(
         [literalString(ws.path), factory],
         {
-          if (ws.middleware.isNotEmpty)
-            'middleware': literalList([
-              for (final mw in ws.middleware) providerAccess(mw),
-            ]),
+          if (wsMiddleware.isNotEmpty)
+            'middleware': literalList(wsMiddleware),
         },
       ).statement);
     }
@@ -560,6 +769,25 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
       ..sort((a, b) => a.type.key.compareTo(b.type.key));
 
     if (grpcServices.isNotEmpty) {
+      final grpcSecurity =
+          grpcServices.firstWhere((s) => s.security != null,
+                  orElse: () => grpcServices.first)
+              .security;
+      Expression? interceptors;
+      if (grpcSecurity != null) {
+        // Validated by _checkGrpcSecurity: exactly one singleton provider.
+        final authField = names.fields[
+            _authMiddlewareProviders(graph).single.key]!;
+        interceptors = literalList([
+          refer('grpcAuthInterceptor', dianaGrpcLib).call([
+            refer('ctx').property(authField).property('authorizeMetadata'),
+          ], {
+            if (grpcSecurity.roles != null)
+              'rolesAllowed': literalList(
+                  [for (final r in grpcSecurity.roles!) literalString(r)]),
+          }),
+        ]);
+      }
       serverStatements.add(declareFinal('grpcServer')
           .assign(refer('DianaGrpcServer', dianaGrpcLib).newInstance([
             refer('cfg')
@@ -569,6 +797,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
                 refer('ctx').property(
                     names.fields['${service.type.key}|']!),
             ]),
+            if (interceptors != null) 'interceptors': interceptors,
           }))
           .statement);
     }
@@ -754,6 +983,9 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
                   'server': refer('app').property('server'),
                   'initialize': refer('app').property('initialize'),
                   'dispose': refer('app').property('dispose'),
+                  if (graph.usesEvents)
+                    'eventBus':
+                        refer('app').property('context').property('eventBus'),
                 })
                 .returned
                 .statement,
@@ -774,6 +1006,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
     final generated = Library((b) => b
       ..body.addAll([
         ...emission.specs,
+        ..._transactionalProxies(graph),
         appClass,
         buildContextFn,
         if (mapExceptionFn != null) mapExceptionFn,

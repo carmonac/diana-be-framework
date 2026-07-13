@@ -1,0 +1,13 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+
+management:
+  enabled: true
+
+db:
+  # An in-memory SQLite database for the demo; a real app would point at a
+  # file or a Postgres server via db.host/db.port/… and a driver package.
+  file: ":memory:"
+  migrations:
+    dir: migrations

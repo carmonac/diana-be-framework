@@ -82,6 +82,26 @@ gRPC serving requires `server.isolates: 1` — see the
 | `management.enabled` | `false` | Serve `/actuator/health` and `/actuator/info` |
 | `info.*` | — | Free-form section served by `/actuator/info` |
 
+## Authentication (`auth.*`, with `package:diana_auth`)
+
+`diana_auth` reads no keys directly; your `AuthenticationMiddleware` pulls
+them via `@Value`. Conventional keys:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `auth.jwt.secret` | — | HS256 signing/verification secret (env `AUTH_JWT_SECRET`) |
+
+See the [auth guide](../guides/auth.md).
+
+## Persistence (`db.*`, with `package:diana_data`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `db.migrations.dir` | — | Directory of `*.sql` migrations applied on startup (opt-in) |
+| `db.*` | — | Whatever your `DatabaseConnector` reads (host, file, credentials, …) |
+
+See the [persistence guide](../guides/persistence.md).
+
 ## Profiles
 
 | Key / variable | Meaning |

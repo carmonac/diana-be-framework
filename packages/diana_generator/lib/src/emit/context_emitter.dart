@@ -13,6 +13,10 @@ import '../model/summary.dart';
 
 const String dianaLib = 'package:diana/diana.dart';
 
+/// diana_data runtime types are referenced by import URL only — the
+/// generator never depends on diana_data (mirrors `dianaGrpcLib`).
+const String dianaDataLib = 'package:diana_data/diana_data.dart';
+
 Reference get dianaConfigRef => refer('DianaConfig', dianaLib);
 
 /// Converts a summary [TypeRef] into a code_builder reference (imports are
@@ -20,7 +24,7 @@ Reference get dianaConfigRef => refer('DianaConfig', dianaLib);
 Reference referenceOf(TypeRef type) => TypeReference((b) {
       b
         ..symbol = type.name
-        ..url = type.libraryUri
+        ..url = type.libraryUri.isEmpty ? null : type.libraryUri
         ..isNullable = type.nullable ? true : null;
       b.types.addAll([for (final a in type.typeArgs) referenceOf(a)]);
     });
@@ -42,6 +46,10 @@ class ContextNames {
 
   bool hasRequestScope = false;
 
+  /// The `Database` field name on `DianaContext`, when the app uses
+  /// diana_data (else null).
+  String? database;
+
   /// Expression reading provider [key] given an expression for the context
   /// ([ctx]) and, when inside the request scope, the scope itself ([scope]).
   Expression access(String key, {required Expression ctx, Expression? scope}) {
@@ -61,7 +69,30 @@ class ContextEmission {
 /// Builds the context (and request scope) class specs for [graph].
 ContextEmission emitContext(DiGraph graph) {
   final names = ContextNames();
-  final used = <String>{'config'};
+
+  // The single DatabaseConnector provider (validated by _checkDatabase), used
+  // to construct the context's Database field.
+  ResolvedProvider? connectorProvider;
+  if (graph.usesData) {
+    for (final p in graph.ordered) {
+      if (p.info.supertypes.any((s) =>
+          s.name == 'DatabaseConnector' &&
+          s.libraryUri.startsWith('package:diana_data/'))) {
+        connectorProvider = p;
+        break;
+      }
+    }
+  }
+  final usesData = graph.usesData && connectorProvider != null;
+
+  // 'eventBus'/'database' are reserved only when used, so apps without those
+  // features keep byte-identical output.
+  final used = <String>{
+    'config',
+    if (graph.usesEvents) 'eventBus',
+    if (usesData) 'database',
+  };
+  if (usesData) names.database = 'database';
 
   String allocate(String base) {
     var name = base;
@@ -111,6 +142,8 @@ ContextEmission emitContext(DiGraph graph) {
           [referenceOf(param.type)],
         );
       }
+      if (dep.isEventPublisher) return ctxProp('eventBus');
+      if (dep.isDbExecutor) return ctxProp(names.database!);
       final key = dep.providerKey!;
       final method = names.methods[key];
       final onScopeDep = names.onRequestScope.contains(key);
@@ -138,8 +171,19 @@ ContextEmission emitContext(DiGraph graph) {
           positional.add(depExpr(dep));
         }
       }
-      construction =
-          referenceOf(provider.info.type).newInstance(positional, named);
+      // @Transactional providers are constructed as a generated proxy
+      // subclass ($Tx$X, local to the app library) that takes the Database
+      // as its first positional argument.
+      final isTransactional = provider.info.transactionalMethods.isNotEmpty;
+      if (isTransactional) {
+        construction = refer('\$Tx\$${provider.info.type.name}').newInstance(
+          [ctxProp(names.database!), ...positional],
+          named,
+        );
+      } else {
+        construction =
+            referenceOf(provider.info.type).newInstance(positional, named);
+      }
     }
     final overridesExpr =
         onScope ? refer('_ctx').property('_overrides') : refer('_overrides');
@@ -201,6 +245,12 @@ ContextEmission emitContext(DiGraph graph) {
     ..docs.add('/// Constructs every singleton in dependency order and '
         'runs @PostConstruct hooks.')
     ..body = Block.of([
+      // Open the database (and run migrations) before any provider so a
+      // repository's @PostConstruct can already query.
+      if (usesData) ...[
+        Code('await ${names.database}.open();'),
+        Code('await ${names.database}.migrate();'),
+      ],
       for (final provider in initializables)
         provider.info.postConstruct == null
             ? Code('${names.fields[provider.key]!};')
@@ -221,6 +271,8 @@ ContextEmission emitContext(DiGraph graph) {
           Code('${provider.info.preDestroyAwaited ? 'await ' : ''}'
               '${names.fields[provider.key]!}'
               '.${provider.info.preDestroy}();'),
+      // Close the connection after @PreDestroy hooks have run.
+      if (usesData) Code('await ${names.database}.close();'),
     ]));
 
   final contextClass = Class((c) {
@@ -234,14 +286,50 @@ ContextEmission emitContext(DiGraph graph) {
         ..name = '_overrides'
         ..modifier = FieldModifier.final$
         ..type = refer('DianaOverrides')))
-      ..constructors.add(Constructor((ctor) => ctor
-        ..requiredParameters.add(Parameter((p) => p
-          ..name = 'config'
-          ..toThis = true))
-        ..optionalParameters.add(Parameter((p) => p
-          ..name = '_overrides'
-          ..toThis = true
-          ..defaultTo = const Code('const DianaOverrides()')))));
+      ..constructors.add(Constructor((ctor) {
+        ctor
+          ..requiredParameters.add(Parameter((p) => p
+            ..name = 'config'
+            ..toThis = true))
+          ..optionalParameters.add(Parameter((p) => p
+            ..name = '_overrides'
+            ..toThis = true
+            ..defaultTo = const Code('const DianaOverrides()')));
+        // Listener registration happens in the constructor so publishes
+        // during initialize() (@PostConstruct) are already delivered. The
+        // closures dereference the late provider fields only when an event
+        // fires — no eager construction.
+        if (graph.usesEvents) {
+          ctor.body = Block.of([
+            for (final provider in graph.ordered)
+              for (final listener in provider.info.eventListeners)
+                Code.scope((allocate) =>
+                    'eventBus.on<${allocate(referenceOf(listener.eventType))}>'
+                    '((e) => ${names.fields[provider.key]!}'
+                    '.${listener.methodName}(e));'),
+          ]);
+        }
+      }));
+    if (graph.usesEvents) {
+      c.fields.add(Field((f) => f
+        ..name = 'eventBus'
+        ..modifier = FieldModifier.final$
+        ..type = refer('DianaEventBus', dianaLib)
+        ..assignment = refer('DianaEventBus', dianaLib).newInstance(const []).code));
+    }
+    if (usesData) {
+      // Opened at the start of initialize() and closed at the end of
+      // dispose(); the connector is constructed lazily on first access.
+      c.fields.add(Field((f) => f
+        ..name = names.database!
+        ..late = true
+        ..modifier = FieldModifier.final$
+        ..type = refer('Database', dianaDataLib)
+        ..assignment = refer('Database', dianaDataLib).newInstance([
+          refer(names.fields[connectorProvider!.key]!),
+          refer('config'),
+        ]).code));
+    }
     for (final provider in graph.ordered) {
       if (provider.needsRequestScope) continue;
       if (provider.scope == 'transient') {

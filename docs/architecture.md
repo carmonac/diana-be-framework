@@ -31,16 +31,22 @@ packages/
 ├── diana_generator     # builders; deps: analyzer, build, source_gen,
 │                       # code_builder, dart_style, diana_annotation
 │                       # (NOT diana — keeps relic out of the build chain)
-└── diana_grpc          # gRPC runtime; deps: diana, grpc — the ONLY
-                        # package importing package:grpc
+├── diana_grpc          # gRPC runtime; deps: diana, grpc — the ONLY
+│                       # package importing package:grpc
+├── diana_auth          # security; deps: diana, crypto — the ONLY
+│                       # package importing package:crypto
+└── diana_data          # persistence; deps: diana, knex_dart — the ONLY
+                        # package importing package:knex_dart
 ```
 
 `diana_generator` depends only on `diana_annotation`, so the build-time
-transitive closure stays free of the HTTP stack. Two boundary rules are
-enforced by tests: `package:relic` is imported only by
-`diana/src/adapter/relic_adapter.dart`, and `package:grpc` only by
-`diana_grpc` (the generator references `DianaGrpcServer` by import URL
-string, so HTTP-only apps never depend on gRPC).
+transitive closure stays free of the HTTP stack. Boundary rules enforced by
+tests: `package:relic` is imported only by
+`diana/src/adapter/relic_adapter.dart`; `package:grpc` only by `diana_grpc`;
+`package:crypto` only by `diana_auth`; `package:knex_dart` only by
+`diana_data`; and the generator imports none of the add-ons (it references
+`DianaGrpcServer`, `SecuredGuard`, `Database`, the `$Tx$` proxies etc. by
+import-URL string, so apps depend only on the add-ons they use).
 
 ## The build pipeline
 
@@ -155,6 +161,23 @@ gRPC services don't route through this pipeline at all: `DianaGrpcServer`
 (package `diana_grpc`) runs `package:grpc`'s own server on a separate
 port, sharing only the DI graph, configuration and lifecycle
 (served on `initialize()`, shut down first on `dispose()`).
+
+Security (package `diana_auth`) reuses the middleware pipeline rather than
+adding a new mechanism: an `AuthenticationMiddleware` establishes the
+principal in `request.attributes`, and `@Secured`/`@RolesAllowed` compile
+to guard middleware the bootstrap appends **last** in each route's chain
+(after authentication, before the handler). The principal-attribute
+contract (`principalAttributeKey` + `bindPrincipal`) lives in
+`package:diana` so generated part-file adapters read it without importing
+`diana_auth`. gRPC — which has no request-attribute channel — is covered
+by a `package:grpc` interceptor the bootstrap wires from the same
+`AuthenticationMiddleware`.
+
+Persistence (package `diana_data`) follows the same add-on shape: the
+generator emits a `Database` field on the context (opened/closed with the
+lifecycle) and, for `@Transactional` methods, a `$Tx$` proxy subclass that
+wraps the call in an ambient transaction bound to the current `Zone`.
+`knex_dart` never reaches the core; the driver package is the user's.
 
 ## Testing strategy (the framework's own)
 

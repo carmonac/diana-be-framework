@@ -6,8 +6,11 @@
 library;
 
 export 'src/app.dart';
+export 'src/auth.dart';
 export 'src/config.dart';
+export 'src/data.dart';
 export 'src/di.dart';
+export 'src/events.dart';
 export 'src/exceptions.dart';
 export 'src/grpc.dart';
 export 'src/json.dart';

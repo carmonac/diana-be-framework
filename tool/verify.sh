@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 echo "==> dart pub get"
 dart pub get
 
-for example in todo_api greeter_grpc; do
+for example in todo_api greeter_grpc blog_api; do
   echo "==> build_runner build (examples/$example)"
   (cd "examples/$example" && dart run build_runner build)
 done
@@ -15,17 +15,17 @@ done
 echo "==> dart analyze"
 dart analyze --fatal-infos
 
-for package in diana diana_generator diana_grpc; do
+for package in diana diana_generator diana_grpc diana_auth diana_data; do
   echo "==> tests: packages/$package"
   (cd "packages/$package" && dart test)
 done
 
-for example in todo_api greeter_grpc; do
+for example in todo_api greeter_grpc blog_api; do
   echo "==> tests: examples/$example"
   (cd "examples/$example" && dart test)
 done
 
-for example in todo_api greeter_grpc; do
+for example in todo_api greeter_grpc blog_api; do
   echo "==> determinism: examples/$example rebuild must be byte-identical"
   (
     cd "examples/$example"

@@ -39,15 +39,62 @@ abstract class Service {
   String get \$name;
 }
 ''',
+  'diana_auth|lib/diana_auth.dart': '''
+import 'dart:async';
+
+import 'package:diana/diana.dart';
+
+abstract interface class Authenticator {}
+
+class AuthenticationMiddleware implements Middleware {
+  const AuthenticationMiddleware({required this.authenticators});
+  final List<Authenticator> authenticators;
+
+  Future<Set<String>?> authorizeMetadata(Map<String, String> metadata) async =>
+      null;
+
+  @override
+  Future<DianaResponse> handle(DianaRequest request, Next next) => next(request);
+}
+''',
+  'diana_data|lib/diana_data.dart': '''
+class Database {
+  Future<T> runTransactional<T>(Future<T> Function() body) => body();
+}
+
+abstract class DatabaseConnector {
+  Future<Object> connect(Object config);
+  Future<void> close(Object connection);
+}
+''',
   'diana|lib/diana.dart': '''
 export 'package:diana_annotation/diana_annotation.dart';
 
 export 'src/codec.dart';
+export 'src/events.dart';
 export 'src/http/request.dart';
 export 'src/http/response.dart';
 export 'src/middleware.dart';
 export 'src/sse.dart';
 export 'src/websocket.dart';
+''',
+  'diana|lib/src/events.dart': '''
+import 'dart:async';
+
+abstract interface class DianaEventPublisher {
+  Future<void> publish(Object event);
+  Future<void> broadcast(Object event);
+}
+
+class DianaEventBus implements DianaEventPublisher {
+  void on<T extends Object>(FutureOr<void> Function(T event) listener) {}
+
+  @override
+  Future<void> publish(Object event) async {}
+
+  @override
+  Future<void> broadcast(Object event) async {}
+}
 ''',
   'diana|lib/src/codec.dart': '''
 abstract interface class BodyCodec {

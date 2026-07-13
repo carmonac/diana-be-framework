@@ -52,6 +52,18 @@ LibrarySummary readLibrary(LibraryElement library) {
     final configPropsAnn = configPropsChecker.firstAnnotationOf(cls);
     final appAnn = dianaApplicationChecker.firstAnnotationOf(cls);
 
+    _checkSecurityPlacement(
+      cls,
+      isController: controllerAnn != null,
+      isSecurable:
+          controllerAnn != null || wsAnn != null || grpcAnn != null,
+    );
+
+    // @Transactional is proxied, so it is valid only on @Injectable-family
+    // providers (services/components/repositories), never controllers,
+    // advices, config-props, etc.
+    _checkTransactionalPlacement(cls, isInjectable: injectableAnn != null);
+
     final roles = [
       if (injectableAnn != null) '@Injectable/@Service/@Repository/@Component',
       if (controllerAnn != null) '@RestController',
@@ -116,6 +128,7 @@ LibrarySummary readLibrary(LibraryElement library) {
         type: selfType,
         path: wsAnn.getField('path')!.toStringValue()!,
         middleware: _useMiddlewareTypes(cls),
+        security: _securityOf(cls, cls.name!),
       ));
     } else if (grpcAnn != null) {
       injectables.add(_withLifecycle(cls, InjectableInfo(
@@ -124,7 +137,10 @@ LibrarySummary readLibrary(LibraryElement library) {
         supertypes: _supertypeRefs(cls),
         ctorParams: _ctorParams(cls),
       )));
-      grpcServices.add(GrpcServiceInfo(type: selfType));
+      grpcServices.add(GrpcServiceInfo(
+        type: selfType,
+        security: _securityOf(cls, cls.name!),
+      ));
     } else if (gmAnn != null) {
       injectables.add(_withLifecycle(cls, InjectableInfo(
         type: selfType,
@@ -227,6 +243,8 @@ InjectableInfo _injectableFrom(
     preDestroy: lifecycle.preDestroy,
     preDestroyAwaited: lifecycle.preDestroyAwaited,
     scheduled: _scheduledOf(cls, scope),
+    eventListeners: _eventListenersOf(cls, scope),
+    transactionalMethods: _transactionalOf(cls),
   );
 }
 
@@ -259,6 +277,7 @@ ControllerInfo _controllerFrom(
       adapterName: adapterNameFor(cls.name!, method.name!),
       middleware: _useMiddlewareTypes(method),
       cors: _corsOf(method),
+      security: _securityOf(method, '${cls.name}.${method.name}'),
       api: apiByMethod[method.name],
     ));
   }
@@ -268,6 +287,7 @@ ControllerInfo _controllerFrom(
     middleware: _useMiddlewareTypes(cls),
     routes: routes,
     cors: _corsOf(cls),
+    security: _securityOf(cls, cls.name!),
   );
 }
 
@@ -371,6 +391,60 @@ CorsInfo? _corsOf(Element element) {
     maxAge: ann.getField('maxAge')?.toIntValue() ?? 3600,
   );
 }
+
+/// Reads `@Secured`/`@RolesAllowed` on [element]. `@RolesAllowed` wins
+/// over `@Secured` (it subsumes it). Throws when the role list is empty.
+SecurityInfo? _securityOf(Element element, String where) {
+  final rolesAnn = rolesAllowedChecker.firstAnnotationOf(element);
+  if (rolesAnn != null) {
+    final roles = rolesAnn
+            .getField('roles')
+            ?.toListValue()
+            ?.map((e) => e.toStringValue()!)
+            .toList() ??
+        const [];
+    if (roles.isEmpty) {
+      throw DianaSourceError(element, '@RolesAllowed on $where lists no roles.');
+    }
+    return SecurityInfo(roles: roles);
+  }
+  if (securedChecker.firstAnnotationOf(element) != null) {
+    return const SecurityInfo();
+  }
+  return null;
+}
+
+/// Rejects `@Secured`/`@RolesAllowed` on elements where they would be
+/// silently ignored — a security annotation with no effect is a hole the
+/// user believes is closed.
+void _checkSecurityPlacement(
+  ClassElement cls, {
+  required bool isController,
+  required bool isSecurable,
+}) {
+  bool hasSecurity(Element e) =>
+      securedChecker.firstAnnotationOf(e) != null ||
+      rolesAllowedChecker.firstAnnotationOf(e) != null;
+
+  if (!isSecurable && hasSecurity(cls)) {
+    throw DianaSourceError(cls, _misplacedSecurity(cls.name!));
+  }
+  for (final method in cls.methods) {
+    if (!hasSecurity(method)) continue;
+    final isRoute =
+        isController && httpRouteChecker.firstAnnotationOf(method) != null;
+    if (!isRoute) {
+      throw DianaSourceError(
+        method,
+        _misplacedSecurity('${cls.name}.${method.name}'),
+      );
+    }
+  }
+}
+
+String _misplacedSecurity(String where) =>
+    '@Secured/@RolesAllowed on $where has no effect: it is not a REST '
+    'controller, WebSocket controller, gRPC service, or route method.';
 
 AdviceInfo _adviceFrom(ClassElement cls, TypeRef selfType) {
   final handlers = <HandlerInfo>[];
@@ -571,14 +645,16 @@ _Lifecycle _lifecycleOf(ClassElement cls, String scope) {
   );
 }
 
-/// Re-creates [info] with the class's lifecycle and scheduled methods
-/// attached.
+/// Re-creates [info] with the class's lifecycle, scheduled and
+/// event-listener methods attached.
 InjectableInfo _withLifecycle(ClassElement cls, InjectableInfo info) {
   final lifecycle = _lifecycleOf(cls, info.scope);
   final scheduled = _scheduledOf(cls, info.scope);
+  final eventListeners = _eventListenersOf(cls, info.scope);
   if (lifecycle.postConstruct == null &&
       lifecycle.preDestroy == null &&
-      scheduled.isEmpty) {
+      scheduled.isEmpty &&
+      eventListeners.isEmpty) {
     return info;
   }
   return InjectableInfo(
@@ -595,6 +671,7 @@ InjectableInfo _withLifecycle(ClassElement cls, InjectableInfo info) {
     preDestroy: lifecycle.preDestroy,
     preDestroyAwaited: lifecycle.preDestroyAwaited,
     scheduled: scheduled,
+    eventListeners: eventListeners,
   );
 }
 
@@ -643,6 +720,138 @@ List<ScheduledMethodInfo> _scheduledOf(ClassElement cls, String scope) {
     ));
   }
   return result;
+}
+
+/// Reads `@EventListener` methods, validating signatures, the event
+/// parameter type and scope.
+List<EventListenerInfo> _eventListenersOf(ClassElement cls, String scope) {
+  final result = <EventListenerInfo>[];
+  for (final method in cls.methods) {
+    final ann = eventListenerChecker.firstAnnotationOf(method);
+    if (ann == null) continue;
+    final returnType = method.returnType;
+    final returnsFutureVoid = returnType is InterfaceType &&
+        returnType.isDartAsyncFuture &&
+        returnType.typeArguments.single is VoidType;
+    final params = method.formalParameters;
+    final validSignature = !method.isStatic &&
+        !method.name!.startsWith('_') &&
+        params.length == 1 &&
+        params.single.isRequiredPositional &&
+        (returnType is VoidType || returnsFutureVoid);
+    if (!validSignature) {
+      throw DianaSourceError(
+        method,
+        '@EventListener method ${cls.name}.${method.name} must be a public '
+        'instance method with exactly one positional parameter returning '
+        'void or Future<void>.',
+      );
+    }
+    final param = params.single;
+    final paramType = param.type;
+    if (paramType is! InterfaceType ||
+        paramType.nullabilitySuffix != NullabilitySuffix.none) {
+      throw DianaSourceError(
+        method,
+        '@EventListener parameter "${param.name}" of '
+        '${cls.name}.${method.name} must be a non-nullable class type; '
+        'found ${paramType.getDisplayString()}.',
+      );
+    }
+    if (scope != 'singleton') {
+      throw DianaSourceError(
+        method,
+        '@EventListener on ${cls.name} requires singleton scope; '
+        'found $scope.',
+      );
+    }
+    result.add(EventListenerInfo(
+      methodName: method.name!,
+      eventType: _typeRefOf(paramType, method),
+    ));
+  }
+  return result;
+}
+
+/// Reads `@Transactional` methods (directly annotated, or all eligible
+/// methods when the class carries `@Transactional`), capturing each
+/// signature so the generated proxy can re-declare a faithful override.
+List<TransactionalMethodInfo> _transactionalOf(ClassElement cls) {
+  final classAnnotated = transactionalChecker.firstAnnotationOf(cls) != null;
+  final annotated = [
+    for (final method in cls.methods)
+      if (classAnnotated || transactionalChecker.firstAnnotationOf(method) != null)
+        method,
+  ];
+  if (annotated.isEmpty) return const [];
+
+  // The proxy is a generated subclass, so the class must be extendable.
+  if (cls.isFinal || cls.isBase || cls.isSealed) {
+    throw DianaSourceError(
+      cls,
+      '@Transactional class ${cls.name} must be extendable: remove the '
+      'final/base/sealed modifier so Diana can generate a transactional '
+      'proxy subclass.',
+    );
+  }
+
+  final result = <TransactionalMethodInfo>[];
+  for (final method in annotated) {
+    if (method.isStatic || method.name!.startsWith('_')) {
+      // Class-level @Transactional silently skips these; a direct annotation
+      // on one is caught by the placement check.
+      if (classAnnotated) continue;
+    }
+    final returnType = method.returnType;
+    final returnsFuture =
+        returnType is InterfaceType && returnType.isDartAsyncFuture;
+    if (!returnsFuture) {
+      if (classAnnotated) continue; // only proxy Future-returning methods
+      throw DianaSourceError(
+        method,
+        '@Transactional method ${cls.name}.${method.name} must return Future '
+        '(transactions are asynchronous); found '
+        '${returnType.getDisplayString()}.',
+      );
+    }
+    result.add(TransactionalMethodInfo(
+      methodName: method.name!,
+      returnType: _typeRefLenient(returnType, method),
+      params: [
+        for (final param in method.formalParameters)
+          TxParamInfo(
+            name: param.name!,
+            type: _typeRefLenient(param.type, param),
+            kind: param.isNamed
+                ? 'named'
+                : param.isOptionalPositional
+                    ? 'optionalPositional'
+                    : 'requiredPositional',
+            required: param.isRequiredPositional || param.isRequiredNamed,
+            defaultCode: param.defaultValueCode,
+          ),
+      ],
+    ));
+  }
+  return result;
+}
+
+/// Rejects `@Transactional` where the generator can't proxy it (not a
+/// service/component/repository provider).
+void _checkTransactionalPlacement(
+  ClassElement cls, {
+  required bool isInjectable,
+}) {
+  bool hasTx(Element e) => transactionalChecker.firstAnnotationOf(e) != null;
+  final onClass = hasTx(cls);
+  final onMethod = cls.methods.any(hasTx);
+  if ((onClass || onMethod) && !isInjectable) {
+    throw DianaSourceError(
+      cls,
+      '@Transactional on ${cls.name} has no effect: it is not a '
+      '@Service/@Component/@Repository provider.',
+    );
+  }
 }
 
 ({String? name, bool awaited}) _lifecycleMethod(
@@ -707,6 +916,26 @@ int _supertypeDepth(InterfaceType type) {
 
 /// Public entry for other readers.
 TypeRef typeRefOf(DartType type, Element context) => _typeRefOf(type, context);
+
+/// Like [_typeRefOf] but tolerant of `void`/`dynamic`/non-class types in
+/// (type-argument) positions — used to re-declare `@Transactional` method
+/// signatures faithfully (e.g. `Future<void>`). A URI-less [TypeRef] renders
+/// as a bare symbol with no import.
+TypeRef _typeRefLenient(DartType type, Element context) {
+  if (type is VoidType) return const TypeRef(libraryUri: '', name: 'void');
+  if (type is DynamicType) {
+    return const TypeRef(libraryUri: '', name: 'dynamic');
+  }
+  if (type is! InterfaceType || type.element.name == null) {
+    return TypeRef(libraryUri: '', name: type.getDisplayString());
+  }
+  return TypeRef(
+    libraryUri: type.element.library.uri.toString(),
+    name: type.element.name!,
+    typeArgs: [for (final a in type.typeArguments) _typeRefLenient(a, context)],
+    nullable: type.nullabilitySuffix == NullabilitySuffix.question,
+  );
+}
 
 TypeRef _typeRefOf(DartType type, Element context) {
   if (type is! InterfaceType) {

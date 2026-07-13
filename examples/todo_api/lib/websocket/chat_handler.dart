@@ -1,15 +1,18 @@
 import 'package:diana/diana.dart';
+import 'package:diana_auth/diana_auth.dart';
 
-import '../middleware/api_key_middleware.dart';
+import '../auth/app_auth.dart';
 
 /// Room-based chat over WebSockets: connect to `/ws/chat/:room`, every text
 /// frame is broadcast to the room.
 ///
-/// `@UseMiddleware` runs on the **handshake**: a missing API key blocks the
-/// upgrade with the middleware's 401, and attributes the middleware sets on
-/// the request are visible in `session.attributes`.
+/// Authentication runs on the **handshake**: `@UseMiddleware([AppAuth])`
+/// authenticates the request (global middleware do not run on handshakes),
+/// and `@Secured()` blocks anonymous upgrades with a 401. The authenticated
+/// principal is copied into `session.attributes`.
 @WebSocketController('/ws/chat/:room')
-@UseMiddleware([ApiKeyMiddleware])
+@UseMiddleware([AppAuth])
+@Secured()
 class ChatHandler extends BaseWebSocketHandler {
   final Map<String, Set<WebSocketSession>> _rooms = {};
 
@@ -20,7 +23,8 @@ class ChatHandler extends BaseWebSocketHandler {
   void onOpen(WebSocketSession session) {
     final room = _roomOf(session);
     (_rooms[room] ??= {}).add(session);
-    final user = session.attributes['user'];
+    final principal = session.attributes[principalAttributeKey];
+    final user = principal is AuthPrincipal ? principal.name : null;
     session.sendText('joined $room${user == null ? '' : ' as $user'}');
   }
 

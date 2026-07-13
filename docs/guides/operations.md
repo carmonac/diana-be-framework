@@ -38,6 +38,11 @@ Constraints:
   instances generally are not.
 - State is **per isolate**: in-memory repositories, caches and `@Scheduled`
   tasks run once *per isolate*. Share state through external systems.
+- The exception is **application events**: `publisher.broadcast(event)`
+  delivers the event to every isolate exactly once (main relays worker
+  broadcasts to the siblings), so isolates can react to each other —
+  contrast with `@Scheduled`, which simply runs everywhere. See
+  [Application events](events.md#publish-vs-broadcast).
 - Labeled experimental; `server.isolates: 1` (the default) uses none of the
   isolate machinery.
 

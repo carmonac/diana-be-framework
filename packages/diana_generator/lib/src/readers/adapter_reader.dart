@@ -202,8 +202,9 @@ AdapterParam _readParam(FormalParameterElement param, String where) {
   final query = queryParamChecker.firstAnnotationOf(param);
   final header = headerChecker.firstAnnotationOf(param);
   final body = bodyChecker.firstAnnotationOf(param);
+  final principal = principalChecker.firstAnnotationOf(param);
   final count =
-      [path, query, header, body].where((a) => a != null).length;
+      [path, query, header, body, principal].where((a) => a != null).length;
 
   final type = param.type;
   if (count == 0) {
@@ -219,8 +220,8 @@ AdapterParam _readParam(FormalParameterElement param, String where) {
     throw DianaSourceError(
       param,
       'Parameter "${param.name}" of route method $where needs exactly one '
-      'binding annotation (@PathParam, @QueryParam, @Header or @Body), or '
-      'be of type DianaRequest for raw access.',
+      'binding annotation (@PathParam, @QueryParam, @Header, @Body or '
+      '@Principal), or be of type DianaRequest for raw access.',
     );
   }
   if (count > 1) {
@@ -228,6 +229,23 @@ AdapterParam _readParam(FormalParameterElement param, String where) {
       param,
       'Parameter "${param.name}" of route method $where combines multiple '
       'binding annotations; use exactly one.',
+    );
+  }
+
+  if (principal != null) {
+    if (type is! InterfaceType) {
+      throw DianaSourceError(
+        param,
+        '@Principal parameter "${param.name}" of $where must be a class '
+        'type.',
+      );
+    }
+    return AdapterParam(
+      kind: BindingKind.principal,
+      paramName: param.name!,
+      isNamed: param.isNamed,
+      httpName: '',
+      typeDisplay: type.getDisplayString(),
     );
   }
 

@@ -84,6 +84,47 @@ void main() {
     );
   });
 
+  group('grpcAuthInterceptor', () {
+    final method = grpc.ServiceMethod<List<int>, List<int>>(
+      'M', (call, req) async* {}, true, true, (b) => b, (b) => b);
+    grpc.ServiceCall callWith(Map<String, String>? metadata) =>
+        _FakeServiceCall(metadata);
+
+    test('rejects missing/invalid credentials with UNAUTHENTICATED',
+        () async {
+      final interceptor = grpcAuthInterceptor((_) async => null);
+      final error = await interceptor(callWith({}), method);
+      expect(error, isA<grpc.GrpcError>());
+      expect(error!.code, grpc.StatusCode.unauthenticated);
+    });
+
+    test('rejects a missing role with PERMISSION_DENIED', () async {
+      final interceptor = grpcAuthInterceptor(
+        (_) async => {'user'},
+        rolesAllowed: ['admin'],
+      );
+      final error = await interceptor(callWith({'authorization': 'x'}), method);
+      expect(error!.code, grpc.StatusCode.permissionDenied);
+    });
+
+    test('passes an authorized caller (returns null)', () async {
+      final seen = <String, String>{};
+      final interceptor = grpcAuthInterceptor((metadata) async {
+        seen.addAll(metadata);
+        return {'admin'};
+      }, rolesAllowed: ['admin']);
+      final error =
+          await interceptor(callWith({'authorization': 'token'}), method);
+      expect(error, isNull);
+      expect(seen, {'authorization': 'token'});
+    });
+
+    test('with no rolesAllowed, any authenticated caller passes', () async {
+      final interceptor = grpcAuthInterceptor((_) async => const <String>{});
+      expect(await interceptor(callWith({}), method), isNull);
+    });
+  });
+
   test('only diana_grpc imports package:grpc (boundary)', () {
     final offenders = <String>[];
     for (final package in ['diana', 'diana_annotation', 'diana_generator']) {
@@ -97,4 +138,16 @@ void main() {
     }
     expect(offenders, isEmpty);
   });
+}
+
+/// A ServiceCall whose only meaningful member is [clientMetadata].
+class _FakeServiceCall implements grpc.ServiceCall {
+  @override
+  final Map<String, String>? clientMetadata;
+
+  _FakeServiceCall(this.clientMetadata);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation);
 }

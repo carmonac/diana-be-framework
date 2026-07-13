@@ -36,6 +36,9 @@ providers only**.
 - `dispose()` runs `@PreDestroy` hooks in **reverse** dependency order,
   after the server has stopped and in-flight requests have drained.
 
+Publishing [application events](events.md) from `@PostConstruct` is fully
+supported — listeners are registered before initialization runs.
+
 ## Graceful shutdown
 
 `runDiana()` installs SIGINT/SIGTERM handlers (SIGTERM skipped on Windows).

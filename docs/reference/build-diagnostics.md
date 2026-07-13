@@ -104,7 +104,7 @@ transient/request providers is not supported.)
 
 **`Route method X.m must be a public instance method.`**
 
-**`Parameter "p" of route method X.m needs exactly one binding annotation (@PathParam, @QueryParam, @Header or @Body), or be of type DianaRequest for raw access.`**
+**`Parameter "p" of route method X.m needs exactly one binding annotation (@PathParam, @QueryParam, @Header, @Body or @Principal), or be of type DianaRequest for raw access.`**
 
 **`Parameter "p" of route method X.m combines multiple binding annotations; use exactly one.`**
 
@@ -155,6 +155,52 @@ Codecs are discovered through the DI graph and wired once into the server.
 **`@GrpcService class X does not extend a grpc service base class. Extend your protoc-generated XServiceBase (package:grpc Service).`**
 Only classes whose supertype chain reaches `package:grpc`'s `Service`
 qualify — your protoc-generated `XServiceBase` does.
+
+---
+
+## Events
+
+**`@EventListener method X.m must be a public instance method with exactly one positional parameter returning void or Future<void>.`**
+
+**`@EventListener parameter "p" of X.m must be a non-nullable class type; found T.`**
+The parameter is the subscribed event type — `dynamic`, nullable and
+function types cannot be matched.
+
+**`@EventListener on X requires singleton scope; found <scope>.`**
+Listeners need a stable instance for the application's lifetime.
+
+---
+
+## Authentication & authorization
+
+**`@RolesAllowed on X lists no roles.`**
+
+**`@Secured/@RolesAllowed on X has no effect: it is not a REST controller, WebSocket controller, gRPC service, or route method.`**
+A silently ignored security annotation is a hole you believe is closed.
+
+**`@Principal parameter "p" of X.m must be a class type.`**
+The bound principal must be `AuthPrincipal` or a class subtype.
+
+**`@Secured/@RolesAllowed on @GrpcService X requires exactly one singleton provider extending diana_auth's AuthenticationMiddleware; found ...`**
+
+**`gRPC security is server-wide in this version; all @GrpcService classes must declare identical @Secured/@RolesAllowed (found differing declarations on A and B).`**
+
+The `@Principal` binding also participates in the existing "needs exactly
+one binding annotation" / "combines multiple binding annotations" errors.
+
+---
+
+## Persistence
+
+**`@Transactional/Database injection found but no DatabaseConnector provider was declared. Add a @Component extending diana_data's DatabaseConnector.`**
+
+**`Multiple DatabaseConnector providers: A (lib), B (lib). Declare exactly one.`**
+
+**`@Transactional class X must be extendable: remove the final/base/sealed modifier so Diana can generate a transactional proxy subclass.`**
+
+**`@Transactional method X.m must return Future (transactions are asynchronous); found T.`**
+
+**`@Transactional on X has no effect: it is not a @Service/@Component/@Repository provider.`**
 
 ---
 

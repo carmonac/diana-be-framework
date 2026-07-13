@@ -54,9 +54,16 @@ Variations by annotation/return type:
 - `Stream` returns compile to `return sseResponse(req, result);` —
   `Stream<Dto>` elements are first mapped through
   `ServerSentEvent.json($<Dto>ToJson(e))`.
+- `@Principal()` parameters bind via `bindPrincipal<T>(req)` (exported from
+  `package:diana`, so the part file needs no `diana_auth` import).
 
 Adapters are public because the bootstrap library (a different library)
 references them; treat the `$diana$` prefix as internal.
+
+For providers with `@Transactional` methods the composition root also emits
+a `$Tx$<Provider>` proxy subclass (in the app library) overriding each such
+method to wrap `super.method(...)` in `Database.runTransactional`; the graph
+injects the proxy in place of the raw class.
 
 ### Validators
 
@@ -107,6 +114,16 @@ The DI container. Contents, in topological (dependency) order:
   via their generated binder). Name collisions are disambiguated with `$1`,
   `$2`, … suffixes.
 - one `<Type> create<Type>()` factory method per transient provider.
+- when the app uses events: a `final DianaEventBus eventBus = DianaEventBus();`
+  field, with one `eventBus.on<EventType>((e) => provider.method(e));`
+  registration per `@EventListener` in the constructor body (closures, so
+  no provider is constructed eagerly), and `DianaEventPublisher`
+  constructor parameters satisfied with `eventBus` (or `_ctx.eventBus` on
+  the request scope).
+- when the app uses persistence: a `late final Database database =
+  Database(connector, config);` field (from `package:diana_data`), opened
+  (and migrated) at the start of `initialize()` and closed at the end of
+  `dispose()`; `Database` constructor parameters are satisfied with it.
 - `Future<void> initialize()` — constructs every singleton in dependency
   order and runs `@PostConstruct` hooks.
 - `Future<void> dispose()` — runs `@PreDestroy` hooks in reverse order.
@@ -163,13 +180,19 @@ const String dianaOpenApiJson;
    OpenAPI route (guarded by `server.openapi.enabled`)
 5. registers every route: `server.register(HttpMethod.x, '/full/path',
    (req) => $diana$Ctrl$method(ctx.ctrl, req), middleware: [...],
-   cors: ...)` — controllers sorted by type, routes in declaration order
+   cors: ...)` — controllers sorted by type, routes in declaration order.
+   When a route (or its controller) carries `@Secured`/`@RolesAllowed`, a
+   `const SecuredGuard()` / `RolesGuard([...])` from `package:diana_auth`
+   is appended **last** in `middleware:` (runs after authentication,
+   before the handler)
 6. registers every WebSocket endpoint (sorted by path) with its handshake
    middleware: `server.registerWebSocket('/ws/x', () => ctx.handler,
    middleware: [...])`
 
 `runDiana` wraps `buildDianaApp` in `DianaRuntime.run` (initialize → serve
-→ graceful shutdown → dispose).
+→ graceful shutdown → dispose), passing `eventBus: app.context.eventBus`
+to `DianaRunnable` when the app uses events (enables the cross-isolate
+broadcast bridge).
 
 ## Interop with other generators
 
@@ -183,4 +206,9 @@ one `build_runner` invocation drives all builders.
 - All emission is sorted (providers topologically then by name, controllers
   by type, global middleware by `(order, type)`, summaries by path).
 - No timestamps or random values are ever emitted.
+- Optional features (`eventBus`, `grpcServer`, `scheduler`, `bodyCodecs`,
+  auth guards, the gRPC auth interceptor, the `database` field and
+  `$Tx$` proxies) are emitted only when used — an app without them produces
+  byte-identical output before and after a generator upgrade that adds the
+  feature.
 - CI can enforce freshness with `git diff --exit-code` after a build.

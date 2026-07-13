@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0
+
+- Version bump only (kept in lockstep with the workspace; `diana_data`
+  builds on this release).
+
+## 0.5.0
+
+- Added `principalAttributeKey` and `bindPrincipal<T>(DianaRequest)` to
+  `binding.dart` — the cross-package contract used by `diana_auth`'s
+  authentication middleware and by generated `@Principal()` adapters.
+
+## 0.4.0
+
+- **Application events**: `DianaEventPublisher` (injectable interface) and
+  `DianaEventBus` — awaited local dispatch in registration order with
+  subtype matching (`publish`), plus `broadcast` for cross-isolate
+  delivery.
+- `DianaRuntime` bridges broadcast events hub-and-spoke across worker
+  isolates (exactly-once per isolate); `DianaRunnable` gains an optional
+  `eventBus`. Unsendable broadcast events fail fast with `ArgumentError`.
+
 ## 0.3.0
 
 - **Content negotiation**: pluggable `BodyCodec` interface with a

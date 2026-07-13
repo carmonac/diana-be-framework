@@ -21,12 +21,17 @@ Map<String, Object?> buildOpenApiDocument(List<LibrarySummary> summaries) {
   final paths = <String, Map<String, Object?>>{};
   final controllers = [for (final s in summaries) ...s.controllers]
     ..sort((a, b) => a.type.key.compareTo(b.type.key));
+  var anySecured = false;
   for (final controller in controllers) {
     for (final route in controller.routes) {
       final api = route.api;
       if (api == null) continue;
       final path = _openApiPath(joinPaths(controller.basePath, route.path));
-      final operation = _operation(controller, route, api, dtoByName);
+      // Method-level replaces controller-level (same rule as the guards).
+      final secured = (route.security ?? controller.security) != null;
+      anySecured = anySecured || secured;
+      final operation =
+          _operation(controller, route, api, dtoByName, secured: secured);
       (paths[path] ??= {})[route.httpMethod.toLowerCase()] = operation;
     }
   }
@@ -42,7 +47,16 @@ Map<String, Object?> buildOpenApiDocument(List<LibrarySummary> summaries) {
     'paths': {
       for (final path in paths.keys.toList()..sort()) path: paths[path],
     },
-    if (schemas.isNotEmpty) 'components': {'schemas': schemas},
+    if (schemas.isNotEmpty || anySecured)
+      'components': {
+        if (schemas.isNotEmpty) 'schemas': schemas,
+        // Runtime accepts several schemes; one generic bearer scheme is the
+        // honest static answer (documented limitation).
+        if (anySecured)
+          'securitySchemes': {
+            'bearerAuth': {'type': 'http', 'scheme': 'bearer'},
+          },
+      },
   };
 }
 
@@ -56,8 +70,9 @@ Map<String, Object?> _operation(
   ControllerInfo controller,
   RouteInfo route,
   RouteApi api,
-  Map<String, DtoInfo> dtos,
-) {
+  Map<String, DtoInfo> dtos, {
+  required bool secured,
+}) {
   final parameters = [
     for (final param in api.params)
       {
@@ -124,6 +139,10 @@ Map<String, Object?> _operation(
   return {
     'operationId': '${controller.type.name}_${route.methodName}',
     'tags': [controller.type.name],
+    if (secured)
+      'security': [
+        {'bearerAuth': <Object?>[]},
+      ],
     if (parameters.isNotEmpty) 'parameters': parameters,
     if (requestBody != null) 'requestBody': requestBody,
     'responses': {

@@ -134,6 +134,56 @@ class C {
     );
   });
 
+  test('binds @Principal parameters via bindPrincipal, no diana_auth import',
+      () async {
+    await expectPart(
+      '''
+import 'package:diana/diana.dart';
+
+part 'ctrl.diana.dart';
+
+class AppUser {}
+
+@RestController('/me')
+class MeController {
+  @Get()
+  String me(@Principal() AppUser user) => 'ok';
+
+  @Get('/maybe')
+  String maybe(@Principal() AppUser? user) => 'ok';
+}
+''',
+      output: allOf([
+        contains('bindPrincipal<AppUser>(req)'),
+        contains('bindPrincipal<AppUser?>(req)'),
+        isNot(contains('diana_auth')),
+      ]),
+    );
+  });
+
+  test('rejects @Principal combined with another binding annotation',
+      () async {
+    await expectPart(
+      '''
+import 'package:diana/diana.dart';
+
+part 'ctrl.diana.dart';
+
+class AppUser {}
+
+@RestController()
+class C {
+  @Get()
+  String get(@Principal() @Header('x') AppUser user) => '';
+}
+''',
+      expectedErrors: [
+        'Parameter "user" of route method C.get combines multiple binding '
+            'annotations; use exactly one.',
+      ],
+    );
+  });
+
   test('rejects nullable path parameters', () async {
     await expectPart(
       '''

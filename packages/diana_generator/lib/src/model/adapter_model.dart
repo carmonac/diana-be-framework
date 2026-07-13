@@ -7,6 +7,7 @@ import 'summary.dart';
 
 enum BindingKind {
   rawRequest,
+  principal,
   path,
   query,
   header,
@@ -160,6 +161,8 @@ RouteApi routeApiOf(AdapterModel model) {
       case BindingKind.bodyForm:
         bodyShape = 'form';
       case BindingKind.rawRequest:
+      case BindingKind.principal:
+        // Not wire parameters — nothing to project into the API surface.
         break;
     }
   }

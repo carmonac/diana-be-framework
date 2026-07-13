@@ -149,6 +149,12 @@ class InjectableInfo {
   /// `@Scheduled` methods of this provider.
   final List<ScheduledMethodInfo> scheduled;
 
+  /// `@EventListener` methods of this provider.
+  final List<EventListenerInfo> eventListeners;
+
+  /// `@Transactional` methods of this provider (proxied by the generator).
+  final List<TransactionalMethodInfo> transactionalMethods;
+
   const InjectableInfo({
     required this.type,
     required this.scope,
@@ -163,6 +169,8 @@ class InjectableInfo {
     this.preDestroy,
     this.preDestroyAwaited = false,
     this.scheduled = const [],
+    this.eventListeners = const [],
+    this.transactionalMethods = const [],
   });
 
   /// Unique key of this provider in the graph.
@@ -185,6 +193,11 @@ class InjectableInfo {
         if (preDestroyAwaited) 'preDestroyAwaited': true,
         if (scheduled.isNotEmpty)
           'scheduled': [for (final t in scheduled) t.toJson()],
+        if (eventListeners.isNotEmpty)
+          'eventListeners': [for (final l in eventListeners) l.toJson()],
+        if (transactionalMethods.isNotEmpty)
+          'transactionalMethods':
+              [for (final t in transactionalMethods) t.toJson()],
       };
 
   factory InjectableInfo.fromJson(Map<String, Object?> json) => InjectableInfo(
@@ -212,6 +225,108 @@ class InjectableInfo {
           for (final t in (json['scheduled'] as List<Object?>? ?? const []))
             ScheduledMethodInfo.fromJson((t as Map).cast<String, Object?>()),
         ],
+        eventListeners: [
+          for (final l
+              in (json['eventListeners'] as List<Object?>? ?? const []))
+            EventListenerInfo.fromJson((l as Map).cast<String, Object?>()),
+        ],
+        transactionalMethods: [
+          for (final t
+              in (json['transactionalMethods'] as List<Object?>? ?? const []))
+            TransactionalMethodInfo.fromJson(
+                (t as Map).cast<String, Object?>()),
+        ],
+      );
+}
+
+/// One `@Transactional` method of a provider, with enough of its signature
+/// captured to re-declare a faithful override in the generated proxy.
+class TransactionalMethodInfo {
+  final String methodName;
+  final TypeRef returnType;
+  final List<TxParamInfo> params;
+
+  const TransactionalMethodInfo({
+    required this.methodName,
+    required this.returnType,
+    this.params = const [],
+  });
+
+  Map<String, Object?> toJson() => {
+        'method': methodName,
+        'returnType': returnType.toJson(),
+        if (params.isNotEmpty)
+          'params': [for (final p in params) p.toJson()],
+      };
+
+  factory TransactionalMethodInfo.fromJson(Map<String, Object?> json) =>
+      TransactionalMethodInfo(
+        methodName: json['method'] as String,
+        returnType: TypeRef.fromJson(
+            (json['returnType'] as Map).cast<String, Object?>()),
+        params: [
+          for (final p in (json['params'] as List<Object?>? ?? const []))
+            TxParamInfo.fromJson((p as Map).cast<String, Object?>()),
+        ],
+      );
+}
+
+/// One parameter of a `@Transactional` method.
+class TxParamInfo {
+  final String name;
+  final TypeRef type;
+
+  /// `requiredPositional`, `optionalPositional` or `named`.
+  final String kind;
+  final bool required;
+
+  /// Verbatim default-value source (e.g. `const []`), or null.
+  final String? defaultCode;
+
+  const TxParamInfo({
+    required this.name,
+    required this.type,
+    required this.kind,
+    this.required = false,
+    this.defaultCode,
+  });
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        'type': type.toJson(),
+        'kind': kind,
+        if (required) 'required': true,
+        if (defaultCode != null) 'default': defaultCode,
+      };
+
+  factory TxParamInfo.fromJson(Map<String, Object?> json) => TxParamInfo(
+        name: json['name'] as String,
+        type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
+        kind: json['kind'] as String,
+        required: json['required'] as bool? ?? false,
+        defaultCode: json['default'] as String?,
+      );
+}
+
+/// One `@EventListener` method of a provider.
+class EventListenerInfo {
+  final String methodName;
+
+  /// The listener's single parameter type — the event it subscribes to.
+  final TypeRef eventType;
+
+  const EventListenerInfo({required this.methodName, required this.eventType});
+
+  Map<String, Object?> toJson() => {
+        'method': methodName,
+        'eventType': eventType.toJson(),
+      };
+
+  factory EventListenerInfo.fromJson(Map<String, Object?> json) =>
+      EventListenerInfo(
+        methodName: json['method'] as String,
+        eventType: TypeRef.fromJson(
+            (json['eventType'] as Map).cast<String, Object?>()),
       );
 }
 
@@ -283,6 +398,24 @@ class CorsInfo {
       );
 }
 
+
+/// A `@Secured`/`@RolesAllowed` declaration on a controller, route,
+/// WebSocket controller or gRPC service.
+class SecurityInfo {
+  /// Roles required by `@RolesAllowed` (any-of). Null means `@Secured`
+  /// alone (authentication required, no specific role).
+  final List<String>? roles;
+
+  const SecurityInfo({this.roles});
+
+  Map<String, Object?> toJson() => {
+        if (roles != null) 'roles': roles,
+      };
+
+  factory SecurityInfo.fromJson(Map<String, Object?> json) => SecurityInfo(
+        roles: (json['roles'] as List?)?.cast<String>(),
+      );
+}
 
 /// One bindable parameter of a route, for OpenAPI generation.
 class RouteParamApi {
@@ -458,6 +591,7 @@ class RouteInfo {
   final String adapterName;
   final List<TypeRef> middleware;
   final CorsInfo? cors;
+  final SecurityInfo? security;
 
   /// API surface for OpenAPI generation.
   final RouteApi? api;
@@ -469,6 +603,7 @@ class RouteInfo {
     required this.adapterName,
     this.middleware = const [],
     this.cors,
+    this.security,
     this.api,
   });
 
@@ -480,6 +615,7 @@ class RouteInfo {
         if (middleware.isNotEmpty)
           'middleware': [for (final t in middleware) t.toJson()],
         if (cors != null) 'cors': cors!.toJson(),
+        if (security != null) 'security': security!.toJson(),
         if (api != null) 'api': api!.toJson(),
       };
 
@@ -495,6 +631,10 @@ class RouteInfo {
         cors: json['cors'] == null
             ? null
             : CorsInfo.fromJson((json['cors'] as Map).cast<String, Object?>()),
+        security: json['security'] == null
+            ? null
+            : SecurityInfo.fromJson(
+                (json['security'] as Map).cast<String, Object?>()),
         api: json['api'] == null
             ? null
             : RouteApi.fromJson((json['api'] as Map).cast<String, Object?>()),
@@ -508,6 +648,7 @@ class ControllerInfo {
   final List<TypeRef> middleware;
   final List<RouteInfo> routes;
   final CorsInfo? cors;
+  final SecurityInfo? security;
 
   const ControllerInfo({
     required this.type,
@@ -515,6 +656,7 @@ class ControllerInfo {
     this.middleware = const [],
     this.routes = const [],
     this.cors,
+    this.security,
   });
 
   Map<String, Object?> toJson() => {
@@ -524,6 +666,7 @@ class ControllerInfo {
           'middleware': [for (final t in middleware) t.toJson()],
         'routes': [for (final r in routes) r.toJson()],
         if (cors != null) 'cors': cors!.toJson(),
+        if (security != null) 'security': security!.toJson(),
       };
 
   factory ControllerInfo.fromJson(Map<String, Object?> json) => ControllerInfo(
@@ -540,20 +683,32 @@ class ControllerInfo {
         cors: json['cors'] == null
             ? null
             : CorsInfo.fromJson((json['cors'] as Map).cast<String, Object?>()),
+        security: json['security'] == null
+            ? null
+            : SecurityInfo.fromJson(
+                (json['security'] as Map).cast<String, Object?>()),
       );
 }
 
 /// A `@GrpcService` class.
 class GrpcServiceInfo {
   final TypeRef type;
+  final SecurityInfo? security;
 
-  const GrpcServiceInfo({required this.type});
+  const GrpcServiceInfo({required this.type, this.security});
 
-  Map<String, Object?> toJson() => {'type': type.toJson()};
+  Map<String, Object?> toJson() => {
+        'type': type.toJson(),
+        if (security != null) 'security': security!.toJson(),
+      };
 
   factory GrpcServiceInfo.fromJson(Map<String, Object?> json) =>
       GrpcServiceInfo(
         type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
+        security: json['security'] == null
+            ? null
+            : SecurityInfo.fromJson(
+                (json['security'] as Map).cast<String, Object?>()),
       );
 }
 
@@ -564,11 +719,13 @@ class WebSocketInfo {
 
   /// Handshake interceptors from `@UseMiddleware` on the class.
   final List<TypeRef> middleware;
+  final SecurityInfo? security;
 
   const WebSocketInfo({
     required this.type,
     required this.path,
     this.middleware = const [],
+    this.security,
   });
 
   Map<String, Object?> toJson() => {
@@ -576,6 +733,7 @@ class WebSocketInfo {
         'path': path,
         if (middleware.isNotEmpty)
           'middleware': [for (final t in middleware) t.toJson()],
+        if (security != null) 'security': security!.toJson(),
       };
 
   factory WebSocketInfo.fromJson(Map<String, Object?> json) => WebSocketInfo(
@@ -585,6 +743,10 @@ class WebSocketInfo {
           for (final t in (json['middleware'] as List<Object?>? ?? const []))
             TypeRef.fromJson((t as Map).cast<String, Object?>()),
         ],
+        security: json['security'] == null
+            ? null
+            : SecurityInfo.fromJson(
+                (json['security'] as Map).cast<String, Object?>()),
       );
 }
 

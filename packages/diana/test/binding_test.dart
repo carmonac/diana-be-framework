@@ -15,6 +15,11 @@ DianaRequest req({
       bodyReader: () async => body,
     );
 
+class PrincipalUser {
+  final String name;
+  const PrincipalUser(this.name);
+}
+
 void main() {
   group('bindPathParam', () {
     test('converts to int, double, num, bool and String', () {
@@ -117,6 +122,27 @@ void main() {
           throwsA(isA<BadRequestException>()));
       expect(() => decodeJsonMapBody(req(body: '[1]')),
           throwsA(isA<BadRequestException>()));
+    });
+  });
+
+  group('bindPrincipal', () {
+    test('reads the principal attribute and casts', () {
+      final r = req();
+      r.attributes[principalAttributeKey] = const PrincipalUser('ada');
+      expect(bindPrincipal<PrincipalUser>(r).name, 'ada');
+    });
+
+    test('absent principal: nullable gets null, non-nullable throws 401', () {
+      final r = req();
+      expect(bindPrincipal<PrincipalUser?>(r), isNull);
+      expect(() => bindPrincipal<PrincipalUser>(r),
+          throwsA(isA<UnauthorizedException>()));
+    });
+
+    test('a mismatched type surfaces as TypeError', () {
+      final r = req();
+      r.attributes[principalAttributeKey] = 'not a user';
+      expect(() => bindPrincipal<PrincipalUser>(r), throwsA(isA<TypeError>()));
     });
   });
 

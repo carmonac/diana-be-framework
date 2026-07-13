@@ -69,3 +69,30 @@ class DianaGrpcServer {
     _server = null;
   }
 }
+
+/// Builds a server-wide gRPC [Interceptor] that authorizes calls from their
+/// metadata (the bridge for `diana_auth`, which never imports gRPC).
+///
+/// [authorize] returns the caller's roles, or `null` when the metadata
+/// carries no valid credentials. The call is rejected with
+/// `UNAUTHENTICATED` when [authorize] returns `null`, or `PERMISSION_DENIED`
+/// when [rolesAllowed] is non-empty and the caller holds none of those
+/// roles. The generated composition root supplies
+/// `authenticationMiddleware.authorizeMetadata` as [authorize].
+Interceptor grpcAuthInterceptor(
+  Future<Set<String>?> Function(Map<String, String> metadata) authorize, {
+  List<String> rolesAllowed = const [],
+}) {
+  return (call, method) async {
+    final roles = await authorize(call.clientMetadata ?? const {});
+    if (roles == null) {
+      return GrpcError.unauthenticated('Missing or invalid credentials');
+    }
+    if (rolesAllowed.isNotEmpty && !rolesAllowed.any(roles.contains)) {
+      return GrpcError.permissionDenied(
+        'Requires any of roles: ${rolesAllowed.join(', ')}.',
+      );
+    }
+    return null;
+  };
+}

@@ -14,8 +14,8 @@ no gRPC dependency.
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.3.0
-  diana_grpc: ^0.3.0
+  diana: ^0.6.0
+  diana_grpc: ^0.6.0
   grpc: ^4.0.0
   protobuf: ^4.0.0
 ```

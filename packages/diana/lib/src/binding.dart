@@ -37,6 +37,27 @@ T bindHeader<T>(DianaRequest request, String name) => _convert<T>(
       name: name,
     );
 
+/// Request attribute under which authentication middleware stores the
+/// authenticated principal. A stable cross-package contract: written by
+/// `package:diana_auth`'s `AuthenticationMiddleware` (which imports this
+/// constant) and read by [bindPrincipal] in generated adapters.
+const String principalAttributeKey = 'diana.auth.principal';
+
+/// Binds the authenticated principal for a `@Principal()` parameter.
+///
+/// No principal present: nullable [T] gets `null`, non-nullable [T] throws
+/// a 401 (the route requires authentication that never ran or failed). A
+/// present principal is cast to [T]; a mismatched type is a programming
+/// error and surfaces as a `TypeError` (opaque 500).
+T bindPrincipal<T>(DianaRequest request) {
+  final principal = request.attributes[principalAttributeKey];
+  if (principal == null) {
+    if (null is T) return null as T;
+    throw const UnauthorizedException();
+  }
+  return principal as T;
+}
+
 T _convert<T>(String? raw, {required String kind, required String name}) {
   if (raw == null) {
     if (null is T) return null as T;

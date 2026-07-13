@@ -1,0 +1,20 @@
+name: diana_auth
+description: >-
+  Authentication and authorization for the Diana backend framework:
+  pluggable authenticator strategies (JWT, HTTP Basic, API key),
+  Spring-style @Secured/@RolesAllowed guards and principal binding.
+version: 0.6.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+resolution: workspace
+
+dependencies:
+  crypto: ^3.0.0
+  diana: ^0.6.0
+
+dev_dependencies:
+  lints: ^5.1.0
+  test: ^1.25.0

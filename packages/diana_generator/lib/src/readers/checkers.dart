@@ -41,6 +41,20 @@ const preDestroyChecker =
 const scheduledChecker =
     TypeChecker.fromUrl('$_base/scheduling.dart#Scheduled');
 
+// Events
+const eventListenerChecker =
+    TypeChecker.fromUrl('$_base/events.dart#EventListener');
+
+// Auth
+const securedChecker = TypeChecker.fromUrl('$_base/auth.dart#Secured');
+const rolesAllowedChecker =
+    TypeChecker.fromUrl('$_base/auth.dart#RolesAllowed');
+const principalChecker = TypeChecker.fromUrl('$_base/auth.dart#Principal');
+
+// Data
+const transactionalChecker =
+    TypeChecker.fromUrl('$_base/data.dart#Transactional');
+
 // WebSocket
 const webSocketControllerChecker =
     TypeChecker.fromUrl('$_base/websocket.dart#WebSocketController');

@@ -3,7 +3,12 @@ server:
   port: 8080
 
 app:
-  apiKey: secret
   info:
     name: todo_api
     version: 1.0.0
+
+auth:
+  jwt:
+    # Demo secret — override via AUTH_JWT_SECRET in real deployments.
+    secret: dev-secret-todo-api
+

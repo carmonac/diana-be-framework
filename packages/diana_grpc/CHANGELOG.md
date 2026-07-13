@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+- Version bump only (kept in lockstep with the workspace).
+
+## 0.5.0
+
+- Added `grpcAuthInterceptor` — a server-wide `package:grpc` interceptor
+  that authorizes calls from their metadata (UNAUTHENTICATED /
+  PERMISSION_DENIED), wired by the generator from a `diana_auth`
+  `AuthenticationMiddleware`.
+
+## 0.4.0
+
+- Version bump only (kept in lockstep with the Diana workspace).
+
 ## 0.3.0
 
 - Initial release: `DianaGrpcServer` wraps `package:grpc`'s server with

@@ -118,6 +118,10 @@ String _bindParam(
   switch (param.kind) {
     case BindingKind.rawRequest:
       return 'req';
+    case BindingKind.principal:
+      // bindPrincipal is exported from package:diana, so the part file
+      // resolves it without importing diana_auth.
+      return 'bindPrincipal<${param.typeDisplay}>(req)';
     case BindingKind.path:
       buffer.writeln(
           '  final $variable = bindPathParam<${param.typeDisplay}>(req, '

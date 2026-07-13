@@ -6,6 +6,31 @@ import 'dart:isolate';
 import 'package:diana/diana.dart';
 import 'package:test/test.dart';
 
+class FireEvent {
+  const FireEvent();
+}
+
+class UnsendableEvent {
+  final ReceivePort port;
+  UnsendableEvent(this.port);
+}
+
+/// Captures each isolate's bus; the test (running on main) sees only the
+/// main isolate's assignment.
+DianaEventBus? mainIsolateBus;
+
+Future<String> _get(String url) async {
+  // One client per request: keep-alive would pin every request to a single
+  // isolate, defeating the shared-socket distribution.
+  final client = HttpClient();
+  try {
+    final res = await (await client.getUrl(Uri.parse(url))).close();
+    return await res.transform(utf8.decoder).join();
+  } finally {
+    client.close();
+  }
+}
+
 void main() {
   test('DianaRuntime.run: initialize → serve → shutdown → close → dispose',
       () async {
@@ -85,6 +110,107 @@ void main() {
       expect(await res.transform(utf8.decoder).join(), startsWith('isolate'));
     }
     client.close();
+
+    shutdown.complete();
+    await done.timeout(const Duration(seconds: 10));
+  });
+
+  test('broadcast events reach every isolate exactly once', () async {
+    final port = 18452 + DateTime.now().millisecond % 100;
+    final shutdown = Completer<void>();
+
+    final done = DianaRuntime.run(
+      () async {
+        var count = 0;
+        final bus = DianaEventBus()..on<FireEvent>((e) => count++);
+        final name = Isolate.current.debugName ?? 'main';
+        final server = DianaServer(
+          config: DianaConfig({'server.port': port, 'server.isolates': 3}),
+        )
+          ..register(HttpMethod.get, '/state',
+              (req) => DianaResponse.text('$count|$name'))
+          ..register(HttpMethod.get, '/fire', (req) async {
+            await bus.broadcast(const FireEvent());
+            return DianaResponse.text(name);
+          });
+        return DianaRunnable(
+          server: server,
+          initialize: () async {},
+          dispose: () async {},
+          eventBus: bus,
+        );
+      },
+      installSignalHandlers: false,
+      shutdownTrigger: shutdown.future,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+
+    // Fire until at least two distinct isolates have served a broadcast
+    // (proves worker→main/sibling relay, not just main→worker), capped.
+    final firedBy = <String>{};
+    var fires = 0;
+    while (fires < 30 && (fires < 6 || firedBy.length < 2)) {
+      firedBy.add(await _get('http://127.0.0.1:$port/fire'));
+      fires++;
+    }
+
+    // Every isolate must converge on count == fires (exactly-once each).
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    final counts = <String, int>{};
+    while (DateTime.now().isBefore(deadline)) {
+      final state = await _get('http://127.0.0.1:$port/state');
+      final separator = state.indexOf('|');
+      counts[state.substring(separator + 1)] =
+          int.parse(state.substring(0, separator));
+      final converged = counts.length == 3 &&
+          counts.values.every((count) => count == fires);
+      if (converged) break;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    expect(counts.length, 3,
+        reason: 'all three isolates must serve /state; saw: $counts');
+    expect(counts.values, everyElement(fires),
+        reason: 'each isolate must receive every broadcast exactly once '
+            '(fired $fires times by $firedBy); saw: $counts');
+
+    shutdown.complete();
+    await done.timeout(const Duration(seconds: 10));
+  });
+
+  test('broadcasting an unsendable event fails fast at the publisher',
+      () async {
+    final port = 18562 + DateTime.now().millisecond % 100;
+    final shutdown = Completer<void>();
+
+    final done = DianaRuntime.run(
+      () async {
+        final bus = DianaEventBus();
+        mainIsolateBus = bus;
+        final server = DianaServer(
+          config: DianaConfig({'server.port': port, 'server.isolates': 2}),
+        );
+        return DianaRunnable(
+          server: server,
+          initialize: () async {},
+          dispose: () async {},
+          eventBus: bus,
+        );
+      },
+      installSignalHandlers: false,
+      shutdownTrigger: shutdown.future,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+
+    final unsendable = UnsendableEvent(ReceivePort());
+    await expectLater(
+      mainIsolateBus!.broadcast(unsendable),
+      throwsA(isA<ArgumentError>().having(
+        (e) => e.message,
+        'message',
+        contains('is not sendable across isolates'),
+      )),
+    );
+    unsendable.port.close();
 
     shutdown.complete();
     await done.timeout(const Duration(seconds: 10));

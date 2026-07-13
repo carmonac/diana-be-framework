@@ -1,5 +1,85 @@
 # Changelog
 
+## 0.6.0 — 2026-07-13
+
+### Persistence (new `diana_data` package)
+- Data access for Diana built on the `knex_dart` query builder — the only
+  package depending on `knex_dart` (core), driver-agnostic and
+  boundary-tested; the generator references it by import URL only, so apps
+  without persistence emit byte-identical code.
+- `Database` — an injectable query executor (`table`/`select`/`insert`/
+  `update`/`delete`/`raw`) resolving the ambient transaction from the
+  current `Zone` or the pooled connection. Injected into `@Repository`
+  providers through a framework-injectable seam.
+- `DatabaseConnector` — a user-subclassed provider that opens the driver
+  connection (Postgres, SQLite, …) and owns its close; the driver package
+  is the user's choice.
+- **`@Transactional`** (Spring-style): the generator emits a `$Tx$X` proxy
+  subclass wrapping each annotated method in an ambient transaction
+  (`db.trx` + a `Zone`). Nesting joins the enclosing transaction as a
+  savepoint (propagation REQUIRED); an uncaught exception rolls back and
+  rethrows. Build errors for non-extendable classes, non-`Future` methods,
+  misplaced annotations and missing/duplicate connectors.
+- Lifecycle: the connection opens (and runs opt-in SQL migrations from
+  `db.migrations.dir`) at the start of `initialize()` and closes at the end
+  of `dispose()`. A `DatabaseHealthIndicator` feeds `/actuator/health`.
+- New example `examples/blog_api` (SQLite in-memory): migrations, a
+  repository, transactional service methods with commit/rollback, all
+  hermetic (no external database).
+
+## 0.5.0 — 2026-07-13
+
+### Authentication & authorization (new `diana_auth` package)
+- Spring Security analog in the optional `diana_auth` package — the only
+  package depending on `package:crypto` (boundary-tested); it never imports
+  `package:grpc`, and the generator references it by import URL only, so
+  apps without security emit byte-identical code.
+- Pluggable `Authenticator` strategies with three built-ins: **JWT Bearer**
+  (in-package HS256 via `Hs256TokenVerifier` — exact-alg allowlist rejecting
+  `none`/confusion, constant-time compare, exp/nbf skew, iss/aud checks;
+  `TokenVerifier` seam for RS256/JWKS; `Hs256TokenSigner` for login
+  endpoints), **HTTP Basic** (`UserStore`), and **API key** (`ApiKeyValidator`).
+- `AuthenticationMiddleware` runs the strategy chain, stamps an
+  `AuthPrincipal` under the `package:diana` `principalAttributeKey`
+  contract, and challenges 401s. Assembled by subclassing (Spring's
+  explicit filter chain).
+- `@Secured()` (401) and `@RolesAllowed([...])` (403, any-of) on
+  controllers/routes (method replaces controller); the generator appends a
+  guard last in each route's middleware chain. `@Principal()` binds the
+  identity into handler parameters via `bindPrincipal<T>` (added to
+  `package:diana`). Misplaced or empty security annotations are build
+  errors.
+- Coverage across **HTTP**, **WebSocket handshakes** (guards as handshake
+  interceptors) and **gRPC** (a `grpcAuthInterceptor` in `diana_grpc`,
+  wired from the app's `AuthenticationMiddleware`; server-wide in v1).
+- OpenAPI projects a `bearerAuth` scheme and per-operation `security` for
+  secured routes.
+- The `todo_api` example now dogfoods `diana_auth` (JWT + API key, a login
+  endpoint, `@Secured`/`@RolesAllowed`/`@Principal`, secured WebSocket).
+
+## 0.4.0 — 2026-07-13
+
+### Application events
+- Spring's `ApplicationEventPublisher` analog: annotate a method on any
+  singleton provider with `@EventListener` (exactly one parameter — the
+  event type — returning `void`/`Future<void>`) and it receives every
+  published event whose type matches, subtypes included.
+- Injectable `DianaEventPublisher` interface: `publish(event)` runs local
+  listeners in registration order, awaited — errors propagate to the
+  publisher (Spring's synchronous semantics); `broadcast(event)`
+  additionally relays the event to every other isolate.
+- **Cross-isolate bridge**: with `server.isolates > 1`, broadcast events
+  are relayed hub-and-spoke through the main isolate and delivered
+  exactly once per isolate — the built-in answer to multi-isolate
+  coordination. Broadcast events must be plain data; unsendable events
+  fail fast with a clear `ArgumentError` before local dispatch.
+- Listeners are registered in the generated `DianaContext` constructor
+  (publishing from `@PostConstruct` is delivered) via lazy closures (no
+  eager provider construction). Apps without events emit byte-identical
+  code.
+- `DianaEventBus` is constructible directly in tests (`on<T>()`,
+  `publish`, `dispatchRemote`, `onError`).
+
 ## 0.3.0 — 2026-07-13
 
 ### Content negotiation

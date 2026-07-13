@@ -37,6 +37,8 @@ Task-oriented explanations of each feature:
   handler lifecycle, sessions, broadcast patterns, handshake interceptors
 - [Application lifecycle](guides/lifecycle.md) — `@PostConstruct`/
   `@PreDestroy`, graceful shutdown, `DianaApp`, test overrides
+- [Application events](guides/events.md) — `@EventListener`, the
+  injectable `DianaEventPublisher`, cross-isolate `broadcast`
 - [CORS and static files](guides/cors-and-static.md) — `@CrossOrigin`,
   preflight, static serving and SPA fallback
 - [Content negotiation](guides/content-negotiation.md) — `BodyCodec`,
@@ -45,6 +47,11 @@ Task-oriented explanations of each feature:
   heartbeats, disconnect handling
 - [gRPC](guides/grpc.md) — `@GrpcService`, `package:diana_grpc`, serving
   gRPC next to HTTP
+- [Authentication & authorization](guides/auth.md) — `diana_auth`,
+  pluggable strategies (JWT/Basic/API key), `@Secured`/`@RolesAllowed`,
+  `@Principal`
+- [Persistence](guides/persistence.md) — `diana_data`, injectable
+  `Database` over knex_dart, `@Transactional`, migrations
 - [OpenAPI](guides/openapi.md) — the build-time generated spec and
   `/openapi.json`
 - [Observability](guides/observability.md) — `/actuator/health`, `/info`,
@@ -78,5 +85,5 @@ Complete API documentation — every public symbol and every diagnostic:
 
 ## Versioning and stability
 
-Diana is currently `0.3.0`. APIs may change before `1.0.0`. The
+Diana is currently `0.6.0`. APIs may change before `1.0.0`. The
 [roadmap](../README.md#status--roadmap) lists what's planned.

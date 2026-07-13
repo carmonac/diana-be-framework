@@ -206,15 +206,36 @@ int? fixedDelayMs, int initialDelayMs = 0})`, `start()`, `Future<void>
 stop()` (cancels timers, awaits in-flight runs). Semantics in
 [Observability](../guides/observability.md#scheduled-tasks).
 
+### Events (`events.dart`)
+
+- `abstract interface class DianaEventPublisher { Future<void>
+  publish(Object event); Future<void> broadcast(Object event); }` — inject
+  into any provider. `publish` runs matching local listeners in
+  registration order, awaited (errors propagate and skip later listeners);
+  `broadcast` additionally relays the event to every other isolate
+  (fire-and-forget) and equals `publish` in single-isolate mode. An
+  unsendable broadcast event throws `ArgumentError` before local dispatch.
+- `class DianaEventBus implements DianaEventPublisher` — the bus the
+  generated context owns. `on<T extends Object>(FutureOr<void>
+  Function(T))` registers a listener (subtype matching); `remoteSink` is
+  the runtime-wired relay hook; `dispatchRemote(event)` delivers a
+  remote event locally (never relays; listener errors go to the `onError`
+  constructor callback, default prints). Constructible directly in tests.
+
+See [Application events](../guides/events.md).
+
 ### Runtime (`runtime.dart`)
 
-- `DianaRunnable({required server, required initialize, required dispose})`
-  — what the generated bootstrap hands to the runtime.
+- `DianaRunnable({required server, required initialize, required dispose,
+  DianaEventBus? eventBus})` — what the generated bootstrap hands to the
+  runtime; `eventBus` is passed only when the app uses events.
 - `DianaRuntime.run(bootstrap, {int? isolates, bool installSignalHandlers =
   true, Future<void>? shutdownTrigger})` — bootstrap → initialize → serve →
   wait for shutdown → close (drain) → dispose. `isolates` defaults to
   `server.isolates`; see
   [operations](../guides/operations.md#multi-isolate-serving-experimental).
+  With multiple isolates and an event bus, broadcast events are bridged
+  hub-and-spoke through the main isolate (exactly-once per isolate).
 
 ### OpenAPI (`openapi.dart`)
 
@@ -426,14 +447,14 @@ here because they are the API you actually call:
 
 | Symbol | Description |
 |---|---|
-| `class DianaContext` | The DI container: `config` plus one typed member per provider, and `initialize()`/`dispose()` lifecycle methods. |
+| `class DianaContext` | The DI container: `config` plus one typed member per provider, and `initialize()`/`dispose()` lifecycle methods. When events are used it also owns `eventBus` (a `DianaEventBus`), with listeners registered in the constructor. |
 | `class DianaOverrides` | One nullable slot per provider for test overrides. |
 | `class DianaRequestScope` | Present only when request-scoped providers exist. |
 | `class DianaApp` | `context` + `server` + `initialize()`/`dispose()` (starts/stops the scheduler when `@Scheduled` tasks exist; serves/stops `grpcServer` when `@GrpcService` classes exist). |
 | `DianaContext buildDianaContext({DianaConfig? config, DianaOverrides overrides})` | Constructs the graph (no HTTP). |
 | `Future<DianaApp> buildDianaApp({DianaConfig? config, DianaOverrides overrides})` | Loads config, builds the context, registers routes/WebSockets/actuator/OpenAPI. |
 | `Future<DianaServer> buildDianaServer({DianaConfig? config, DianaOverrides overrides})` | `buildDianaApp(...).server`. |
-| `Future<void> runDiana({DianaConfig? config, DianaOverrides overrides})` | `DianaRuntime.run` over `buildDianaApp` — lifecycle + graceful shutdown. |
+| `Future<void> runDiana({DianaConfig? config, DianaOverrides overrides})` | `DianaRuntime.run` over `buildDianaApp` — lifecycle + graceful shutdown (passes the context's `eventBus` to the runtime when events are used). |
 | `const String dianaOpenApiJson` | The build-time OpenAPI document. |
 
 See [Generated code](generated-code.md) for naming and structure details.
@@ -465,3 +486,78 @@ exposes it as `DianaApp.grpcServer`.
 | `Future<void> shutdown()` | Stops the server, waiting for in-flight calls. |
 
 See the [gRPC guide](../guides/grpc.md).
+
+`diana_grpc` also exports `Interceptor grpcAuthInterceptor(Future<Set<String>?>
+Function(Map<String, String>) authorize, {List<String> rolesAllowed})` — the
+generator wires it from a `diana_auth` `AuthenticationMiddleware` to secure
+`@GrpcService` classes (UNAUTHENTICATED / PERMISSION_DENIED).
+
+---
+
+## Authentication (`package:diana_auth`)
+
+The optional security package. Its only allowed crypto dependency is
+`package:crypto` (boundary-tested); it never imports `package:grpc`.
+
+### Principal & strategies
+
+- `class AuthPrincipal { String name; Set<String> roles; Map<String,
+  Object?> attributes; bool hasRole(String); }` — the authenticated
+  identity; subclass for a richer one.
+- `abstract interface class Authenticator { String? get challenge;
+  FutureOr<AuthPrincipal?> authenticate(AuthRequest); }` — one strategy.
+  Return `null` = no credentials for this scheme; throw
+  `InvalidCredentialsException` = present-but-invalid (→ 401).
+- `abstract interface class AuthRequest { String? header(String); }` with
+  `MapAuthRequest` (gRPC metadata / tests) and `DianaAuthRequest`
+  (HTTP / WS) views.
+- Built-ins: `JwtAuthenticator(TokenVerifier, {rolesClaim})`,
+  `BasicAuthenticator(UserStore, {realm})`,
+  `ApiKeyAuthenticator(ApiKeyValidator, {headerName})`.
+- JWT: `TokenVerifier` (interface), `Hs256TokenVerifier(secret, {clockSkew,
+  issuer, audience})` (hardened HS256), `Hs256TokenSigner(secret)` with
+  `sign(claims)` and `claimsFor(sub, {roles, ttl, rolesClaim})`.
+
+### Middleware & guards
+
+- `class AuthenticationMiddleware implements Middleware` —
+  `AuthenticationMiddleware({required List<Authenticator> authenticators,
+  bool challengeOnUnauthorized = true})`. Runs the chain, stamps the
+  principal under `principalAttributeKey`, attaches `WWW-Authenticate` to
+  401s. `Future<AuthPrincipal?> authenticate(AuthRequest)` and
+  `Future<Set<String>?> authorizeMetadata(Map<String, String>)` (the gRPC
+  seam). Assemble by subclassing.
+- `class SecuredGuard implements Middleware` (const) — 401 when anonymous.
+- `class RolesGuard implements Middleware` — `const RolesGuard(List<String>
+  roles)`; 401 anonymous, 403 missing every role.
+
+`principalAttributeKey` and `T bindPrincipal<T>(DianaRequest)` live in
+`package:diana` (`binding.dart`) — the cross-package contract read by
+`@Principal()` adapters.
+
+See the [auth guide](../guides/auth.md).
+
+---
+
+## Persistence (`package:diana_data`)
+
+The optional data package — the only one depending on `package:knex_dart`
+(boundary-tested); driver-agnostic.
+
+- `class Database` — the injectable query executor. `QueryBuilder
+  table(String)` / `query()` build queries;
+  `Future<List<Map<String, dynamic>>> select/insert/update/delete(QueryBuilder)`
+  and `raw(String, [bindings])` run them against the ambient executor (the
+  current transaction from the `Zone`, else the pooled connection).
+  `Future<T> runTransactional<T>(Future<T> Function())` opens/nests a
+  transaction (called by generated `@Transactional` proxies).
+  `open()`/`migrate()`/`close()` are the lifecycle hooks the generated
+  context drives.
+- `abstract class DatabaseConnector { Future<Object> connect(DianaConfig);
+  Future<void> close(Object connection); }` — subclass as a provider; opens
+  your driver connection and owns its close.
+- `class DatabaseHealthIndicator implements HealthIndicator` — takes a
+  `Database`, pings `SELECT 1`; register as a `@Component` to expose it on
+  `/actuator/health`.
+
+See the [persistence guide](../guides/persistence.md).

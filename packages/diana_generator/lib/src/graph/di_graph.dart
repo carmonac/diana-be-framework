@@ -12,10 +12,24 @@ class ResolvedDep {
   final CtorParamInfo param;
 
   /// Provider key satisfying the dependency; `null` for `@Value` parameters
-  /// (resolved from configuration, not the graph).
+  /// (resolved from configuration, not the graph) and for the
+  /// framework-provided event publisher.
   final String? providerKey;
 
-  const ResolvedDep({required this.param, this.providerKey});
+  /// True when the parameter is Diana's `DianaEventPublisher`, satisfied by
+  /// the context's event bus rather than a graph provider.
+  final bool isEventPublisher;
+
+  /// True when the parameter is diana_data's `Database`, satisfied by the
+  /// context's database facade rather than a graph provider.
+  final bool isDbExecutor;
+
+  const ResolvedDep({
+    required this.param,
+    this.providerKey,
+    this.isEventPublisher = false,
+    this.isDbExecutor = false,
+  });
 
   bool get isConfigValue => param.valueKey != null;
 }
@@ -51,6 +65,19 @@ class DiGraph {
   DiGraph({required this.ordered, required this.byKey});
 
   bool get hasRequestScope => ordered.any((p) => p.needsRequestScope);
+
+  /// Whether the app declares `@EventListener` methods or injects
+  /// `DianaEventPublisher` — gates all event-bus emission.
+  bool get usesEvents => ordered.any((p) =>
+      p.info.eventListeners.isNotEmpty ||
+      p.deps.any((d) => d.isEventPublisher));
+
+  /// Whether the app injects `Database` or declares `@Transactional`
+  /// methods — gates all diana_data emission (database field, lifecycle,
+  /// transactional proxies).
+  bool get usesData => ordered.any((p) =>
+      p.info.transactionalMethods.isNotEmpty ||
+      p.deps.any((d) => d.isDbExecutor));
 }
 
 class DiGraphResult {
@@ -126,6 +153,16 @@ DiGraphResult resolveGraph(List<LibrarySummary> summaries) {
     for (final param in provider.info.ctorParams) {
       if (param.valueKey != null) {
         provider.deps.add(ResolvedDep(param: param));
+        continue;
+      }
+      if (param.type.name == 'DianaEventPublisher' &&
+          param.type.libraryUri.startsWith('package:diana/')) {
+        provider.deps.add(ResolvedDep(param: param, isEventPublisher: true));
+        continue;
+      }
+      if (param.type.name == 'Database' &&
+          param.type.libraryUri.startsWith('package:diana_data/')) {
+        provider.deps.add(ResolvedDep(param: param, isDbExecutor: true));
         continue;
       }
       final key = bindKey(param.type, param.qualifier);
