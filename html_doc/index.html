@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diana — Spring-inspired Dart Backend Framework</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="#home" class="logo">
+          <span class="logo-icon">◆</span>
+          <span class="logo-text">Diana</span>
+          <span class="logo-version">v0.6.0</span>
+        </a>
+      </div>
+      <div class="sidebar-search">
+        <input type="text" id="search" placeholder="Search docs…" autocomplete="off">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+      <nav class="sidebar-nav" id="sidebarNav">
+        <div class="nav-section">
+          <div class="nav-section-title">Getting Started</div>
+          <a href="#home" class="nav-link active" data-page="home">Overview</a>
+          <a href="#getting-started" class="nav-link" data-page="getting-started">Getting Started</a>
+          <a href="#tutorial" class="nav-link" data-page="tutorial">Tutorial</a>
+          <a href="#architecture" class="nav-link" data-page="architecture">Architecture</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Guides</div>
+          <a href="#di" class="nav-link" data-page="di">Dependency Injection</a>
+          <a href="#controllers" class="nav-link" data-page="controllers">Controllers &amp; Routing</a>
+          <a href="#middleware" class="nav-link" data-page="middleware">Middleware</a>
+          <a href="#configuration" class="nav-link" data-page="configuration">Configuration</a>
+          <a href="#validation" class="nav-link" data-page="validation">Validation</a>
+          <a href="#error-handling" class="nav-link" data-page="error-handling">Error Handling</a>
+          <a href="#websockets" class="nav-link" data-page="websockets">WebSockets</a>
+          <a href="#lifecycle" class="nav-link" data-page="lifecycle">Application Lifecycle</a>
+          <a href="#events" class="nav-link" data-page="events">Application Events</a>
+          <a href="#cors-static" class="nav-link" data-page="cors-static">CORS &amp; Static Files</a>
+          <a href="#content-negotiation" class="nav-link" data-page="content-negotiation">Content Negotiation</a>
+          <a href="#sse" class="nav-link" data-page="sse">Server-Sent Events</a>
+          <a href="#grpc" class="nav-link" data-page="grpc">gRPC</a>
+          <a href="#auth" class="nav-link" data-page="auth">Authentication</a>
+          <a href="#persistence" class="nav-link" data-page="persistence">Persistence</a>
+          <a href="#openapi" class="nav-link" data-page="openapi">OpenAPI</a>
+          <a href="#observability" class="nav-link" data-page="observability">Observability</a>
+          <a href="#operations" class="nav-link" data-page="operations">Operations</a>
+          <a href="#json" class="nav-link" data-page="json">JSON Serialization</a>
+          <a href="#testing" class="nav-link" data-page="testing">Testing</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Reference</div>
+          <a href="#annotations" class="nav-link" data-page="annotations">Annotations</a>
+          <a href="#runtime-api" class="nav-link" data-page="runtime-api">Runtime API</a>
+          <a href="#generated-code" class="nav-link" data-page="generated-code">Generated Code</a>
+          <a href="#build-diagnostics" class="nav-link" data-page="build-diagnostics">Build Diagnostics</a>
+          <a href="#config-keys" class="nav-link" data-page="config-keys">Configuration Keys</a>
+        </div>
+        <div class="nav-section">
+          <a href="#troubleshooting" class="nav-link" data-page="troubleshooting">Troubleshooting &amp; FAQ</a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="topbar-breadcrumb" id="breadcrumb">Overview</div>
+        <div class="topbar-actions">
+          <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
+          <a href="https://github.com" class="topbar-link" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+          </a>
+        </div>
+      </header>
+
+      <div class="content-wrapper">
+        <div class="content" id="content">
+          <!-- Home page -->
+          <div class="page active" id="page-home">
+            <section class="hero">
+              <div class="hero-badge">Spring-inspired · Compile-time DI · Zero reflection</div>
+              <h1>Build Dart backends the <span class="gradient-text">right way</span></h1>
+              <p class="hero-subtitle">Diana is a Spring-inspired, annotation-driven backend framework for Dart. Everything — dependency injection, routing, middleware wiring, validation — is resolved <strong>at compile time</strong>. No reflection, no runtime container. Configuration mistakes are build errors, and startup is instant.</p>
+              <div class="hero-actions">
+                <a href="#getting-started" class="btn btn-primary">Get Started</a>
+                <a href="#tutorial" class="btn btn-secondary">Follow the Tutorial</a>
+              </div>
+            </section>
+
+            <section class="features">
+              <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Compile-Time DI</h3>
+                <p>Dependency resolution, routing, and validation checked at build time. The runtime contains no reflection, no type maps, no resolution logic.</p>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Type-Safe by Design</h3>
+                <p>Generated code is plain typed Dart. The DI container is a class with typed fields in dependency order — debuggable with any IDE.</p>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <h3>Instant Startup</h3>
+                <p>No container bootstrap, no runtime scanning, no reflection warm-up. The generated composition root wires everything before your first line runs.</p>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">🧩</div>
+                <h3>Feature-Rich</h3>
+                <p>Controllers, middleware, validation, WebSockets, SSE, gRPC, authentication, persistence, OpenAPI, CORS — all with the same annotation-driven model.</p>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">📦</div>
+                <h3>Modular Packages</h3>
+                <p>Core runtime, generator, gRPC, auth, and persistence live in separate packages. You depend only on what you use.</p>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">🔧</div>
+                <h3>Hot Reload</h3>
+                <p>Watch mode regenerates on save. Handler bodies hot-reload with the VM service. DI-graph changes need a restart — clearly documented.</p>
+              </div>
+            </section>
+
+            <section class="code-preview">
+              <h2>See it in action</h2>
+              <div class="tabs">
+                <button class="tab active" data-tab="controller">Controller</button>
+                <button class="tab" data-tab="di">Dependency Injection</button>
+                <button class="tab" data-tab="config">Configuration</button>
+              </div>
+              <div class="tab-content active" id="tab-controller">
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+
+part 'hello_controller.diana.dart';
+
+@RestController('/hello')
+class HelloController {
+  @Get()
+  Map&lt;String, dynamic&gt; hello() =&gt;
+      {'message': 'Hello from Diana!'};
+
+  @Get('/:name')
+  String greet(@PathParam() String name) =&gt;
+      'Hello, $name!';
+}</code></pre>
+              </div>
+              <div class="tab-content" id="tab-di">
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+
+@Service()
+class BookService {
+  final BookRepository repo;
+  BookService(this.repo);
+
+  List&lt;BookDto&gt; list(int limit) =&gt;
+      repo.findAll(limit: limit);
+}
+
+@Repository()
+class InMemoryBookRepository
+    implements BookRepository {
+  // ... implementation
+}</code></pre>
+              </div>
+              <div class="tab-content" id="tab-config">
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+
+part 'app_info.diana.dart';
+
+@ConfigurationProperties('app.info')
+class AppInfo {
+  final String name;
+  final String version;
+
+  const AppInfo({
+    required this.name,
+    required this.version,
+  });
+}</code></pre>
+              </div>
+            </section>
+
+            <section class="quick-start">
+              <h2>Quick start</h2>
+              <div class="steps">
+                <div class="step">
+                  <div class="step-number">1</div>
+                  <div class="step-content">
+                    <h4>Create a project</h4>
+<pre><code class="language-bash">dart create -t console my_api
+cd my_api</code></pre>
+                  </div>
+                </div>
+                <div class="step">
+                  <div class="step-number">2</div>
+                  <div class="step-content">
+                    <h4>Add dependencies</h4>
+<pre><code class="language-yaml">dependencies:
+  diana: ^0.6.0
+dev_dependencies:
+  build_runner: ^2.12.0
+  diana_generator: ^0.6.0</code></pre>
+                  </div>
+                </div>
+                <div class="step">
+                  <div class="step-number">3</div>
+                  <div class="step-content">
+                    <h4>Generate &amp; run</h4>
+<pre><code class="language-bash">dart run build_runner build
+dart run bin/server.dart
+# [diana] Listening on http://0.0.0.0:8080</code></pre>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="requirements">
+              <h2>Requirements</h2>
+              <ul>
+                <li>Dart SDK <strong>3.6 or later</strong></li>
+                <li><code>build_runner</code> for code generation</li>
+              </ul>
+              <p class="muted">Currently at version 0.6.0 — APIs may change before 1.0.0.</p>
+            </section>
+          </div>
+
+          <!-- Getting Started -->
+          <div class="page" id="page-getting-started">
+            <h1>Getting Started</h1>
+            <p class="lead">Go from an empty directory to a running HTTP server in 5 minutes.</p>
+
+            <h2>1. Create a project</h2>
+<pre><code class="language-bash">dart create -t console my_api
+cd my_api</code></pre>
+
+            <h2>2. Add dependencies</h2>
+<pre><code class="language-yaml"># pubspec.yaml
+dependencies:
+  diana: ^0.6.0
+
+dev_dependencies:
+  build_runner: ^2.12.0
+  diana_generator: ^0.6.0</code></pre>
+            <blockquote>Working inside the Diana monorepo? Add your package to the <code>workspace:</code> list of the root <code>pubspec.yaml</code> and use <code>resolution: workspace</code> instead of version constraints.</blockquote>
+            <p>Run <code>dart pub get</code>.</p>
+
+            <h2>3. Declare the application entrypoint</h2>
+            <p>Every Diana application has exactly one class annotated with <code>@DianaApplication</code>, placed anywhere under <code>lib/</code> (convention: <code>lib/app.dart</code>):</p>
+<pre><code class="language-dart">// lib/app.dart
+import 'package:diana/diana.dart';
+
+@DianaApplication()
+class MyApp {}</code></pre>
+            <p>The class body stays empty — it only anchors the generated code. The generator emits <code>lib/app.diana_app.dart</code> next to it.</p>
+
+            <h2>4. Write a controller</h2>
+            <p>Controllers declare routes with annotations. Libraries that declare routes need a <code>part</code> directive for their generated code:</p>
+<pre><code class="language-dart">// lib/controllers/hello_controller.dart
+import 'package:diana/diana.dart';
+
+part 'hello_controller.diana.dart';
+
+@RestController('/hello')
+class HelloController {
+  @Get()
+  Map&lt;String, dynamic&gt; hello() =&gt; {'message': 'Hello from Diana!'};
+
+  @Get('/:name')
+  String greet(@PathParam() String name) =&gt; 'Hello, $name!';
+}</code></pre>
+
+            <h2>5. Generate</h2>
+<pre><code class="language-bash">dart run build_runner build</code></pre>
+            <p>This emits:</p>
+            <ul>
+              <li><code>lib/controllers/hello_controller.diana.dart</code> — the route adapters</li>
+              <li><code>lib/app.diana_app.dart</code> — the composition root: <code>DianaContext</code>, <code>buildDianaServer()</code> and <code>runDiana()</code></li>
+            </ul>
+            <p>During development, use <code>dart run build_runner watch</code> to regenerate on save.</p>
+
+            <h2>6. Run</h2>
+<pre><code class="language-dart">// bin/server.dart
+import 'package:my_api/app.diana_app.dart';
+
+Future&lt;void&gt; main() =&gt; runDiana();</code></pre>
+<pre><code class="language-bash">$ dart run bin/server.dart
+[diana] Listening on http://0.0.0.0:8080
+
+$ curl localhost:8080/hello
+{"message":"Hello from Diana!"}
+
+$ curl localhost:8080/hello/dart
+Hello, dart!</code></pre>
+            <p>The default address is <code>0.0.0.0:8080</code>; override it with an <code>application.yaml</code> (<code>server.host</code>, <code>server.port</code>) or the environment variables <code>SERVER_HOST</code> / <code>SERVER_PORT</code>.</p>
+
+            <h2>Next steps</h2>
+            <ul>
+              <li>The <a href="#tutorial">tutorial</a> builds a complete API: dependency injection, request bodies, validation, middleware, configuration, error handling and tests.</li>
+              <li>The <a href="#di">guides</a> cover each feature in depth.</li>
+            </ul>
+          </div>
+
+          <!-- Architecture -->
+          <div class="page" id="page-architecture">
+            <h1>Architecture</h1>
+            <p class="lead">How Diana works inside — from annotating a class to serving a request.</p>
+
+            <h2>Design Principles</h2>
+            <ol>
+              <li><strong>Compile time over runtime.</strong> Anything that can fail — dependency resolution, binding compatibility, JSON contracts, handler signatures — is checked during code generation. The runtime contains no resolution logic, no maps of types, no reflection.</li>
+              <li><strong>Generated code is thin; semantics live in the runtime.</strong> Adapters and validators are one-liners calling tested runtime helpers. This keeps generated diffs small and the behaviour centrally testable.</li>
+              <li><strong>The HTTP engine is a detail.</strong> <a href="https://pub.dev/packages/relic" target="_blank">relic</a> provides the server lifecycle, trie router and path-parameter extraction. It is confined to a single adapter file.</li>
+              <li><strong>Deterministic output.</strong> Same input, byte-identical output — sorted emission everywhere, no timestamps. Enables <code>git diff --exit-code</code> freshness checks.</li>
+            </ol>
+
+            <h2>Package Layout</h2>
+<pre><code>packages/
+├── diana_annotation    # const annotation classes; deps: meta only
+├── diana               # runtime; deps: relic, yaml, xml; re-exports annotations
+├── diana_generator     # builders; deps: analyzer, build, source_gen,
+│                       # code_builder, dart_style, diana_annotation
+├── diana_grpc          # gRPC runtime; deps: diana, grpc
+├── diana_auth          # security; deps: diana, crypto
+└── diana_data          # persistence; deps: diana, knex_dart</code></pre>
+            <p>Boundary rules enforced by tests: each add-on package is the <em>only</em> one importing its respective dependency (relic, grpc, crypto, knex_dart). The generator imports none of the add-ons.</p>
+
+            <h2>The Build Pipeline</h2>
+            <p>Three builders, ordered by <code>runs_before</code> + <code>required_inputs</code>:</p>
+            <ol>
+              <li><strong><code>diana_metadata</code></strong> — Per-library summaries. Regex pre-check skips irrelevant files. Annotated libraries are resolved into a <code>LibrarySummary</code> (injectables, controllers, routes, middleware, advices) written as JSON to the build cache.</li>
+              <li><strong><code>diana_part</code></strong> — Per-library code. Emits route adapters, validators, config binders. Local build-time validation lives here with exact source spans.</li>
+              <li><strong><code>diana_bootstrap</code></strong> — The aggregator. Runs on the <code>@DianaApplication</code> library only: collects all <code>.diana.json</code> files, resolves the DI graph (Kahn topological sort, DFS cycle extraction), validates middleware, and emits <code>DianaContext</code>, <code>buildDianaServer()</code>, <code>runDiana()</code>.</li>
+            </ol>
+
+            <h2>The Runtime Pipeline</h2>
+<pre><code>relic (trie router, HTTP server)
+  └─ RelicAdapter: relic Request → DianaRequest, DianaResponse → relic Response
+       └─ error boundary (ValidationException → 400, advice chain,
+          HttpException → status, else opaque 500)
+            └─ middleware chain: global → controller → route
+                 └─ generated adapter: bind → validate → invoke → serialize
+                      └─ your method</code></pre>
+            <p>Composition happens once at route-registration time. Nothing is looked up per request.</p>
+
+            <h2>Testing Strategy</h2>
+            <ul>
+              <li><strong>Graph logic:</strong> table-driven tests over hand-built summaries</li>
+              <li><strong>Builders:</strong> <code>build_test</code> with in-memory sources</li>
+              <li><strong>Runtime:</strong> unit tests for config, binding, validation, pipeline ordering</li>
+              <li><strong>End-to-end:</strong> the <code>examples/todo_api</code> suite boots the generated server</li>
+              <li><strong>Boundary tests:</strong> fail if <code>package:relic</code> leaks outside the adapter</li>
+              <li><strong>Determinism:</strong> build twice, compare checksums</li>
+            </ul>
+          </div>
+
+          <!-- Troubleshooting -->
+          <div class="page" id="page-troubleshooting">
+            <h1>Troubleshooting &amp; FAQ</h1>
+
+            <h2>Build Problems</h2>
+
+            <h3>"Missing the part directive"</h3>
+            <p>Paste the printed <code>part 'xxx.diana.dart';</code> line into the named file, after the imports. Needed by libraries with controllers, constrained DTOs or <code>@ConfigurationProperties</code> classes.</p>
+
+            <h3>Analyzer errors in <code>*.diana.dart</code> / <code>*.diana_app.dart</code></h3>
+            <p>Generated files can be stale. Re-run <code>dart run build_runner build</code>. If errors persist, check the build log for the real diagnostic.</p>
+
+            <h3><code>runDiana</code> / <code>buildDianaServer</code> doesn't exist</h3>
+            <ul>
+              <li>Is there exactly one <code>@DianaApplication</code> class under <code>lib/</code>?</li>
+              <li>Did the build run without severe errors?</li>
+              <li>Import path: <code>package:&lt;your_app&gt;/&lt;file&gt;.diana_app.dart</code></li>
+            </ul>
+
+            <h3>Stale results / weird incremental behaviour</h3>
+<pre><code class="language-bash">dart run build_runner clean
+dart run build_runner build</code></pre>
+
+            <h2>Runtime Problems</h2>
+
+            <h3>App exits with <code>ConfigException</code> at startup</h3>
+            <p>By design: a <code>@Value</code> without default or a required <code>@ConfigurationProperties</code> key is missing. The message names the key <em>and</em> the environment variable that can supply it.</p>
+
+            <h3><code>application.yaml</code> seems to be ignored</h3>
+            <p>It's resolved against the <strong>working directory</strong> of the process, not the package root. Environment variables silently win over file values.</p>
+
+            <h3>Every response is 404</h3>
+            <p>The route path is controller path + method path. The generated <code>buildDianaServer()</code> lists every registered route — read it, it's short.</p>
+
+            <h3>Port already in use</h3>
+            <p><code>SERVER_PORT=0 dart run bin/server.dart</code> binds a free one, or set <code>server.port</code>.</p>
+
+            <h2>FAQ</h2>
+
+            <h3>Why compile-time DI instead of a runtime container?</h3>
+            <p>Wiring errors surface in CI instead of production, startup does zero resolution work, the generated context is plain debuggable Dart, and tree-shaking keeps working because there's no reflection.</p>
+
+            <h3>Does Diana use <code>dart:mirrors</code> or macros?</h3>
+            <p>Neither. Diana generates code with <code>build_runner</code>, like riverpod or json_serializable.</p>
+
+            <h3>Can I use it with Flutter?</h3>
+            <p>Diana is a <em>server-side</em> framework. Share DTOs between a Diana backend and a Flutter app by putting them in a common package.</p>
+
+            <h3>Can two apps live in one package?</h3>
+            <p>No — one <code>@DianaApplication</code> per package (build error otherwise). Use separate packages in the workspace.</p>
+
+            <h3>Is there hot reload?</h3>
+            <p>Yes: <code>dart run build_runner watch</code> + <code>dart run --enable-vm-service bin/server.dart</code>. Handler bodies hot-reload; DI-graph changes need a restart.</p>
+          </div>
+
+          <!-- Tutorial -->
+          <div class="page" id="page-tutorial">
+            <h1>Tutorial: Build a Bookstore API</h1>
+            <p class="lead">Build a complete REST API with Diana, one feature at a time. Every step compiles and runs.</p>
+
+            <h2>1. Project Setup</h2>
+<pre><code class="language-bash">dart create -t console bookstore
+cd bookstore</code></pre>
+            <p>Edit <code>pubspec.yaml</code>:</p>
+<pre><code class="language-yaml">name: bookstore
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  diana: ^0.6.0
+
+dev_dependencies:
+  build_runner: ^2.12.0
+  diana_generator: ^0.6.0
+  test: ^1.25.0</code></pre>
+<pre><code class="language-bash">dart pub get</code></pre>
+            <p>Declare the application entrypoint:</p>
+<pre><code class="language-dart">// lib/app.dart
+import 'package:diana/diana.dart';
+
+@DianaApplication()
+class BookstoreApp {}</code></pre>
+            <p>And the launcher:</p>
+<pre><code class="language-dart">// bin/server.dart
+import 'package:bookstore/app.diana_app.dart';
+
+Future&lt;void&gt; main() =&gt; runDiana();</code></pre>
+
+            <h2>2. First Endpoint</h2>
+<pre><code class="language-dart">// lib/controllers/book_controller.dart
+import 'package:diana/diana.dart';
+
+part 'book_controller.diana.dart';
+
+@RestController('/books')
+class BookController {
+  @Get('/ping')
+  String ping() =&gt; 'pong';
+}</code></pre>
+            <p>Generate and run:</p>
+<pre><code class="language-bash">$ dart run build_runner build
+$ dart run bin/server.dart
+[diana] Listening on http://0.0.0.0:8080
+
+$ curl localhost:8080/books/ping
+pong</code></pre>
+
+            <h2>3. Dependency Injection</h2>
+            <p>The DTO:</p>
+<pre><code class="language-dart">// lib/dto/book_dto.dart
+class BookDto {
+  final int id;
+  final String title;
+  final String author;
+
+  const BookDto({required this.id, required this.title, required this.author});
+
+  factory BookDto.fromJson(Map&lt;String, dynamic&gt; json) =&gt; BookDto(
+        id: json['id'] as int,
+        title: json['title'] as String,
+        author: json['author'] as String,
+      );
+
+  Map&lt;String, dynamic&gt; toJson() =&gt;
+      {'id': id, 'title': title, 'author': author};
+}</code></pre>
+            <p>Repository and service:</p>
+<pre><code class="language-dart">// lib/repositories/book_repository.dart
+import 'package:diana/diana.dart';
+import '../dto/book_dto.dart';
+
+abstract interface class BookRepository {
+  List&lt;BookDto&gt; findAll({int limit});
+  BookDto? find(int id);
+  BookDto save(String title, String author);
+}
+
+@Repository()
+class InMemoryBookRepository implements BookRepository {
+  final _books = &lt;int, BookDto&gt;{
+    1: const BookDto(id: 1, title: 'Dart in Action', author: 'M. Ford'),
+  };
+  int _nextId = 2;
+
+  @override
+  List&lt;BookDto&gt; findAll({int limit = 20}) =&gt;
+      _books.values.take(limit).toList();
+
+  @override
+  BookDto? find(int id) =&gt; _books[id];
+
+  @override
+  BookDto save(String title, String author) {
+    final book = BookDto(id: _nextId++, title: title, author: author);
+    _books[book.id] = book;
+    return book;
+  }
+}</code></pre>
+<pre><code class="language-dart">// lib/services/book_service.dart
+import 'package:diana/diana.dart';
+import '../dto/book_dto.dart';
+import '../repositories/book_repository.dart';
+
+@Service()
+class BookService {
+  final BookRepository repo;
+  BookService(this.repo);
+
+  List&lt;BookDto&gt; list(int limit) =&gt; repo.findAll(limit: limit);
+}</code></pre>
+            <p>Inject into the controller:</p>
+<pre><code class="language-dart">@RestController('/books')
+class BookController {
+  final BookService service;
+  BookController(this.service);
+
+  @Get()
+  List&lt;BookDto&gt; list() =&gt; service.list(20);
+}</code></pre>
+
+            <h2>4. Path and Query Parameters</h2>
+<pre><code class="language-dart">@Get()
+List&lt;BookDto&gt; list(@QueryParam('limit', '20') int limit) =&gt;
+    service.list(limit);
+
+@Get('/:id')
+BookDto getById(@PathParam() int id) =&gt; service.getOrThrow(id);</code></pre>
+            <p>Parameter binding rules:</p>
+            <ul>
+              <li><code>@PathParam()</code> binds <code>:id</code> from the route; must be non-nullable.</li>
+              <li><code>@QueryParam('limit', '20')</code> binds <code>?limit=</code>; second arg is the default.</li>
+              <li>Conversion failures are automatic 400s.</li>
+            </ul>
+
+            <h2>5. Request Bodies and Validation</h2>
+<pre><code class="language-dart">// lib/dto/create_book_request.dart
+import 'package:diana/diana.dart';
+
+part 'create_book_request.diana.dart';
+
+class CreateBookRequest {
+  @NotBlank(message: 'title is required')
+  @Size(max: 200)
+  final String title;
+
+  @NotBlank()
+  final String author;
+
+  CreateBookRequest({required this.title, required this.author});
+
+  factory CreateBookRequest.fromJson(Map&lt;String, dynamic&gt; json) =&gt;
+      CreateBookRequest(
+        title: json['title'] as String? ?? '',
+        author: json['author'] as String? ?? '',
+      );
+
+  Map&lt;String, dynamic&gt; toJson() =&gt; {'title': title, 'author': author};
+}</code></pre>
+            <p>The route:</p>
+<pre><code class="language-dart">@Post()
+@ResponseStatus(201)
+BookDto create(@Body() CreateBookRequest body) =&gt; service.create(body);</code></pre>
+
+            <h2>6. Domain Errors and @ControllerAdvice</h2>
+<pre><code class="language-dart">// lib/errors/book_not_found.dart
+class BookNotFound implements Exception {
+  final int id;
+  const BookNotFound(this.id);
+}</code></pre>
+            <p>Map it in one place:</p>
+<pre><code class="language-dart">// lib/advice/error_advice.dart
+import 'package:diana/diana.dart';
+import '../errors/book_not_found.dart';
+
+@ControllerAdvice()
+class ErrorAdvice {
+  @ExceptionHandler(BookNotFound)
+  DianaResponse onBookNotFound(BookNotFound e, DianaRequest req) =&gt;
+      DianaResponse.json(
+        {'error': 'book_not_found', 'id': e.id, 'path': req.path},
+        statusCode: 404,
+      );
+}</code></pre>
+
+            <h2>7. Middleware</h2>
+            <p>Global timing middleware:</p>
+<pre><code class="language-dart">// lib/middleware/timing_middleware.dart
+import 'package:diana/diana.dart';
+
+@GlobalMiddleware(order: 0)
+class TimingMiddleware implements Middleware {
+  @override
+  Future&lt;DianaResponse&gt; handle(DianaRequest request, Next next) async {
+    final watch = Stopwatch()..start();
+    final response = await next(request);
+    return response.copyWith(headers: {
+      ...response.headers,
+      'x-response-time-ms': '${watch.elapsedMilliseconds}',
+    });
+  }
+}</code></pre>
+            <p>Per-route guard:</p>
+<pre><code class="language-dart">@Post()
+@ResponseStatus(201)
+@UseMiddleware([AdminGuard])
+BookDto create(@Body() CreateBookRequest body) =&gt; service.create(body);</code></pre>
+
+            <h2>8. Configuration</h2>
+<pre><code class="language-yaml"># application.yaml
+server:
+  port: 8080
+
+app:
+  adminKey: s3cret
+  info:
+    name: bookstore
+    version: 1.0.0</code></pre>
+            <p>Environment overrides: <code>SERVER_PORT=9000 APP_ADMINKEY=other dart run bin/server.dart</code></p>
+
+            <h2>9. Testing</h2>
+<pre><code class="language-dart">import 'package:bookstore/app.diana_app.dart';
+import 'package:diana/diana.dart';
+import 'package:test/test.dart';
+
+void main() {
+  late DianaServer server;
+  late int port;
+
+  setUpAll(() async {
+    server = await buildDianaServer(
+      config: DianaConfig({'app.adminKey': 'test-key'}),
+    );
+    await server.serve(port: 0, quiet: true);
+    port = server.port!;
+  });
+
+  tearDownAll(() =&gt; server.close());
+
+  test('lists the seeded book', () async {
+    final client = HttpClient();
+    final req = await client.getUrl(
+        Uri.parse('http://127.0.0.1:$port/books'));
+    final res = await req.close();
+    expect(res.statusCode, 200);
+    client.close();
+  });
+}</code></pre>
+
+            <h2>10. Development Workflow</h2>
+            <p>Two terminals:</p>
+<pre><code class="language-bash"># terminal 1 — regenerate on save
+dart run build_runner watch
+
+# terminal 2 — run with VM service for hot reload
+dart run --enable-vm-service bin/server.dart</code></pre>
+          </div>
+
+          <!-- Dependency Injection Guide -->
+          <div class="page" id="page-di">
+            <h1>Dependency Injection</h1>
+            <p class="lead">Diana's DI is resolved entirely at build time. Missing providers, ambiguous bindings, cycles and scope violations are build errors.</p>
+
+            <h2>Declaring Providers</h2>
+<pre><code class="language-dart">@Service()        // business logic
+class TodoService { ... }
+
+@Repository()     // data access
+class InMemoryTodoRepository implements TodoRepository { ... }
+
+@Component()      // anything else
+class Clock { ... }
+
+@Injectable(scope: Scope.transient)
+class UuidFactory { ... }</code></pre>
+            <p><code>@Service</code>, <code>@Repository</code> and <code>@Component</code> are semantic aliases of <code>@Injectable</code> — same parameters (<code>scope</code>, <code>as</code>, <code>name</code>), identical behaviour.</p>
+
+            <h2>Provider Requirements</h2>
+            <ul>
+              <li>Public (not <code>_Private</code>)</li>
+              <li>Concrete (not <code>abstract</code>)</li>
+              <li>No type parameters</li>
+              <li>A public unnamed generative constructor</li>
+              <li>One role annotation per class</li>
+            </ul>
+
+            <h2>How Dependencies Resolve</h2>
+            <p>For each constructor parameter, Diana looks up a provider <strong>by exact type</strong> in two tiers:</p>
+            <ol>
+              <li><strong>Strong bindings</strong> — the provider's own class, plus the type named by <code>as:</code></li>
+              <li><strong>Auto-binding candidates</strong> — every supertype (transitively, excluding <code>dart:*</code>)</li>
+            </ol>
+            <p>Strong bindings win. Within a tier: one match → resolved; multiple → build error; none → missing provider error.</p>
+
+            <h2>Several Implementations</h2>
+            <p><strong><code>as:</code></strong> — declare one <em>the</em> binding:</p>
+<pre><code class="language-dart">@Repository(as: TodoRepository)
+class PostgresTodoRepository implements TodoRepository { ... }</code></pre>
+            <p><strong>Qualifiers</strong> — name and select:</p>
+<pre><code class="language-dart">@Component(name: 'smtp')
+class SmtpSender implements MailSender { ... }
+
+@Service()
+class Notifier {
+  Notifier(@Named('smtp') this.sender);
+  final MailSender sender;
+}</code></pre>
+
+            <h2>Scopes</h2>
+            <table>
+              <tr><th>Scope</th><th>Lifetime</th><th>Generated as</th></tr>
+              <tr><td><code>singleton</code> (default)</td><td>One instance</td><td><code>late final</code> on DianaContext</td></tr>
+              <tr><td><code>request</code></td><td>Per HTTP request</td><td><code>late final</code> on DianaRequestScope</td></tr>
+              <tr><td><code>transient</code></td><td>Per injection point</td><td>Factory method</td></tr>
+            </table>
+            <p>Rules: nothing reachable from a singleton may be request-scoped. Middleware must be singletons.</p>
+
+            <h2>What Gets Generated</h2>
+<pre><code class="language-dart">class DianaContext {
+  DianaContext(this.config);
+  final DianaConfig config;
+
+  late final InMemoryTodoRepository inMemoryTodoRepository =
+      InMemoryTodoRepository();
+
+  late final TodoService todoService =
+      TodoService(inMemoryTodoRepository);
+}</code></pre>
+
+            <h2>Injecting Configuration</h2>
+            <p><code>@Value</code> parameters come from configuration, not the graph:</p>
+<pre><code class="language-dart">@Service()
+class Greeter {
+  Greeter(@Value('app.greeting', defaultValue: 'hello') this.greeting);
+  final String greeting;
+}</code></pre>
+          </div>
+
+          <!-- Controllers Guide -->
+          <div class="page" id="page-controllers">
+            <h1>Controllers &amp; Routing</h1>
+            <p class="lead">Annotated route methods become adapters that bind, validate, invoke and serialize — your code stays plain Dart.</p>
+
+            <h2>Declaring Routes</h2>
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+part 'todo_controller.diana.dart';
+
+@RestController('/todos')
+class TodoController {
+  final TodoService service;
+  TodoController(this.service);
+
+  @Get()
+  List&lt;TodoDto&gt; list(@QueryParam('limit', '20') int limit) =&gt;
+      service.list(limit);
+
+  @Get('/:id')
+  TodoDto getById(@PathParam() int id) =&gt; service.getOrThrow(id);
+
+  @Post()
+  @ResponseStatus(201)
+  TodoDto create(@Body() CreateTodoRequest body) =&gt; service.create(body);
+
+  @Delete('/:id')
+  void remove(@PathParam() int id) =&gt; service.delete(id);
+}</code></pre>
+            <ul>
+              <li><code>@RestController([path, scope])</code> — mounts all routes under path</li>
+              <li><code>@Get</code>, <code>@Post</code>, <code>@Put</code>, <code>@Delete</code>, <code>@Patch</code> — optional path relative to controller</li>
+              <li>Paths use <code>:name</code> segments; trie-based matching, order-independent</li>
+              <li><code>@HttpRoute('HEAD', '/status')</code> for methods without a shorthand</li>
+            </ul>
+
+            <h2>Parameter Binding</h2>
+            <table>
+              <tr><th>Annotation</th><th>Source</th><th>Notes</th></tr>
+              <tr><td><code>@PathParam([name])</code></td><td>Path segment</td><td>Must be non-nullable</td></tr>
+              <tr><td><code>@QueryParam([name, default])</code></td><td>Query string</td><td>Nullable → optional</td></tr>
+              <tr><td><code>@Header([name])</code></td><td>Request header</td><td>Case-insensitive</td></tr>
+              <tr><td><code>@Body()</code></td><td>JSON body</td><td>DTO, Map, List, String, FormData</td></tr>
+              <tr><td><em>none (DianaRequest)</em></td><td>Raw request</td><td>Full access</td></tr>
+            </table>
+            <p>Supported types: <code>String</code>, <code>int</code>, <code>double</code>, <code>bool</code>, <code>num</code>. Conversion failures are automatic 400s.</p>
+
+            <h2>Return Types</h2>
+            <table>
+              <tr><th>Return type</th><th>Response</th></tr>
+              <tr><td>DTO with <code>toJson()</code></td><td>200, application/json</td></tr>
+              <tr><td><code>List&lt;Dto&gt;</code></td><td>200, JSON array</td></tr>
+              <tr><td><code>Map</code> / JSON primitives</td><td>200, JSON</td></tr>
+              <tr><td><code>String</code></td><td>200, text/plain</td></tr>
+              <tr><td><code>void</code></td><td>204 No Content</td></tr>
+              <tr><td><code>DianaResponse</code></td><td>Passed through</td></tr>
+              <tr><td><code>Stream&lt;...&gt;</code></td><td>200, text/event-stream (SSE)</td></tr>
+            </table>
+
+            <h2>Under the Hood</h2>
+            <p>For each route the generator emits a public adapter:</p>
+<pre><code class="language-dart">Future&lt;DianaResponse&gt; $diana$TodoController$create(
+    TodoController c, DianaRequest req) async {
+  final $a0 = CreateTodoRequest.fromJson(await decodeJsonMapBody(req));
+  const $CreateTodoRequestValidator().validate($a0).throwIfInvalid();
+  final result = c.create($a0);
+  return DianaResponse.json(result.toJson(), statusCode: 201);
+}</code></pre>
+          </div>
+
+          <!-- Middleware Guide -->
+          <div class="page" id="page-middleware">
+            <h1>Middleware</h1>
+            <p class="lead">Intercept requests around handlers — logging, auth, headers, rate limiting.</p>
+
+            <h2>The Interface</h2>
+<pre><code class="language-dart">abstract interface class Middleware {
+  FutureOr&lt;DianaResponse&gt; handle(DianaRequest request, Next next);
+}
+
+typedef Next = FutureOr&lt;DianaResponse&gt; Function(DianaRequest request);</code></pre>
+            <p>Call <code>next(request)</code> to continue; return a response directly to <strong>short-circuit</strong>.</p>
+
+            <h2>Global Middleware</h2>
+<pre><code class="language-dart">@GlobalMiddleware(order: 0)
+class TimingMiddleware implements Middleware {
+  @override
+  Future&lt;DianaResponse&gt; handle(DianaRequest request, Next next) async {
+    final watch = Stopwatch()..start();
+    final response = await next(request);
+    return response.copyWith(headers: {
+      ...response.headers,
+      'x-response-time-ms': '${watch.elapsedMilliseconds}',
+    });
+  }
+}</code></pre>
+            <p>Lower <code>order</code> runs first (outermost); ties broken by class name.</p>
+
+            <h2>Per-Controller / Per-Route Middleware</h2>
+<pre><code class="language-dart">@Component()
+class ApiKeyMiddleware implements Middleware {
+  ApiKeyMiddleware(@Value('app.apiKey') this.expected);
+  final String expected;
+
+  @override
+  Future&lt;DianaResponse&gt; handle(DianaRequest request, Next next) async {
+    if (request.header('x-api-key') != expected) {
+      return DianaResponse.json({'error': 'unauthorized'}, statusCode: 401);
+    }
+    return await next(request);
+  }
+}
+
+@RestController('/admin')
+@UseMiddleware([AuditMiddleware])
+class AdminController {
+  @Delete('/:id')
+  @UseMiddleware([ApiKeyMiddleware])
+  void remove(@PathParam() int id) { ... }
+}</code></pre>
+
+            <h2>Execution Order</h2>
+<pre><code>global (sorted by order) → controller-level → route-level → handler</code></pre>
+            <p>The first middleware sees the request first and the response last (onion model).</p>
+
+            <h2>Passing Data to Handlers</h2>
+            <p>Use <code>DianaRequest.attributes</code>:</p>
+<pre><code class="language-dart">// middleware
+request.attributes['userId'] = token.subject;
+return next(request);
+
+// handler
+@Get('/me')
+Map&lt;String, dynamic&gt; me(DianaRequest req) =&gt;
+    {'userId': req.attributes['userId']};</code></pre>
+          </div>
+
+          <!-- Configuration Guide -->
+          <div class="page" id="page-configuration">
+            <h1>Configuration</h1>
+            <p class="lead">YAML file + environment variable overrides. Missing required keys fail at boot, not at the first request.</p>
+
+            <h2>Sources and Precedence</h2>
+            <ol>
+              <li><strong>Environment variables</strong> (highest)</li>
+              <li><strong>YAML file</strong> — default <code>application.yaml</code>, resolved against working directory</li>
+            </ol>
+
+            <h2>Environment Overrides</h2>
+            <p>Every key maps to an env var: <strong>upper-case, dots and dashes become underscores</strong>.</p>
+            <table>
+              <tr><th>Key</th><th>Variable</th></tr>
+              <tr><td><code>server.port</code></td><td><code>SERVER_PORT</code></td></tr>
+              <tr><td><code>app.info.name</code></td><td><code>APP_INFO_NAME</code></td></tr>
+              <tr><td><code>app.api-key</code></td><td><code>APP_API_KEY</code></td></tr>
+            </table>
+
+            <h2>@Value</h2>
+<pre><code class="language-dart">@Service()
+class Greeter {
+  Greeter(@Value('app.greeting', defaultValue: 'hello') this.greeting);
+  final String greeting;
+}</code></pre>
+            <p>Types: <code>String</code>, <code>int</code>, <code>double</code>, <code>bool</code>, <code>num</code>. Without default, the key is required — missing means startup failure with <code>ConfigException</code>.</p>
+
+            <h2>@ConfigurationProperties</h2>
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+part 'mail_props.diana.dart';
+
+@ConfigurationProperties('app.mail')
+class MailProps {
+  final String host;
+  final int port;
+  final String? replyTo;
+  const MailProps({required this.host, required this.port, this.replyTo});
+}</code></pre>
+            <p>Each constructor parameter binds from <code>&lt;prefix&gt;.&lt;paramName&gt;</code>. Nullable → optional. The class becomes an injectable singleton.</p>
+
+            <h2>Type Coercion</h2>
+            <table>
+              <tr><th>Requested</th><th>Accepted raw values</th></tr>
+              <tr><td><code>String</code></td><td>Anything</td></tr>
+              <tr><td><code>int</code> / <code>num</code> / <code>double</code></td><td>Numeric strings or YAML numbers</td></tr>
+              <tr><td><code>bool</code></td><td><code>true/false</code>, <code>1/0</code>, <code>yes/no</code>, <code>on/off</code></td></tr>
+            </table>
+          </div>
+
+          <!-- Validation Guide -->
+          <div class="page" id="page-validation">
+            <h1>Validation</h1>
+            <p class="lead">Constraint annotations on DTO fields become generated validators that run before your handler.</p>
+
+            <h2>Declaring Constraints</h2>
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+part 'signup_request.diana.dart';
+
+class SignupRequest {
+  @NotBlank(message: 'name is required')
+  @Size(min: 2, max: 50)
+  final String name;
+
+  @Email()
+  final String email;
+
+  @Min(18)
+  @Max(130)
+  final int? age;
+
+  @Valid()
+  final Address? address;
+}</code></pre>
+
+            <h2>Constraint Catalogue</h2>
+            <table>
+              <tr><th>Annotation</th><th>Applies to</th><th>Fails when</th></tr>
+              <tr><td><code>@NotNull</code></td><td>Any field</td><td>Value is null</td></tr>
+              <tr><td><code>@NotEmpty</code></td><td>String, List, Set, Map</td><td>Empty</td></tr>
+              <tr><td><code>@NotBlank</code></td><td>String</td><td>Empty or whitespace-only</td></tr>
+              <tr><td><code>@Min(value)</code> / <code>@Max(value)</code></td><td>Numeric</td><td>&lt; value / &gt; value</td></tr>
+              <tr><td><code>@Size({min, max})</code></td><td>String, List, Set, Map</td><td>Length outside bounds</td></tr>
+              <tr><td><code>@Pattern(regex)</code></td><td>String</td><td>Doesn't match regex</td></tr>
+              <tr><td><code>@Email</code></td><td>String</td><td>Not email-shaped</td></tr>
+              <tr><td><code>@Valid()</code></td><td>DTO field / List of DTOs</td><td>Nested validation fails</td></tr>
+            </table>
+            <p>All constraints except <code>@NotNull</code> skip null values.</p>
+
+            <h2>Error Response</h2>
+<pre><code class="language-json">HTTP 400
+{
+  "error": "validation_failed",
+  "fields": {
+    "name": ["name is required", "size must be between 2 and 50"],
+    "email": ["must be a valid email address"]
+  }
+}</code></pre>
+
+            <h2>Manual Validation</h2>
+<pre><code class="language-dart">final result = const $SignupRequestValidator().validate(request);
+if (!result.isValid) { /* inspect result.errors */ }
+result.throwIfInvalid(); // or throw the standard 400</code></pre>
+          </div>
+
+          <!-- Error Handling Guide -->
+          <div class="page" id="page-error-handling">
+            <h1>Error Handling</h1>
+            <p class="lead">Every request runs inside Diana's exception boundary. Unrecognized exceptions become opaque 500s.</p>
+
+            <h2>The Pipeline</h2>
+            <ol>
+              <li><strong><code>ValidationException</code></strong> → 400 with structured field map</li>
+              <li><strong><code>@ControllerAdvice</code> handlers</strong> — most specific subtype first</li>
+              <li><strong><code>HttpException</code></strong> hierarchy → its status code</li>
+              <li><strong>Anything else</strong> → 500 <code>{"error": "internal_server_error"}</code></li>
+            </ol>
+
+            <h2>Built-in HTTP Exceptions</h2>
+            <table>
+              <tr><th>Exception</th><th>Status</th><th>reason</th></tr>
+              <tr><td><code>BadRequestException(message)</code></td><td>400</td><td>bad_request</td></tr>
+              <tr><td><code>UnauthorizedException</code></td><td>401</td><td>unauthorized</td></tr>
+              <tr><td><code>ForbiddenException</code></td><td>403</td><td>forbidden</td></tr>
+              <tr><td><code>NotFoundException(message)</code></td><td>404</td><td>not_found</td></tr>
+              <tr><td><code>ConflictException(message)</code></td><td>409</td><td>conflict</td></tr>
+              <tr><td><code>UnsupportedMediaTypeException</code></td><td>415</td><td>unsupported_media_type</td></tr>
+              <tr><td><code>InternalServerErrorException</code></td><td>500</td><td>internal_server_error</td></tr>
+            </table>
+
+            <h2>@ControllerAdvice</h2>
+<pre><code class="language-dart">@ControllerAdvice()
+class ErrorAdvice {
+  @ExceptionHandler(BookNotFound)
+  DianaResponse onBookNotFound(BookNotFound e, DianaRequest req) =&gt;
+      DianaResponse.json(
+        {'error': 'book_not_found', 'id': e.id, 'path': req.path},
+        statusCode: 404,
+      );
+}</code></pre>
+            <p>Handlers also catch subtypes. Most specific type wins. Multiple advice classes merge into one chain.</p>
+          </div>
+
+          <!-- WebSockets Guide -->
+          <div class="page" id="page-websockets">
+            <h1>WebSockets</h1>
+            <p class="lead">Implement a handler, annotate with a path, and Diana wires the upgrade, lifecycle callbacks and DI.</p>
+
+            <h2>Basic Usage</h2>
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+
+@WebSocketController('/ws/echo')
+class EchoHandler extends BaseWebSocketHandler {
+  @override
+  void onOpen(WebSocketSession session) =&gt;
+      session.sendText('welcome');
+
+  @override
+  void onMessage(WebSocketSession session, WebSocketMessage message) {
+    if (message is TextMessage) session.sendText(message.text);
+  }
+}</code></pre>
+
+            <h2>Handler Lifecycle</h2>
+            <table>
+              <tr><th>Callback</th><th>When</th></tr>
+              <tr><td><code>onOpen(session)</code></td><td>Connection established</td></tr>
+              <tr><td><code>onMessage(session, message)</code></td><td>Frame arrived (TextMessage or BinaryMessage)</td></tr>
+              <tr><td><code>onError(session, error, stackTrace)</code></td><td>Transport error / callback exception</td></tr>
+              <tr><td><code>onClose(session, code, reason)</code></td><td>Connection closed; always called last</td></tr>
+            </table>
+
+            <h2>Handler Scope</h2>
+            <ul>
+              <li><code>Scope.singleton</code> (default) — one shared handler for all connections</li>
+              <li><code>Scope.transient</code> — fresh handler per connection (instance fields = per-connection state)</li>
+              <li><code>Scope.request</code> — build error</li>
+            </ul>
+
+            <h2>Handshake Interceptors</h2>
+            <p><code>@UseMiddleware</code> on a WebSocketController runs middleware on the <strong>handshake request</strong>:</p>
+<pre><code class="language-dart">@WebSocketController('/ws/chat/:room')
+@UseMiddleware([ApiKeyMiddleware])
+class ChatHandler extends BaseWebSocketHandler {
+  @override
+  void onOpen(WebSocketSession session) {
+    final user = session.attributes['user']; // set by middleware
+  }
+}</code></pre>
+            <p>Global middleware do <strong>not</strong> apply to handshakes — interceptors are explicit opt-in.</p>
+          </div>
+
+          <!-- Lifecycle Guide -->
+          <div class="page" id="page-lifecycle">
+            <h1>Application Lifecycle</h1>
+            <p class="lead">Explicit lifecycle: build → initialize → serve → shutdown → dispose.</p>
+
+            <h2>@PostConstruct / @PreDestroy</h2>
+<pre><code class="language-dart">@Repository()
+class Db {
+  late final Connection _conn;
+
+  @PostConstruct()
+  Future&lt;void&gt; connect() async =&gt; _conn = await Connection.open(...);
+
+  @PreDestroy()
+  Future&lt;void&gt; disconnect() =&gt; _conn.close();
+}</code></pre>
+            <p>Rules: public instance method, no parameters, <code>void</code> or <code>Future&lt;void&gt;</code>, at most one of each per class, singleton only.</p>
+            <ul>
+              <li><code>initialize()</code> constructs singletons in dependency order, awaits <code>@PostConstruct</code></li>
+              <li><code>dispose()</code> runs <code>@PreDestroy</code> in <strong>reverse</strong> dependency order</li>
+            </ul>
+
+            <h2>Graceful Shutdown</h2>
+            <p><code>runDiana()</code> installs SIGINT/SIGTERM handlers. On signal: stop accepting, drain, dispose.</p>
+
+            <h2>DianaApp</h2>
+<pre><code class="language-dart">final app = await buildDianaApp(config: ..., overrides: ...);
+app.context;   // the DI container
+app.server;    // the DianaServer
+await app.initialize();
+await app.server.serve(port: 0);
+await app.server.close();
+await app.dispose();</code></pre>
+
+            <h2>Test Overrides — DianaOverrides</h2>
+<pre><code class="language-dart">class FakeRepo implements InMemoryTodoRepository { ... }
+
+final ctx = buildDianaContext(
+  overrides: DianaOverrides(inMemoryTodoRepository: FakeRepo()),
+);</code></pre>
+            <p>Works like Spring's <code>@MockBean</code> — replaces the real provider everywhere it's injected.</p>
+          </div>
+
+          <!-- Events Guide -->
+          <div class="page" id="page-events">
+            <h1>Application Events</h1>
+            <p class="lead">Publish plain Dart objects as events; singleton providers react via <code>@EventListener</code>.</p>
+
+            <h2>Declaring a Listener</h2>
+<pre><code class="language-dart">class TodoCreated {
+  final int id;
+  final String title;
+  const TodoCreated(this.id, this.title);
+}
+
+@Component()
+class TodoAuditListener {
+  @EventListener()
+  void onTodoCreated(TodoCreated event) =&gt; log(event.title);
+}</code></pre>
+            <p>Matching is by type, <strong>subtypes included</strong>. Request-scoped and transient providers cannot listen.</p>
+
+            <h2>Publishing</h2>
+<pre><code class="language-dart">@Service()
+class TodoService {
+  final DianaEventPublisher publisher;
+  TodoService(this.publisher);
+
+  Future&lt;TodoDto&gt; create(CreateTodoRequest request) async {
+    final todo = repo.save(request.title);
+    await publisher.publish(TodoCreated(todo.id, todo.title));
+    return todo;
+  }
+}</code></pre>
+            <p><code>publish</code> runs every matching listener in registration order, awaited, before returning.</p>
+
+            <h2>publish vs broadcast</h2>
+            <table>
+              <tr><th></th><th>Local listeners</th><th>Other isolates</th></tr>
+              <tr><td><code>publish(event)</code></td><td>Awaited, errors propagate</td><td>Not delivered</td></tr>
+              <tr><td><code>broadcast(event)</code></td><td>Awaited, errors propagate</td><td>Fire-and-forget</td></tr>
+            </table>
+          </div>
+
+          <!-- CORS & Static Files -->
+          <div class="page" id="page-cors-static">
+            <h1>CORS &amp; Static Files</h1>
+
+            <h2>CORS</h2>
+            <p><strong>Globally</strong>, from configuration:</p>
+<pre><code class="language-yaml">server:
+  cors:
+    enabled: true
+    allowedOrigins: ["https://app.example"]
+    allowedHeaders: ["*"]
+    maxAge: 3600</code></pre>
+            <p><strong>Per controller/route</strong>, with <code>@CrossOrigin</code>:</p>
+<pre><code class="language-dart">@RestController('/info')
+@CrossOrigin(origins: ['https://dashboard.example'])
+class InfoController { ... }</code></pre>
+            <p>Route annotation replaces controller annotation replaces global config — whole-policy replacement, no merging.</p>
+
+            <h2>Static Files</h2>
+<pre><code class="language-yaml">server:
+  static:
+    enabled: true
+    dir: public
+    prefix: /static
+    index: index.html
+    spa: false
+    cacheMaxAge: 3600</code></pre>
+            <ul>
+              <li><code>spa: true</code> — serve index on any miss under the prefix (client-side routers)</li>
+              <li>ETag, Range/conditional requests, path-traversal protection built in</li>
+              <li>Purely runtime — no annotations, no codegen</li>
+            </ul>
+          </div>
+
+          <!-- Content Negotiation -->
+          <div class="page" id="page-content-negotiation">
+            <h1>Content Negotiation</h1>
+            <p class="lead">Routes can accept and produce formats beyond JSON — XML out of the box, anything via pluggable codecs.</p>
+
+            <h2>Registering a Codec</h2>
+<pre><code class="language-dart">@Component()
+class AppXmlCodec extends XmlCodec {}</code></pre>
+            <p>Custom formats implement <code>BodyCodec</code>:</p>
+<pre><code class="language-dart">@Component()
+class CsvCodec implements BodyCodec {
+  @override
+  List&lt;String&gt; get mimeTypes =&gt; ['text/csv'];
+
+  @override
+  Object? decode(String body) { /* → Map/List/scalars */ }
+
+  @override
+  String encode(Object? value) { /* Map/List/scalars → wire */ }
+}</code></pre>
+
+            <h2>@Consumes / @Produces</h2>
+<pre><code class="language-dart">@Post('/xml')
+@Consumes(['application/xml'])
+@Produces(['application/xml', 'application/json'])
+TodoDto create(@Body() CreateTodoRequest body) =&gt; service.create(body);</code></pre>
+            <ul>
+              <li><code>@Consumes</code> — request Content-Type must match or 415</li>
+              <li><code>@Produces</code> — first type matching Accept header wins; nothing acceptable → 406</li>
+              <li>Both are projected into the generated OpenAPI document</li>
+            </ul>
+          </div>
+
+          <!-- SSE -->
+          <div class="page" id="page-sse">
+            <h1>Server-Sent Events</h1>
+            <p class="lead">Return a <code>Stream</code> and Diana handles SSE framing, heartbeats and disconnect detection.</p>
+
+            <h2>Stream<ServerSentEvent></h2>
+<pre><code class="language-dart">@Get('/ticks')
+Stream&lt;ServerSentEvent&gt; ticks() async* {
+  for (var i = 1; i &lt;= 3; i++) {
+    yield ServerSentEvent('tick $i', id: '$i', event: 'tick');
+    await Future&lt;void&gt;.delayed(const Duration(seconds: 1));
+  }
+}</code></pre>
+
+            <h2>Stream<Dto></h2>
+<pre><code class="language-dart">@Get('/todos')
+Stream&lt;TodoDto&gt; todoFeed() =&gt; repository.changes();</code></pre>
+
+            <h2>Heartbeats &amp; Disconnects</h2>
+            <p>Every <code>server.sse.heartbeatSeconds</code> (default 15), a <code>: keep-alive</code> comment keeps proxies alive. Client disconnect cancels the source stream — use <code>onCancel</code> to release resources.</p>
+          </div>
+
+          <!-- gRPC -->
+          <div class="page" id="page-grpc">
+            <h1>gRPC</h1>
+            <p class="lead">Serve gRPC next to HTTP from the same DI graph. Lives in <code>diana_grpc</code>.</p>
+
+            <h2>Writing a Service</h2>
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+import 'package:grpc/grpc.dart' show ServiceCall;
+import '../src/generated/greeter.pbgrpc.dart';
+
+@GrpcService()
+class GreeterService extends GreeterServiceBase {
+  final String greetingPrefix;
+  GreeterService(
+      @Value('app.greeting', defaultValue: 'Hello') this.greetingPrefix);
+
+  @override
+  Future&lt;HelloReply&gt; sayHello(ServiceCall call, HelloRequest request) async =&gt;
+      HelloReply()..message = '$greetingPrefix, ${request.name}!';
+}</code></pre>
+
+            <h2>Configuration</h2>
+            <table>
+              <tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+              <tr><td><code>grpc.enabled</code></td><td>true</td><td>Serve gRPC</td></tr>
+              <tr><td><code>grpc.host</code></td><td>0.0.0.0</td><td>Bind address</td></tr>
+              <tr><td><code>grpc.port</code></td><td>9090</td><td>Port (0 for ephemeral)</td></tr>
+            </table>
+
+            <h2>Limitations</h2>
+            <ul>
+              <li>Single isolate only (<code>server.isolates</code> must be 1)</li>
+              <li>Interceptors not yet discoverable through DI</li>
+              <li>No TLS for gRPC listener yet</li>
+            </ul>
+          </div>
+
+          <!-- Auth -->
+          <div class="page" id="page-auth">
+            <h1>Authentication &amp; Authorization</h1>
+            <p class="lead">Pluggable strategies, injectable principal, and <code>@Secured</code> / <code>@RolesAllowed</code> guards. Lives in <code>diana_auth</code>.</p>
+
+            <h2>Assembly</h2>
+<pre><code class="language-dart">@GlobalMiddleware(order: -100)
+class AppAuth extends AuthenticationMiddleware {
+  AppAuth(@Value('auth.jwt.secret') String secret)
+    : super(authenticators: [
+        JwtAuthenticator(Hs256TokenVerifier(secret)),
+        ApiKeyAuthenticator(myKeyStore),
+      ]);
+}</code></pre>
+            <p>Strategies run in order; first to recognize credentials wins. No credentials → anonymous (guards enforce access).</p>
+
+            <h2>Built-in Strategies</h2>
+            <ul>
+              <li><strong>JWT</strong> — <code>Authorization: Bearer &lt;token&gt;</code>, HS256 hardened (no <code>alg: none</code>, constant-time comparison)</li>
+              <li><strong>HTTP Basic</strong> — via <code>UserStore</code> interface</li>
+              <li><strong>API Key</strong> — header-based via <code>ApiKeyValidator</code></li>
+            </ul>
+
+            <h2>Authorizing Routes</h2>
+<pre><code class="language-dart">@RestController('/admin')
+@Secured()
+class AdminController {
+  @Get('/stats')
+  Stats stats() =&gt; ...;
+
+  @Delete('/users/:id')
+  @RolesAllowed(['admin'])
+  void deleteUser(@PathParam() int id) =&gt; ...;
+}</code></pre>
+            <ul>
+              <li><code>@Secured()</code> → 401 for anonymous</li>
+              <li><code>@RolesAllowed([...])</code> → 401 anonymous, 403 if principal lacks every listed role</li>
+            </ul>
+
+            <h2>Reading the Principal</h2>
+<pre><code class="language-dart">@Get('/me')
+@Secured()
+Profile me(@Principal() AuthPrincipal user) =&gt;
+    Profile(user.name, user.roles);</code></pre>
+          </div>
+
+          <!-- Persistence -->
+          <div class="page" id="page-persistence">
+            <h1>Persistence</h1>
+            <p class="lead">Injectable <code>Database</code> over knex_dart, <code>@Transactional</code> methods, migrations. Lives in <code>diana_data</code>.</p>
+
+            <h2>The Connector</h2>
+<pre><code class="language-dart">@Component()
+class AppDb extends DatabaseConnector {
+  @override
+  Future&lt;Object&gt; connect(DianaConfig config) =&gt;
+      KnexSQLite.connect(filename: config.get&lt;String&gt;('db.file'));
+
+  @override
+  Future&lt;void&gt; close(Object connection) =&gt;
+      (connection as KnexSQLite).close();
+}</code></pre>
+
+            <h2>Repositories</h2>
+<pre><code class="language-dart">@Repository()
+class PostRepository {
+  final Database db;
+  PostRepository(this.db);
+
+  Future&lt;List&lt;Map&lt;String, dynamic&gt;&gt;&gt; all() =&gt;
+      db.select(db.table('posts'));
+}</code></pre>
+
+            <h2>@Transactional</h2>
+<pre><code class="language-dart">@Service()
+class BlogService {
+  final PostRepository posts;
+  BlogService(this.posts);
+
+  @Transactional()
+  Future&lt;void&gt; publishPair(String a, String b) async {
+    await posts.add(a);
+    await posts.add(b); // if this throws, the first is undone
+  }
+}</code></pre>
+            <p>Nesting joins as a savepoint. Uncaught exception rolls back and rethrows.</p>
+
+            <h2>Migrations</h2>
+<pre><code class="language-yaml">db:
+  migrations:
+    dir: migrations</code></pre>
+            <p>Every <code>*.sql</code> file runs once during startup, tracked in <code>_diana_migrations</code> table.</p>
+          </div>
+
+          <!-- OpenAPI -->
+          <div class="page" id="page-openapi">
+            <h1>OpenAPI</h1>
+            <p class="lead">Build-time generated OpenAPI 3.0 document served at <code>GET /openapi.json</code>.</p>
+
+            <h2>Enabling</h2>
+<pre><code class="language-yaml">server:
+  openapi:
+    enabled: true
+    title: Todo API
+    version: 1.2.3</code></pre>
+
+            <h2>What's Generated</h2>
+            <ul>
+              <li>Paths and operations for every route (<code>/todos/:id</code> → <code>/todos/{id}</code>)</li>
+              <li>Parameters from <code>@PathParam</code>/<code>@QueryParam</code>/<code>@Header</code></li>
+              <li>Request bodies: <code>$ref</code> to DTO schemas, multipart for FormData</li>
+              <li>Responses with return schemas</li>
+              <li>Schemas for every <code>@Json</code> class and validated DTO</li>
+              <li>Validation constraints mapped to OpenAPI constraints (minLength, maxLength, minimum, pattern, etc.)</li>
+            </ul>
+          </div>
+
+          <!-- Observability -->
+          <div class="page" id="page-observability">
+            <h1>Observability</h1>
+            <p class="lead">Health checks, info endpoint, and scheduled tasks.</p>
+
+            <h2>Actuator Endpoints</h2>
+<pre><code class="language-yaml">management:
+  enabled: true</code></pre>
+
+            <h3>GET /actuator/health</h3>
+            <p>Aggregates every injectable implementing <code>HealthIndicator</code>:</p>
+<pre><code class="language-dart">@Component()
+class DbHealthIndicator implements HealthIndicator {
+  @override
+  String get name =&gt; 'database';
+
+  @override
+  Future&lt;HealthStatus&gt; health() async =&gt;
+      await db.ping() ? const HealthStatus.up()
+                      : const HealthStatus.down({'reason': 'no ping'});
+}</code></pre>
+
+            <h3>GET /actuator/info</h3>
+            <p>Serves the <code>info.*</code> configuration section.</p>
+
+            <h2>Scheduled Tasks</h2>
+<pre><code class="language-dart">@Component()
+class CleanupJob {
+  @Scheduled(fixedRate: 60000)
+  Future&lt;void&gt; sweep() async { ... }
+
+  @Scheduled(fixedDelay: 5000, initialDelay: 1000)
+  void heartbeat() { ... }
+}</code></pre>
+            <ul>
+              <li>Exactly one of <code>fixedRate</code>/<code>fixedDelay</code> (milliseconds)</li>
+              <li><code>fixedRate</code> skips overlapping ticks; <code>fixedDelay</code> re-arms after completion</li>
+              <li>Task errors are reported but never stop the schedule</li>
+            </ul>
+          </div>
+
+          <!-- Operations -->
+          <div class="page" id="page-operations">
+            <h1>Operations</h1>
+            <p class="lead">HTTPS, multi-isolate serving, configuration profiles.</p>
+
+            <h2>HTTPS</h2>
+<pre><code class="language-yaml">server:
+  ssl:
+    certPath: certs/fullchain.pem
+    keyPath: certs/privkey.pem</code></pre>
+
+            <h2>Multi-Isolate Serving</h2>
+<pre><code class="language-yaml">server:
+  isolates: 4</code></pre>
+            <p>Each worker runs the full bootstrap — its own context, its own initialize(). Shared sockets, OS distributes connections.</p>
+
+            <h2>Profiles</h2>
+<pre><code class="language-bash">DIANA_PROFILE=prod,eu dart run bin/server.dart</code></pre>
+            <p>Precedence: base file → profile overlays → environment variables.</p>
+          </div>
+
+          <!-- JSON Serialization -->
+          <div class="page" id="page-json">
+            <h1>JSON Serialization</h1>
+            <p class="lead">Three interchangeable ways to serialize DTOs — all detected at build time.</p>
+
+            <h2>Option 1 — @Json (recommended)</h2>
+<pre><code class="language-dart">import 'package:diana/diana.dart';
+part 'create_todo_request.diana.dart';
+
+@Json()
+class CreateTodoRequest {
+  @NotBlank()
+  final String title;
+
+  @JsonField(name: 'prio')
+  final int? priority;
+
+  const CreateTodoRequest({required this.title, this.priority});
+}</code></pre>
+            <p>Supported types: <code>String</code>, <code>int</code>, <code>double</code>, <code>bool</code>, <code>num</code>, <code>dynamic</code>, <code>DateTime</code>, enums, <code>List&lt;T&gt;</code>, <code>Map&lt;String, T&gt;</code>, nested <code>@Json</code> classes.</p>
+
+            <h2>Option 2 — Hand-written Convention</h2>
+<pre><code class="language-dart">class TodoDto {
+  factory TodoDto.fromJson(Map&lt;String, dynamic&gt; json) =&gt; ...;
+  Map&lt;String, dynamic&gt; toJson() =&gt; ...;
+}</code></pre>
+
+            <h2>Option 3 — json_serializable</h2>
+            <p><code>.diana.dart</code> and <code>.g.dart</code> coexist; one <code>build_runner</code> drives both.</p>
+          </div>
+
+          <!-- Testing -->
+          <div class="page" id="page-testing">
+            <h1>Testing</h1>
+            <p class="lead">Three levels: unit tests, wiring tests, and end-to-end HTTP tests — no mocking frameworks needed.</p>
+
+            <h2>1. Unit Tests — Plain Dart</h2>
+<pre><code class="language-dart">test('service reports missing todos', () {
+  final service = TodoService(InMemoryTodoRepository());
+  expect(() =&gt; service.getOrThrow(99),
+      throwsA(isA&lt;TodoNotFoundError&gt;()));
+});</code></pre>
+
+            <h2>2. Wiring Tests</h2>
+<pre><code class="language-dart">test('the graph wires singletons', () {
+  final ctx = buildDianaContext(
+    config: DianaConfig({'app.greeting': 'hi'}),
+  );
+  expect(identical(ctx.todoService.repo,
+      ctx.inMemoryTodoRepository), isTrue);
+});</code></pre>
+
+            <h2>3. End-to-End Tests</h2>
+<pre><code class="language-dart">late DianaServer server;
+late int port;
+
+setUpAll(() async {
+  server = await buildDianaServer(
+    config: DianaConfig({'app.apiKey': 'test-key'}),
+  );
+  await server.serve(port: 0, quiet: true);
+  port = server.port!;
+});
+
+tearDownAll(() =&gt; server.close());</code></pre>
+
+            <h2>CI Recipe</h2>
+<pre><code class="language-bash">dart pub get
+dart run build_runner build
+dart analyze --fatal-infos
+dart test
+git diff --exit-code</code></pre>
+          </div>
+
+          <!-- Annotations Reference -->
+          <div class="page" id="page-annotations">
+            <h1>Annotations Reference</h1>
+            <p class="lead">Every annotation in <code>package:diana</code>. All are <code>const</code> classes with no runtime behaviour.</p>
+
+            <h2>Dependency Injection</h2>
+            <table>
+              <tr><th>Annotation</th><th>Target</th><th>Parameters</th></tr>
+              <tr><td><code>@Injectable</code></td><td>Class</td><td><code>scope</code>, <code>as</code>, <code>name</code></td></tr>
+              <tr><td><code>@Service</code> / <code>@Repository</code> / <code>@Component</code></td><td>Class</td><td>Same as @Injectable</td></tr>
+              <tr><td><code>@Named(name)</code></td><td>Parameter</td><td>Selects qualified provider</td></tr>
+            </table>
+
+            <h2>Web</h2>
+            <table>
+              <tr><th>Annotation</th><th>Target</th><th>Parameters</th></tr>
+              <tr><td><code>@RestController</code></td><td>Class</td><td><code>path</code>, <code>scope</code></td></tr>
+              <tr><td><code>@Get/@Post/@Put/@Delete/@Patch</code></td><td>Method</td><td><code>path</code></td></tr>
+              <tr><td><code>@HttpRoute</code></td><td>Method</td><td><code>method</code>, <code>path</code></td></tr>
+              <tr><td><code>@PathParam</code></td><td>Parameter</td><td><code>name</code></td></tr>
+              <tr><td><code>@QueryParam</code></td><td>Parameter</td><td><code>name</code>, <code>defaultValue</code></td></tr>
+              <tr><td><code>@Header</code></td><td>Parameter</td><td><code>name</code></td></tr>
+              <tr><td><code>@Body()</code></td><td>Parameter</td><td>—</td></tr>
+              <tr><td><code>@ResponseStatus</code></td><td>Method</td><td><code>code</code></td></tr>
+              <tr><td><code>@CrossOrigin</code></td><td>Class/Method</td><td>CORS fields</td></tr>
+              <tr><td><code>@Consumes</code></td><td>Class/Method</td><td>MIME types</td></tr>
+              <tr><td><code>@Produces</code></td><td>Class/Method</td><td>MIME types</td></tr>
+            </table>
+
+            <h2>Lifecycle &amp; Scheduling</h2>
+            <table>
+              <tr><th>Annotation</th><th>Target</th><th>Notes</th></tr>
+              <tr><td><code>@PostConstruct</code> / <code>@PreDestroy</code></td><td>Method</td><td>Singleton, no params, void/Future&lt;void&gt;</td></tr>
+              <tr><td><code>@Scheduled</code></td><td>Method</td><td>One of fixedRate/fixedDelay (ms)</td></tr>
+            </table>
+
+            <h2>Events</h2>
+            <table>
+              <tr><th>Annotation</th><th>Target</th><th>Notes</th></tr>
+              <tr><td><code>@EventListener</code></td><td>Method</td><td>One param (event type), void/Future&lt;void&gt;</td></tr>
+            </table>
+
+            <h2>Auth</h2>
+            <table>
+              <tr><th>Annotation</th><th>Target</th><th>Notes</th></tr>
+              <tr><td><code>@Secured</code></td><td>Class/Method</td><td>401 for anonymous</td></tr>
+              <tr><td><code>@RolesAllowed</code></td><td>Class/Method</td><td>401/403; implies @Secured</td></tr>
+              <tr><td><code>@Principal</code></td><td>Parameter</td><td>Binds authenticated principal</td></tr>
+            </table>
+
+            <h2>JSON</h2>
+            <table>
+              <tr><th>Annotation</th><th>Target</th><th>Notes</th></tr>
+              <tr><td><code>@Json</code></td><td>Class</td><td>Generates fromJson/toJson</td></tr>
+              <tr><td><code>@JsonField</code></td><td>Field</td><td><code>name</code> for JSON key</td></tr>
+            </table>
+
+            <h2>WebSockets, gRPC, Persistence, Middleware, Configuration, Validation, Exception Handling, Application</h2>
+            <table>
+              <tr><th>Annotation</th><th>Target</th><th>Notes</th></tr>
+              <tr><td><code>@WebSocketController</code></td><td>Class</td><td><code>path</code>, <code>scope</code></td></tr>
+              <tr><td><code>@GrpcService</code></td><td>Class</td><td>Must extend ServiceBase</td></tr>
+              <tr><td><code>@Transactional</code></td><td>Method/Class</td><td>Must return Future, extendable class</td></tr>
+              <tr><td><code>@GlobalMiddleware</code></td><td>Class</td><td><code>order</code></td></tr>
+              <tr><td><code>@UseMiddleware</code></td><td>Class/Method</td><td>List of types</td></tr>
+              <tr><td><code>@Value</code></td><td>Parameter</td><td><code>key</code>, <code>defaultValue</code></td></tr>
+              <tr><td><code>@ConfigurationProperties</code></td><td>Class</td><td><code>prefix</code></td></tr>
+              <tr><td><code>@ControllerAdvice</code></td><td>Class</td><td>Must have @ExceptionHandler</td></tr>
+              <tr><td><code>@ExceptionHandler</code></td><td>Method</td><td><code>Type</code></td></tr>
+              <tr><td><code>@DianaApplication</code></td><td>Class</td><td>One per package</td></tr>
+            </table>
+          </div>
+
+          <!-- Runtime API -->
+          <div class="page" id="page-runtime-api">
+            <h1>Runtime API</h1>
+            <p class="lead">Every public symbol of <code>package:diana/diana.dart</code>.</p>
+
+            <h2>HTTP Model</h2>
+            <ul>
+              <li><code>HttpMethod</code> — enum: get, head, post, put, delete, patch, options</li>
+              <li><code>DianaRequest</code> — method, uri, path, pathParameters, queryParameters, headers, attributes, codecs, bodyReader</li>
+              <li><code>DianaResponse</code> — constructors: <code>.json()</code>, <code>.text()</code>, <code>.noContent()</code>, <code>.bytes()</code>, <code>.stream()</code>, manual</li>
+              <li><code>DianaRequestLimits</code> — multipartMaxBytes, sseHeartbeatSeconds</li>
+            </ul>
+
+            <h2>Pipeline</h2>
+            <ul>
+              <li><code>DianaHandler</code> — <code>FutureOr&lt;DianaResponse&gt; Function(DianaRequest)</code></li>
+              <li><code>Next</code> — continuation for middleware</li>
+              <li><code>Middleware</code> — <code>handle(request, next)</code></li>
+              <li><code>composeMiddleware()</code>, <code>withErrorBoundary()</code></li>
+              <li><code>BodyCodec</code>, <code>BodyCodecRegistry</code>, <code>XmlCodec</code></li>
+              <li><code>decodeMapBody()</code>, <code>decodeListBody()</code>, <code>negotiatedResponse()</code></li>
+            </ul>
+
+            <h2>Server-Sent Events</h2>
+            <ul>
+              <li><code>ServerSentEvent(data, {id, event, retryMs})</code> + <code>.json()</code></li>
+              <li><code>encodeSse()</code>, <code>encodeSseEvent()</code>, <code>sseResponse()</code></li>
+            </ul>
+
+            <h2>Configuration</h2>
+            <ul>
+              <li><code>DianaConfig(values, {environment})</code>, <code>.empty()</code>, <code>.load(path)</code></li>
+              <li><code>get&lt;T&gt;(key, {defaultValue})</code> — reads and coerces scalars + typed lists</li>
+              <li><code>contains(key)</code>, <code>section(prefix)</code>, <code>activeProfiles</code>, <code>envNameFor(key)</code></li>
+            </ul>
+
+            <h2>Validation</h2>
+            <ul>
+              <li><code>Validator&lt;T&gt;</code>, <code>ValidationResult</code>, <code>FieldError</code></li>
+              <li>Check helpers: <code>checkNotNull</code>, <code>checkNotBlank</code>, <code>checkMin</code>, <code>checkMax</code>, <code>checkSize</code>, <code>checkPattern</code>, <code>checkEmail</code>, <code>mergeNested</code></li>
+            </ul>
+
+            <h2>Exceptions</h2>
+            <ul>
+              <li><code>HttpException(statusCode, message, {reason})</code></li>
+              <li>Subclasses: BadRequest, Unauthorized, Forbidden, NotFound, Conflict, UnsupportedMediaType, PayloadTooLarge, UnprocessableEntity, NotAcceptable, InternalServerError</li>
+              <li><code>ValidationException</code> — structured 400</li>
+              <li><code>ConfigException</code> — missing keys or uncoercible values</li>
+            </ul>
+
+            <h2>Server</h2>
+            <ul>
+              <li><code>DianaServer</code> — <code>register()</code>, <code>registerWebSocket()</code>, <code>serve()</code>, <code>close()</code></li>
+            </ul>
+
+            <h2>WebSockets</h2>
+            <ul>
+              <li><code>WebSocketMessage</code> — sealed: TextMessage, BinaryMessage</li>
+              <li><code>WebSocketSession</code> — id, uri, pathParameters, queryParameters, attributes, isOpen, sendText/Bytes, close</li>
+              <li><code>WebSocketHandler</code> — onOpen, onMessage, onError, onClose</li>
+              <li><code>BaseWebSocketHandler</code> — no-op defaults</li>
+            </ul>
+          </div>
+
+          <!-- Generated Code -->
+          <div class="page" id="page-generated-code">
+            <h1>Generated Code</h1>
+            <p class="lead">What the generator emits, where, and under which names.</p>
+
+            <h2>The Three Builders</h2>
+            <table>
+              <tr><th>Builder</th><th>Input</th><th>Output</th><th>Visible?</th></tr>
+              <tr><td><code>diana_metadata</code></td><td>Every lib with Diana annotations</td><td><code>.diana.json</code></td><td>No (cache)</td></tr>
+              <tr><td><code>diana_part</code></td><td>Libraries needing local code</td><td><code>.diana.dart</code></td><td>Yes</td></tr>
+              <tr><td><code>diana_bootstrap</code></td><td>The @DianaApplication library</td><td><code>.diana_app.dart</code></td><td>Yes</td></tr>
+            </table>
+
+            <h2>Part Files</h2>
+            <ul>
+              <li><strong>Route adapters:</strong> <code>$diana$&lt;Controller&gt;$&lt;method&gt;</code> — bind → decode → validate → invoke → serialize</li>
+              <li><strong>Validators:</strong> <code>$&lt;ClassName&gt;Validator</code> — one check* call per constraint</li>
+              <li><strong>JSON codecs:</strong> <code>$&lt;ClassName&gt;FromJson</code> / <code>$&lt;ClassName&gt;ToJson</code></li>
+              <li><strong>Config binders:</strong> <code>$&lt;ClassName&gt;FromConfig</code></li>
+              <li><strong>Tx proxies:</strong> <code>$Tx$&lt;Provider&gt;</code> — wraps @Transactional methods</li>
+            </ul>
+
+            <h2>The Composition Root</h2>
+            <ul>
+              <li><code>DianaContext</code> — DI container with typed fields in topological order</li>
+              <li><code>DianaOverrides</code> — nullable slots per provider for test overrides</li>
+              <li><code>DianaRequestScope</code> — only when request-scoped providers exist</li>
+              <li><code>DianaApp</code> — context + server + initialize/dispose</li>
+              <li><code>_mapException</code> — advice chain, most specific type first</li>
+              <li><code>buildDianaContext()</code>, <code>buildDianaApp()</code>, <code>buildDianaServer()</code>, <code>runDiana()</code></li>
+            </ul>
+
+            <h2>Determinism</h2>
+            <ul>
+              <li>Sorted emission everywhere (topological, by name, by path)</li>
+              <li>No timestamps or random values</li>
+              <li>Optional features emitted only when used</li>
+              <li>CI can enforce with <code>git diff --exit-code</code></li>
+            </ul>
+          </div>
+
+          <!-- Build Diagnostics -->
+          <div class="page" id="page-build-diagnostics">
+            <h1>Build Diagnostics</h1>
+            <p class="lead">Every error <code>diana_generator</code> can report, grouped by area.</p>
+
+            <h2>Class-level Rules</h2>
+            <ul>
+              <li>One role annotation per class</li>
+              <li>Must be public, concrete, no type parameters</li>
+              <li>Must have public unnamed generative constructor</li>
+              <li><code>as:</code> target must be implemented</li>
+            </ul>
+
+            <h2>Dependency Graph</h2>
+            <ul>
+              <li><strong>No provider found</strong> — annotate a providing class or check type/qualifier</li>
+              <li><strong>Multiple providers</strong> — disambiguate with @Named or <code>as:</code></li>
+              <li><strong>Dependency cycle</strong> — restructure to break the cycle</li>
+              <li><strong>Scope violation</strong> — singleton depending on request-scoped</li>
+            </ul>
+
+            <h2>Controllers &amp; Routes</h2>
+            <ul>
+              <li>Public instance methods only</li>
+              <li>Exactly one binding annotation per parameter</li>
+              <li>Supported types: String, int, double, bool, num</li>
+              <li>DTO must have <code>fromJson</code> for @Body, <code>toJson</code> for returns</li>
+              <li>Missing part directive — exact line printed</li>
+            </ul>
+
+            <h2>Common Fixes</h2>
+            <ul>
+              <li>Stale generated files → <code>dart run build_runner clean &amp;&amp; dart run build_runner build</code></li>
+              <li>Missing @DianaApplication → exactly one per package</li>
+              <li>Import prefix on route types → import without prefix in controller libraries</li>
+            </ul>
+          </div>
+
+          <!-- Config Keys -->
+          <div class="page" id="page-config-keys">
+            <h1>Configuration Keys</h1>
+            <p class="lead">Every key Diana reads. All overridable via environment variables.</p>
+
+            <h2>Server</h2>
+            <table>
+              <tr><th>Key</th><th>Default</th></tr>
+              <tr><td><code>server.host</code></td><td>0.0.0.0</td></tr>
+              <tr><td><code>server.port</code></td><td>8080</td></tr>
+              <tr><td><code>server.isolates</code></td><td>1</td></tr>
+            </table>
+
+            <h2>TLS</h2>
+            <table>
+              <tr><th>Key</th><th>Default</th></tr>
+              <tr><td><code>server.ssl.certPath</code></td><td>—</td></tr>
+              <tr><td><code>server.ssl.keyPath</code></td><td>—</td></tr>
+            </table>
+
+            <h2>CORS</h2>
+            <table>
+              <tr><th>Key</th><th>Default</th></tr>
+              <tr><td><code>server.cors.enabled</code></td><td>false</td></tr>
+              <tr><td><code>server.cors.allowedOrigins</code></td><td>['*']</td></tr>
+              <tr><td><code>server.cors.maxAge</code></td><td>3600</td></tr>
+            </table>
+
+            <h2>Static Files</h2>
+            <table>
+              <tr><th>Key</th><th>Default</th></tr>
+              <tr><td><code>server.static.enabled</code></td><td>false</td></tr>
+              <tr><td><code>server.static.dir</code></td><td>public</td></tr>
+              <tr><td><code>server.static.prefix</code></td><td>/static</td></tr>
+            </table>
+
+            <h2>gRPC, OpenAPI, Actuator, Auth, Persistence</h2>
+            <table>
+              <tr><th>Key</th><th>Default</th></tr>
+              <tr><td><code>grpc.port</code></td><td>9090</td></tr>
+              <tr><td><code>server.openapi.enabled</code></td><td>false</td></tr>
+              <tr><td><code>management.enabled</code></td><td>false</td></tr>
+              <tr><td><code>db.migrations.dir</code></td><td>—</td></tr>
+            </table>
+
+            <h2>Profiles</h2>
+            <p><code>DIANA_PROFILE</code> (env) or <code>diana.profile</code> — comma-separated, applied as overlays.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
