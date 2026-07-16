@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0
+
+- Scheduler emission forwards `perIsolate: true` from the annotation
+  (omitted when false — byte-identical output for existing apps).
+
 ## 0.6.0
 
 - `@Transactional` support: reads annotated methods (capturing full

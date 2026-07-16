@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 — 2026-07-13
+
+### @Scheduled: leader-only in multi-isolate serving (behavior fix)
+- With `server.isolates > 1`, every isolate used to start its own
+  scheduler, so a `@Scheduled` task ran once **per isolate**. Tasks now run
+  once **per process**: only the main isolate starts them
+  (`DianaScheduler` skips leader-only tasks when
+  `DianaRuntime.isWorkerIsolate` is set by the worker entrypoint).
+- Tasks that genuinely need to run in every isolate (e.g. refreshing an
+  isolate-local cache) opt in with `@Scheduled(perIsolate: true)`.
+- Single-isolate serving and embedded use (`buildDianaApp()` +
+  `initialize()`) are unaffected; generated output is byte-identical for
+  apps not using the new flag. Multi-**process** coordination (replicas)
+  remains out of scope — a distributed-lock option via `diana_data` is on
+  the roadmap.
+
 ## 0.6.0 — 2026-07-13
 
 ### Persistence (new `diana_data` package)

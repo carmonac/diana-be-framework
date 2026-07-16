@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:meta/meta.dart';
+
 import 'events.dart';
 import 'server.dart';
 
@@ -27,6 +29,17 @@ class DianaRunnable {
 /// `serve()` → wait for SIGINT/SIGTERM → `close()` (drains in-flight
 /// requests) → `dispose()` (`@PreDestroy` in reverse order).
 class DianaRuntime {
+  static bool _isWorker = false;
+
+  /// Whether this isolate is a Diana worker (spawned by multi-isolate
+  /// serving). Dart statics are per-isolate, so this is `false` on the main
+  /// isolate and in embedded/single-isolate use. `DianaScheduler` consults
+  /// it to run leader-only `@Scheduled` tasks once per process.
+  static bool get isWorkerIsolate => _isWorker;
+
+  @visibleForTesting
+  static set isWorkerIsolate(bool value) => _isWorker = value;
+
   /// Runs [bootstrap] until shutdown is requested.
   ///
   /// Shutdown triggers: SIGINT/SIGTERM (unless [installSignalHandlers] is
@@ -167,6 +180,9 @@ class _Worker {
     final (bootstrap, toMain) = args;
     final commands = ReceivePort();
     try {
+      // Before bootstrap() so anything constructed during it (including the
+      // scheduler) already sees this isolate as a worker.
+      DianaRuntime._isWorker = true;
       final runnable = await bootstrap();
       await runnable.initialize();
       await runnable.server.serve(shared: true, quiet: true);

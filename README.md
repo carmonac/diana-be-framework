@@ -121,11 +121,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.6.0
+  diana: ^0.7.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.6.0
+  diana_generator: ^0.7.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):

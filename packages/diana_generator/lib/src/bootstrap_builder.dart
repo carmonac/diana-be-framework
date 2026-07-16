@@ -888,6 +888,9 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
                 if (task.initialDelayMs != 0) {
                   buffer.write(', initialDelayMs: ${task.initialDelayMs}');
                 }
+                if (task.perIsolate) {
+                  buffer.write(', perIsolate: true');
+                }
                 buffer.write(')');
               }
               return buffer.toString();

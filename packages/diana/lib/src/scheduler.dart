@@ -4,12 +4,21 @@ library;
 
 import 'dart:async';
 
+import 'runtime.dart';
+
 /// Schedules and runs recurring tasks.
 ///
 /// `fixedRateMs` tasks tick on a periodic timer and **skip a tick** while
 /// the previous run is still in flight; `fixedDelayMs` tasks re-arm after
 /// each run completes. Task errors go to [onError] (default: printed) and
 /// never stop the schedule.
+///
+/// **Multi-isolate semantics**: tasks run once per process — [start] skips
+/// them in worker isolates ([DianaRuntime.isWorkerIsolate]) so a schedule
+/// never multiplies with `server.isolates`. A task registered with
+/// `perIsolate: true` opts out and runs in every isolate (e.g. refreshing
+/// an isolate-local cache). Single-isolate serving and embedded use
+/// (calling `initialize()` yourself) are unaffected.
 class DianaScheduler {
   final void Function(Object error, StackTrace stackTrace) onError;
 
@@ -23,25 +32,30 @@ class DianaScheduler {
   }) : onError = onError ?? _defaultOnError;
 
   /// Registers a task. Call before [start]; exactly one of
-  /// [fixedRateMs]/[fixedDelayMs] must be provided.
+  /// [fixedRateMs]/[fixedDelayMs] must be provided. [perIsolate] tasks run
+  /// in every isolate; by default a task runs only in the main isolate.
   void schedule({
     required Future<void> Function() task,
     int? fixedRateMs,
     int? fixedDelayMs,
     int initialDelayMs = 0,
+    bool perIsolate = false,
   }) {
     if ((fixedRateMs == null) == (fixedDelayMs == null)) {
       throw ArgumentError(
           'Provide exactly one of fixedRateMs or fixedDelayMs.');
     }
-    _tasks.add(_Task(task, fixedRateMs, fixedDelayMs, initialDelayMs));
+    _tasks.add(_Task(task, fixedRateMs, fixedDelayMs, initialDelayMs,
+        perIsolate: perIsolate));
   }
 
-  /// Starts every registered task.
+  /// Starts every registered task (leader-only tasks are skipped in worker
+  /// isolates).
   void start() {
     if (_started) return;
     _started = true;
     for (final task in _tasks) {
+      if (!task.perIsolate && DianaRuntime.isWorkerIsolate) continue;
       _timers.add(Timer(Duration(milliseconds: task.initialDelayMs), () {
         if (_stopped) return;
         if (task.fixedRateMs != null) {
@@ -101,7 +115,9 @@ class _Task {
   final int? fixedRateMs;
   final int? fixedDelayMs;
   final int initialDelayMs;
+  final bool perIsolate;
   Future<void>? inFlight;
 
-  _Task(this.run, this.fixedRateMs, this.fixedDelayMs, this.initialDelayMs);
+  _Task(this.run, this.fixedRateMs, this.fixedDelayMs, this.initialDelayMs,
+      {required this.perIsolate});
 }

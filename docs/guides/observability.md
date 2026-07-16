@@ -85,4 +85,4 @@ Semantics:
 - Task errors are reported (stderr by default) and never stop the schedule.
 - No cron expressions yet.
 
-With multi-isolate serving, remember tasks run **once per isolate**.
+With multi-isolate serving, tasks run **once per process** (only the main isolate starts them); pass `perIsolate: true` for tasks that must run in every isolate.

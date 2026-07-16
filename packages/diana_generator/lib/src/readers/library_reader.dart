@@ -717,6 +717,7 @@ List<ScheduledMethodInfo> _scheduledOf(ClassElement cls, String scope) {
       fixedRateMs: fixedRate,
       fixedDelayMs: fixedDelay,
       initialDelayMs: ann.getField('initialDelay')?.toIntValue() ?? 0,
+      perIsolate: ann.getField('perIsolate')?.toBoolValue() ?? false,
     ));
   }
   return result;

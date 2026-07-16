@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+
+- Version bump only (kept in lockstep with the workspace).
+
 ## 0.6.0
 
 - Initial release: persistence for Diana over the `knex_dart` query builder.

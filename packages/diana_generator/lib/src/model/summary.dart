@@ -336,12 +336,14 @@ class ScheduledMethodInfo {
   final int? fixedRateMs;
   final int? fixedDelayMs;
   final int initialDelayMs;
+  final bool perIsolate;
 
   const ScheduledMethodInfo({
     required this.methodName,
     this.fixedRateMs,
     this.fixedDelayMs,
     this.initialDelayMs = 0,
+    this.perIsolate = false,
   });
 
   Map<String, Object?> toJson() => {
@@ -349,6 +351,7 @@ class ScheduledMethodInfo {
         if (fixedRateMs != null) 'fixedRate': fixedRateMs,
         if (fixedDelayMs != null) 'fixedDelay': fixedDelayMs,
         if (initialDelayMs != 0) 'initialDelay': initialDelayMs,
+        if (perIsolate) 'perIsolate': true,
       };
 
   factory ScheduledMethodInfo.fromJson(Map<String, Object?> json) =>
@@ -357,6 +360,7 @@ class ScheduledMethodInfo {
         fixedRateMs: json['fixedRate'] as int?,
         fixedDelayMs: json['fixedDelay'] as int?,
         initialDelayMs: json['initialDelay'] as int? ?? 0,
+        perIsolate: json['perIsolate'] as bool? ?? false,
       );
 }
 

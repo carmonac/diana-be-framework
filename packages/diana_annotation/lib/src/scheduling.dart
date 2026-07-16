@@ -23,5 +23,15 @@ class Scheduled {
   /// Delay in milliseconds before the first run.
   final int initialDelay;
 
-  const Scheduled({this.fixedRate, this.fixedDelay, this.initialDelay = 0});
+  /// Run this task in **every** isolate when serving with
+  /// `server.isolates > 1` (e.g. to refresh an isolate-local cache). By
+  /// default a task runs only in the main isolate — once per process.
+  final bool perIsolate;
+
+  const Scheduled({
+    this.fixedRate,
+    this.fixedDelay,
+    this.initialDelay = 0,
+    this.perIsolate = false,
+  });
 }

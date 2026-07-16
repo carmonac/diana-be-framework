@@ -58,4 +58,38 @@ void main() {
     await stopping;
     expect(finished, isTrue);
   });
+
+  test('leader-only tasks do not start in a worker isolate', () async {
+    DianaRuntime.isWorkerIsolate = true;
+    addTearDown(() => DianaRuntime.isWorkerIsolate = false);
+
+    var leaderRuns = 0;
+    final scheduler = DianaScheduler()
+      ..schedule(
+        task: () async => leaderRuns++,
+        fixedDelayMs: 10,
+      )
+      ..start();
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await scheduler.stop();
+    expect(leaderRuns, 0,
+        reason: 'default (leader-only) tasks must not run in workers');
+  });
+
+  test('perIsolate tasks run in worker isolates', () async {
+    DianaRuntime.isWorkerIsolate = true;
+    addTearDown(() => DianaRuntime.isWorkerIsolate = false);
+
+    var runs = 0;
+    final scheduler = DianaScheduler()
+      ..schedule(
+        task: () async => runs++,
+        fixedDelayMs: 10,
+        perIsolate: true,
+      )
+      ..start();
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await scheduler.stop();
+    expect(runs, greaterThan(0));
+  });
 }

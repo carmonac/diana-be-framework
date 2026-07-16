@@ -36,13 +36,21 @@ Constraints:
   The generated bootstrap captures only `DianaConfig` (immutable primitives)
   and the `overrides` value — `const DianaOverrides()` is fine, live mock
   instances generally are not.
-- State is **per isolate**: in-memory repositories, caches and `@Scheduled`
-  tasks run once *per isolate*. Share state through external systems.
-- The exception is **application events**: `publisher.broadcast(event)`
+- State is **per isolate**: in-memory repositories and caches are
+  independent copies. Share state through external systems.
+- `@Scheduled` tasks run **once per process**: only the main isolate
+  starts them, so schedules never multiply with `server.isolates`. A task
+  that genuinely needs to run in every isolate (e.g. refreshing an
+  isolate-local cache) opts in with `@Scheduled(perIsolate: true)`. See
+  [Observability](observability.md#scheduled-tasks).
+- **Application events** bridge isolates: `publisher.broadcast(event)`
   delivers the event to every isolate exactly once (main relays worker
-  broadcasts to the siblings), so isolates can react to each other —
-  contrast with `@Scheduled`, which simply runs everywhere. See
+  broadcasts to the siblings). See
   [Application events](events.md#publish-vs-broadcast).
+- Multi-**process** coordination (several replicas behind a load balancer)
+  is out of scope today — schedules still run once per replica; a
+  distributed-lock option (ShedLock-style, via `diana_data`) is on the
+  roadmap.
 - Labeled experimental; `server.isolates: 1` (the default) uses none of the
   isolate machinery.
 

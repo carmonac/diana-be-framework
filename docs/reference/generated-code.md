@@ -138,8 +138,9 @@ One nullable `final` field per provider (typed by the concrete class),
 
 `context` + `server` + `initialize()`/`dispose()`. When `@Scheduled`
 methods exist, it also owns a `DianaScheduler` (`late final`, registrations
-in the initializer) started by `initialize()` and stopped first in
-`dispose()`. When `@GrpcService` classes exist, it owns a
+in the initializer, `perIsolate: true` forwarded from the annotation)
+started by `initialize()` and stopped first in `dispose()` — the scheduler
+itself skips leader-only tasks in worker isolates. When `@GrpcService` classes exist, it owns a
 `DianaGrpcServer` (from `package:diana_grpc`) holding every service
 instance from the context, served by `initialize()` and shut down first in
 `dispose()` — exposed as `app.grpcServer`.

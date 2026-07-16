@@ -216,6 +216,69 @@ void main() {
     await done.timeout(const Duration(seconds: 10));
   });
 
+  test('@Scheduled runs leader-only by default; perIsolate runs everywhere',
+      () async {
+    final port = 18672 + DateTime.now().millisecond % 100;
+    final shutdown = Completer<void>();
+
+    final done = DianaRuntime.run(
+      () async {
+        // Replicates what the generated DianaApp does: register tasks,
+        // start on initialize, stop on dispose.
+        var leaderCount = 0;
+        var perIsolateCount = 0;
+        final scheduler = DianaScheduler()
+          ..schedule(task: () async => leaderCount++, fixedDelayMs: 25)
+          ..schedule(
+              task: () async => perIsolateCount++,
+              fixedDelayMs: 25,
+              perIsolate: true);
+        final name = Isolate.current.debugName ?? 'main';
+        final server = DianaServer(
+          config: DianaConfig({'server.port': port, 'server.isolates': 3}),
+        )..register(
+            HttpMethod.get,
+            '/state',
+            (req) => DianaResponse.text('$leaderCount|$perIsolateCount|$name'),
+          );
+        return DianaRunnable(
+          server: server,
+          initialize: () async => scheduler.start(),
+          dispose: () => scheduler.stop(),
+        );
+      },
+      installSignalHandlers: false,
+      shutdownTrigger: shutdown.future,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+
+    // Poll until all three isolates have answered, then assert semantics.
+    final states = <String, (int, int)>{};
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (DateTime.now().isBefore(deadline)) {
+      final state = await _get('http://127.0.0.1:$port/state');
+      final parts = state.split('|');
+      states[parts[2]] = (int.parse(parts[0]), int.parse(parts[1]));
+      final satisfied = states.length == 3 &&
+          states.values.every((s) => s.$2 > 0) &&
+          states.values.where((s) => s.$1 > 0).length == 1;
+      if (satisfied) break;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+
+    expect(states.length, 3,
+        reason: 'all three isolates must serve /state; saw: $states');
+    expect(states.values.where((s) => s.$1 > 0).length, 1,
+        reason: 'the leader-only task must run in exactly one isolate '
+            '(the main one); saw: $states');
+    expect(states.values.every((s) => s.$2 > 0), isTrue,
+        reason: 'the perIsolate task must run in every isolate; '
+            'saw: $states');
+
+    shutdown.complete();
+    await done.timeout(const Duration(seconds: 10));
+  });
+
   test('serves HTTPS when server.ssl.* is configured', () async {
     final server = DianaServer(
       config: DianaConfig({

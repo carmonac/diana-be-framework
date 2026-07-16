@@ -68,7 +68,8 @@ await app.dispose();
 ```
 
 When `@Scheduled` tasks exist, `app.initialize()` also starts the scheduler
-and `app.dispose()` stops it (see
+and `app.dispose()` stops it; with multi-isolate serving, tasks run once
+per process unless annotated `perIsolate: true` (see
 [Observability § Scheduling](observability.md#scheduled-tasks)).
 
 ## Test overrides — DianaOverrides

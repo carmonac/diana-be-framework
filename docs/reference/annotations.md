@@ -151,12 +151,14 @@ graceful shutdown in `dispose()` (reverse order). See the
 
 ## Scheduling
 
-### `@Scheduled({int? fixedRate, int? fixedDelay, int initialDelay = 0})`
+### `@Scheduled({int? fixedRate, int? fixedDelay, int initialDelay = 0, bool perIsolate = false})`
 
 **Target:** method (same signature rules as lifecycle hooks; singleton
 providers only). Exactly one of `fixedRate`/`fixedDelay` (milliseconds).
 Tasks start after initialization and stop on shutdown; `fixedRate` skips
-overlapping ticks, `fixedDelay` re-arms after completion. See
+overlapping ticks, `fixedDelay` re-arms after completion. With
+multi-isolate serving, tasks run **once per process** (main isolate only);
+`perIsolate: true` opts a task into running in every isolate. See
 [Observability](../guides/observability.md#scheduled-tasks).
 
 ---

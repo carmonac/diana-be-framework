@@ -202,7 +202,8 @@ See [Server-Sent Events](../guides/server-sent-events.md).
 ### Scheduler (`scheduler.dart`)
 
 `DianaScheduler({onError})` — `schedule({required task, int? fixedRateMs,
-int? fixedDelayMs, int initialDelayMs = 0})`, `start()`, `Future<void>
+int? fixedDelayMs, int initialDelayMs = 0, bool perIsolate = false})`,
+`start()` (skips leader-only tasks in worker isolates), `Future<void>
 stop()` (cancels timers, awaits in-flight runs). Semantics in
 [Observability](../guides/observability.md#scheduled-tasks).
 
@@ -236,6 +237,10 @@ See [Application events](../guides/events.md).
   [operations](../guides/operations.md#multi-isolate-serving-experimental).
   With multiple isolates and an event bus, broadcast events are bridged
   hub-and-spoke through the main isolate (exactly-once per isolate).
+- `DianaRuntime.isWorkerIsolate` — `true` inside worker isolates spawned
+  by multi-isolate serving (set before the worker's bootstrap runs);
+  `false` on the main isolate and in embedded use. `DianaScheduler`
+  consults it to run leader-only tasks once per process.
 
 ### OpenAPI (`openapi.dart`)
 

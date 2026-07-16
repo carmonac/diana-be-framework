@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- `DianaScheduler.schedule` gains `perIsolate` (default `false`): with
+  multi-isolate serving, leader-only tasks are skipped in worker isolates
+  so a schedule runs once per process. New `DianaRuntime.isWorkerIsolate`
+  (set before a worker's bootstrap runs).
+
 ## 0.6.0
 
 - Version bump only (kept in lockstep with the workspace; `diana_data`

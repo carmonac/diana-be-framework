@@ -652,6 +652,55 @@ class NotAService {}
     );
   });
 
+  test('emits scheduler registrations with perIsolate only when annotated',
+      () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/jobs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Component()
+class Jobs {
+  @Scheduled(fixedDelay: 50)
+  void leaderJob() {}
+
+  @Scheduled(fixedRate: 100, perIsolate: true)
+  void cacheRefresh() {}
+}
+''',
+      },
+      output: allOf([
+        contains('..schedule(task: () async => context.jobs.leaderJob(), '
+            'fixedDelayMs: 50)'),
+        matches(RegExp(
+            r'\.\.schedule\(\s*task: \(\) async => context\.jobs\.cacheRefresh\(\),'
+            r'\s*fixedRateMs: 100,\s*perIsolate: true,?\s*\)')),
+        contains('scheduler.start()'),
+        contains('await scheduler.stop()'),
+      ]),
+    );
+  });
+
+  test('default scheduled tasks emit no perIsolate argument (byte identity)',
+      () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/jobs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Component()
+class Jobs {
+  @Scheduled(fixedDelay: 50)
+  void beat() {}
+}
+''',
+      },
+      output: isNot(contains('perIsolate')),
+    );
+  });
+
   test('wires @EventListener methods and DianaEventPublisher injection',
       () async {
     await expectBootstrap(

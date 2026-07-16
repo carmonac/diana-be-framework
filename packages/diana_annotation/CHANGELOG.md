@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0
+
+- `@Scheduled` gains `perIsolate` (default `false`) — opt a task into
+  running in every isolate under multi-isolate serving.
+
 ## 0.6.0
 
 - New annotation: `@Transactional` (method/class) for the `diana_data`
