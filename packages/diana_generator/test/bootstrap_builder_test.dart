@@ -1204,4 +1204,106 @@ class XController {
       ],
     );
   });
+
+  test('wires the observability provider into server, scheduler and metrics',
+      () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/obs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+import 'package:diana_observability/diana_observability.dart';
+
+@Component()
+class AppObservability extends DianaObservability {}
+
+@Component()
+class Beater {
+  @Scheduled(fixedDelay: 50)
+  void beat() {}
+}
+''',
+      },
+      output: allOf([
+        // Server gets the observer.
+        matches(RegExp(r'DianaServer\([^;]*observer: ctx\.appObservability')),
+        // Scheduler gets the observer and each task a name.
+        contains('DianaScheduler(observer: context.appObservability)'),
+        matches(RegExp(r"name: 'Beater\.beat'")),
+        // Metrics endpoint served from the provider.
+        contains("'/actuator/metrics'"),
+        contains('metricsEndpointHandler(ctx.appObservability)'),
+        // Liveness/readiness always present.
+        contains("'/actuator/health/liveness'"),
+        contains("'/actuator/health/readiness'"),
+        contains("import 'package:diana_observability/diana_observability.dart'"),
+      ]),
+    );
+  });
+
+  test('apps without observability emit no diana_observability reference '
+      'but keep liveness/readiness', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/web.dart': '''
+import 'package:diana/diana.dart';
+
+@RestController('/x')
+class XController {
+  @Get()
+  String hello() => 'hi';
+}
+''',
+      },
+      output: allOf([
+        isNot(contains('diana_observability')),
+        isNot(contains('observer:')),
+        contains("'/actuator/health/liveness'"),
+      ]),
+    );
+  });
+
+  test('rejects multiple DianaObservability providers', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/obs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+import 'package:diana_observability/diana_observability.dart';
+
+@Component()
+class ObsA extends DianaObservability {}
+
+@Component()
+class ObsB extends DianaObservability {}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        'Multiple DianaObservability providers: ObsA (package:a/obs.dart), '
+            'ObsB (package:a/obs.dart). Declare exactly one.',
+      ],
+    );
+  });
+
+  test('rejects a non-singleton DianaObservability provider', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/obs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+import 'package:diana_observability/diana_observability.dart';
+
+@Component(scope: Scope.transient)
+class AppObservability extends DianaObservability {}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        'AppObservability extends DianaObservability but is transient-scoped; '
+            'observability providers must be singletons.',
+      ],
+    );
+  });
 }

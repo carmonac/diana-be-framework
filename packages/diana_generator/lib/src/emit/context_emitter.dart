@@ -85,6 +85,18 @@ ContextEmission emitContext(DiGraph graph) {
   }
   final usesData = graph.usesData && connectorProvider != null;
 
+  // The single DianaObservability provider (validated in the bootstrap), if
+  // any — threaded as `observer:` into the event bus and database.
+  ResolvedProvider? observabilityProvider;
+  for (final p in graph.ordered) {
+    if (p.info.supertypes.any((s) =>
+        s.name == 'DianaObservability' &&
+        s.libraryUri.startsWith('package:diana_observability/'))) {
+      observabilityProvider = p;
+      break;
+    }
+  }
+
   // 'eventBus'/'database' are reserved only when used, so apps without those
   // features keep byte-identical output.
   final used = <String>{
@@ -310,12 +322,21 @@ ContextEmission emitContext(DiGraph graph) {
           ]);
         }
       }));
+    // Observability is a regular provider; its field carries the observer.
+    final observerArgs = observabilityProvider == null
+        ? const <String, Expression>{}
+        : {'observer': refer(names.fields[observabilityProvider.key]!)};
     if (graph.usesEvents) {
       c.fields.add(Field((f) => f
         ..name = 'eventBus'
+        // `late` only when the initializer references another field (the
+        // observer); event-only apps keep the plain `final` form.
+        ..late = observabilityProvider != null
         ..modifier = FieldModifier.final$
         ..type = refer('DianaEventBus', dianaLib)
-        ..assignment = refer('DianaEventBus', dianaLib).newInstance(const []).code));
+        ..assignment = refer('DianaEventBus', dianaLib)
+            .newInstance(const [], observerArgs)
+            .code));
     }
     if (usesData) {
       // Opened at the start of initialize() and closed at the end of
@@ -328,7 +349,7 @@ ContextEmission emitContext(DiGraph graph) {
         ..assignment = refer('Database', dianaDataLib).newInstance([
           refer(names.fields[connectorProvider!.key]!),
           refer('config'),
-        ]).code));
+        ], observerArgs).code));
     }
     for (final provider in graph.ordered) {
       if (provider.needsRequestScope) continue;

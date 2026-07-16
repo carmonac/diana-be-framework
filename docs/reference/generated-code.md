@@ -120,6 +120,9 @@ The DI container. Contents, in topological (dependency) order:
   no provider is constructed eagerly), and `DianaEventPublisher`
   constructor parameters satisfied with `eventBus` (or `_ctx.eventBus` on
   the request scope).
+- when the app uses observability: `DianaServer`, the event bus, the
+  scheduler and `Database` receive `observer: <the DianaObservability
+  provider field>`, and `@Scheduled` tasks are emitted with a `name:`.
 - when the app uses persistence: a `late final Database database =
   Database(connector, config);` field (from `package:diana_data`), opened
   (and migrated) at the start of `initialize()` and closed at the end of
@@ -208,8 +211,9 @@ one `build_runner` invocation drives all builders.
   by type, global middleware by `(order, type)`, summaries by path).
 - No timestamps or random values are ever emitted.
 - Optional features (`eventBus`, `grpcServer`, `scheduler`, `bodyCodecs`,
-  auth guards, the gRPC auth interceptor, the `database` field and
-  `$Tx$` proxies) are emitted only when used — an app without them produces
+  auth guards, the gRPC auth interceptor, the `database` field and `$Tx$`
+  proxies, and the observability wiring / `/actuator/metrics`) are emitted
+  only when used — an app without them produces
   byte-identical output before and after a generator upgrade that adds the
   feature.
 - CI can enforce freshness with `git diff --exit-code` after a build.

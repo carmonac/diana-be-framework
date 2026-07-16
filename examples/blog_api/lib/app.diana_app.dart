@@ -2,16 +2,18 @@
 // ignore_for_file: type=lint, unused_import
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i8;
+import 'dart:async' as _i9;
 
-import 'package:blog_api/controllers/post_controller.dart' as _i7;
+import 'package:blog_api/controllers/post_controller.dart' as _i8;
 import 'package:blog_api/db/db_health.dart' as _i3;
 import 'package:blog_api/db/sqlite_connector.dart' as _i4;
-import 'package:blog_api/dto/post.dart' as _i9;
-import 'package:blog_api/repositories/post_repository.dart' as _i5;
-import 'package:blog_api/services/blog_service.dart' as _i6;
+import 'package:blog_api/dto/post.dart' as _i10;
+import 'package:blog_api/observability/app_observability.dart' as _i5;
+import 'package:blog_api/repositories/post_repository.dart' as _i6;
+import 'package:blog_api/services/blog_service.dart' as _i7;
 import 'package:diana/diana.dart' as _i1;
 import 'package:diana_data/diana_data.dart' as _i2;
+import 'package:diana_observability/diana_observability.dart' as _i11;
 
 class DianaContext {
   DianaContext(this.config, [this._overrides = const DianaOverrides()]);
@@ -20,7 +22,11 @@ class DianaContext {
 
   final DianaOverrides _overrides;
 
-  late final _i2.Database database = _i2.Database(sqliteConnector, config);
+  late final _i2.Database database = _i2.Database(
+    sqliteConnector,
+    config,
+    observer: appObservability,
+  );
 
   late final _i3.DbHealth dbHealth =
       _overrides.dbHealth ?? _i3.DbHealth(database);
@@ -28,14 +34,20 @@ class DianaContext {
   late final _i4.SqliteConnector sqliteConnector =
       _overrides.sqliteConnector ?? _i4.SqliteConnector();
 
-  late final _i5.PostRepository postRepository =
-      _overrides.postRepository ?? _i5.PostRepository(database);
+  late final _i5.AppObservability appObservability =
+      _overrides.appObservability ??
+      _i5.AppObservability(
+        config.get<String>('observability.tracing.endpoint', defaultValue: ''),
+      );
 
-  late final _i6.BlogService blogService =
+  late final _i6.PostRepository postRepository =
+      _overrides.postRepository ?? _i6.PostRepository(database);
+
+  late final _i7.BlogService blogService =
       _overrides.blogService ?? $Tx$BlogService(database, postRepository);
 
-  late final _i7.PostController postController =
-      _overrides.postController ?? _i7.PostController(blogService);
+  late final _i8.PostController postController =
+      _overrides.postController ?? _i8.PostController(blogService);
 
   /// Constructs every singleton in dependency order and runs @PostConstruct hooks.
   Future<void> initialize() async {
@@ -43,6 +55,7 @@ class DianaContext {
     await database.migrate();
     dbHealth;
     sqliteConnector;
+    appObservability;
     postRepository;
     blogService;
     postController;
@@ -50,6 +63,7 @@ class DianaContext {
 
   /// Runs @PreDestroy hooks in reverse dependency order; call after initialize().
   Future<void> dispose() async {
+    appObservability.shutdown();
     await database.close();
   }
 }
@@ -59,6 +73,7 @@ class DianaOverrides {
   const DianaOverrides({
     this.dbHealth,
     this.sqliteConnector,
+    this.appObservability,
     this.postRepository,
     this.blogService,
     this.postController,
@@ -68,26 +83,28 @@ class DianaOverrides {
 
   final _i4.SqliteConnector? sqliteConnector;
 
-  final _i5.PostRepository? postRepository;
+  final _i5.AppObservability? appObservability;
 
-  final _i6.BlogService? blogService;
+  final _i6.PostRepository? postRepository;
 
-  final _i7.PostController? postController;
+  final _i7.BlogService? blogService;
+
+  final _i8.PostController? postController;
 }
 
-class $Tx$BlogService extends _i6.BlogService {
-  $Tx$BlogService(this._db, _i5.PostRepository posts) : super(posts);
+class $Tx$BlogService extends _i7.BlogService {
+  $Tx$BlogService(this._db, _i6.PostRepository posts) : super(posts);
 
   final _i2.Database _db;
 
   @override
-  _i8.Future<List<_i9.Article>> publishPair(
-    _i9.CreatePost first,
-    _i9.CreatePost second,
+  _i9.Future<List<_i10.Article>> publishPair(
+    _i10.CreatePost first,
+    _i10.CreatePost second,
   ) => _db.runTransactional(() => super.publishPair(first, second));
 
   @override
-  _i8.Future<void> publishThenFail(_i9.CreatePost post) =>
+  _i9.Future<void> publishThenFail(_i10.CreatePost post) =>
       _db.runTransactional(() => super.publishThenFail(post));
 }
 
@@ -118,26 +135,26 @@ Future<DianaApp> buildDianaApp({
 }) async {
   final cfg = config ?? await _i1.DianaConfig.load('application.yaml');
   final ctx = DianaContext(cfg, overrides);
-  final server = _i1.DianaServer(config: cfg);
+  final server = _i1.DianaServer(config: cfg, observer: ctx.appObservability);
   server.register(
     _i1.HttpMethod.get,
     '/posts',
-    (req) => _i7.$diana$PostController$list(ctx.postController, req),
+    (req) => _i8.$diana$PostController$list(ctx.postController, req),
   );
   server.register(
     _i1.HttpMethod.get,
     '/posts/:id',
-    (req) => _i7.$diana$PostController$getById(ctx.postController, req),
+    (req) => _i8.$diana$PostController$getById(ctx.postController, req),
   );
   server.register(
     _i1.HttpMethod.post,
     '/posts',
-    (req) => _i7.$diana$PostController$publishPair(ctx.postController, req),
+    (req) => _i8.$diana$PostController$publishPair(ctx.postController, req),
   );
   server.register(
     _i1.HttpMethod.post,
     '/posts/fail',
-    (req) => _i7.$diana$PostController$fail(ctx.postController, req),
+    (req) => _i8.$diana$PostController$fail(ctx.postController, req),
   );
   if (cfg.get<bool>('management.enabled', defaultValue: false)) {
     server.register(
@@ -147,8 +164,23 @@ Future<DianaApp> buildDianaApp({
     );
     server.register(
       _i1.HttpMethod.get,
+      '/actuator/health/liveness',
+      _i1.livenessEndpointHandler(),
+    );
+    server.register(
+      _i1.HttpMethod.get,
+      '/actuator/health/readiness',
+      _i1.readinessEndpointHandler([ctx.dbHealth]),
+    );
+    server.register(
+      _i1.HttpMethod.get,
       '/actuator/info',
       _i1.infoEndpointHandler(cfg),
+    );
+    server.register(
+      _i1.HttpMethod.get,
+      '/actuator/metrics',
+      _i11.metricsEndpointHandler(ctx.appObservability),
     );
   }
 

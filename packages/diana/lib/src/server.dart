@@ -9,6 +9,7 @@ import 'http/method.dart';
 import 'http/request.dart';
 import 'http/response.dart';
 import 'middleware.dart';
+import 'observer.dart';
 import 'pipeline.dart';
 import 'websocket.dart';
 
@@ -33,6 +34,10 @@ class DianaServer {
   /// Additional body codecs (JSON is always available).
   final List<BodyCodec> bodyCodecs;
 
+  /// Observes requests, unmatched paths, scheduled runs, etc. `null` in
+  /// apps without an observability provider (zero overhead).
+  final DianaObserver? observer;
+
   late final RelicAdapter _adapter = RelicAdapter(
     limits: DianaRequestLimits(
       multipartMaxBytes: config.get<int>('server.multipart.maxSize',
@@ -41,6 +46,7 @@ class DianaServer {
           config.get<int>('server.sse.heartbeatSeconds', defaultValue: 15),
     ),
     codecs: BodyCodecRegistry(bodyCodecs),
+    onUnmatched: observer?.observeUnmatched,
   );
 
   /// Global CORS policy from `server.cors.*`, if enabled.
@@ -58,6 +64,7 @@ class DianaServer {
     this.globalMiddleware = const [],
     this.exceptionMapper,
     this.bodyCodecs = const [],
+    this.observer,
     void Function(Object error, StackTrace stackTrace)? onUnhandled,
   }) : onUnhandled = onUnhandled ?? _defaultOnUnhandled;
 
@@ -89,8 +96,13 @@ class DianaServer {
       mapper: exceptionMapper,
       onUnhandled: onUnhandled,
     );
+    // Observed outside the error boundary: sees the final status (incl.
+    // 4xx/5xx) and the route template, and never an exception.
+    final observed = observer == null
+        ? guarded
+        : (DianaRequest req) => observer!.observeHttp(method, path, req, guarded);
     (_registered[path] ??= {}).add(method);
-    _adapter.register(method, path, guarded);
+    _adapter.register(method, path, observed);
   }
 
   /// Sentinel returned by the innermost WS handshake handler: identity

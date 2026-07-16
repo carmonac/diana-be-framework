@@ -17,6 +17,7 @@ communicates in Spanish.
 | `packages/diana_grpc` | gRPC add-on — the ONLY package importing `package:grpc` |
 | `packages/diana_auth` | security add-on — the ONLY package importing `package:crypto` |
 | `packages/diana_data` | persistence add-on (knex_dart) — the ONLY package importing `package:knex_dart` |
+| `packages/diana_observability` | metrics/tracing add-on — the ONLY package importing `package:opentelemetry` |
 | `examples/todo_api` | exercises everything HTTP (auth, events, XML, SSE…) |
 | `examples/greeter_grpc` | gRPC + HTTP side by side (committed protoc output) |
 | `examples/blog_api` | persistence dogfood (sqlite in-memory, hermetic) |
@@ -81,6 +82,11 @@ dart run build_runner build   # regenerate an example (generated files are commi
 - **Framework injectable** (DianaEventPublisher/Database style):
   `ResolvedDep.isX` flag + short-circuit in `di_graph.dart` matching
   `param.type.name` + `libraryUri` prefix, field on `DianaContext`.
+- **Neutral observer contract** (observability style): when core/`diana_data`
+  must be instrumented by an add-on they can't import, put an abstract
+  no-op contract in `package:diana` (e.g. `DianaObserver` in `observer.dart`);
+  runtime classes take an optional `observer`; the generator discovers the
+  add-on provider by supertype and threads it in, gated for byte-identity.
 - **Discovery by supertype** (BodyCodec/HealthIndicator/AuthenticationMiddleware):
   scan `provider.info.supertypes` for name + library-prefix; singleton-scope
   check with the `'X implements Y but is <scope>-scoped'` message pattern.

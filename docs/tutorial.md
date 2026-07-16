@@ -52,11 +52,11 @@ environment:
   sdk: ^3.6.0
 
 dependencies:
-  diana: ^0.7.0
+  diana: ^0.8.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.7.0
+  diana_generator: ^0.8.0
   test: ^1.25.0
 ```
 

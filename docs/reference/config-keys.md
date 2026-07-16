@@ -102,6 +102,17 @@ See the [auth guide](../guides/auth.md).
 
 See the [persistence guide](../guides/persistence.md).
 
+## Observability (`observability.*`, with `package:diana_observability`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `observability.tracing.endpoint` | — | OTLP collector URL; empty/unset disables tracing (metrics still work) |
+| `observability.tracing.serviceName` | `diana` | `service.name` resource attribute |
+
+`/actuator/metrics` and the liveness/readiness probes are gated by
+`management.enabled` (see [Actuator](#actuator)). See the
+[observability guide](../guides/observability.md).
+
 ## Profiles
 
 | Key / variable | Meaning |

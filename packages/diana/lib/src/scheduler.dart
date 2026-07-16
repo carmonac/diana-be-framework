@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 
+import 'observer.dart';
 import 'runtime.dart';
 
 /// Schedules and runs recurring tasks.
@@ -22,6 +23,9 @@ import 'runtime.dart';
 class DianaScheduler {
   final void Function(Object error, StackTrace stackTrace) onError;
 
+  /// Observes each task run (duration, success). `null` costs nothing.
+  final DianaObserver? observer;
+
   final List<_Task> _tasks = [];
   final List<Timer> _timers = [];
   var _started = false;
@@ -29,24 +33,27 @@ class DianaScheduler {
 
   DianaScheduler({
     void Function(Object error, StackTrace stackTrace)? onError,
+    this.observer,
   }) : onError = onError ?? _defaultOnError;
 
   /// Registers a task. Call before [start]; exactly one of
   /// [fixedRateMs]/[fixedDelayMs] must be provided. [perIsolate] tasks run
   /// in every isolate; by default a task runs only in the main isolate.
+  /// [name] (`Class.method`) labels observability metrics.
   void schedule({
     required Future<void> Function() task,
     int? fixedRateMs,
     int? fixedDelayMs,
     int initialDelayMs = 0,
     bool perIsolate = false,
+    String? name,
   }) {
     if ((fixedRateMs == null) == (fixedDelayMs == null)) {
       throw ArgumentError(
           'Provide exactly one of fixedRateMs or fixedDelayMs.');
     }
     _tasks.add(_Task(task, fixedRateMs, fixedDelayMs, initialDelayMs,
-        perIsolate: perIsolate));
+        perIsolate: perIsolate, name: name));
   }
 
   /// Starts every registered task (leader-only tasks are skipped in worker
@@ -83,16 +90,29 @@ class DianaScheduler {
     ]);
   }
 
+  /// Runs [task], reporting duration and success/failure to [observer].
+  Future<void> _measuredRun(_Task task) {
+    if (observer == null) return task.run();
+    final sw = Stopwatch()..start();
+    return task.run().then(
+      (_) => observer!.observeScheduledRun(task.name, sw.elapsed, success: true),
+      onError: (Object e, StackTrace st) {
+        observer!.observeScheduledRun(task.name, sw.elapsed, success: false);
+        Error.throwWithStackTrace(e, st);
+      },
+    );
+  }
+
   void _runGuarded(_Task task) {
     if (_stopped || task.inFlight != null) return; // skip overlapping tick
-    task.inFlight = task.run().catchError((Object e, StackTrace st) {
+    task.inFlight = _measuredRun(task).catchError((Object e, StackTrace st) {
       onError(e, st);
     }).whenComplete(() => task.inFlight = null);
   }
 
   void _runFixedDelay(_Task task) {
     if (_stopped) return;
-    task.inFlight = task.run().catchError((Object e, StackTrace st) {
+    task.inFlight = _measuredRun(task).catchError((Object e, StackTrace st) {
       onError(e, st);
     }).whenComplete(() {
       task.inFlight = null;
@@ -116,8 +136,9 @@ class _Task {
   final int? fixedDelayMs;
   final int initialDelayMs;
   final bool perIsolate;
+  final String? name;
   Future<void>? inFlight;
 
   _Task(this.run, this.fixedRateMs, this.fixedDelayMs, this.initialDelayMs,
-      {required this.perIsolate});
+      {required this.perIsolate, this.name});
 }

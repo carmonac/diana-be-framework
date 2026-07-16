@@ -21,6 +21,7 @@ export 'src/http/request.dart';
 export 'src/http/response.dart';
 export 'src/middleware.dart';
 export 'src/multipart.dart';
+export 'src/observer.dart';
 export 'src/openapi.dart';
 export 'src/pipeline.dart';
 export 'src/runtime.dart';

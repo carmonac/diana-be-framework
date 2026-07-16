@@ -15,7 +15,7 @@ done
 echo "==> dart analyze"
 dart analyze --fatal-infos
 
-for package in diana diana_generator diana_grpc diana_auth diana_data; do
+for package in diana diana_generator diana_grpc diana_auth diana_data diana_observability; do
   echo "==> tests: packages/$package"
   (cd "packages/$package" && dart test)
 done

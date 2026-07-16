@@ -1,4 +1,101 @@
-# Observability: health, info, scheduled tasks
+# Observability: metrics, tracing, health, scheduled tasks
+
+Diana ships production observability in the optional
+[`diana_observability`](../../packages/diana_observability) package:
+in-package Prometheus metrics, OpenTelemetry tracing and Kubernetes-style
+liveness/readiness probes. Health, info and `@Scheduled` are built into the
+core and need no package.
+
+## Metrics and tracing (`diana_observability`)
+
+Add the package and register **one** `DianaObservability` subclass — the
+generator discovers it and wires automatic instrumentation into the server,
+scheduler, event bus and database (no per-route code):
+
+```yaml
+# pubspec.yaml
+dependencies:
+  diana: ^0.8.0
+  diana_observability: ^0.8.0
+```
+
+```dart
+import 'package:diana/diana.dart';
+import 'package:diana_observability/diana_observability.dart';
+
+@Component()
+class AppObservability extends DianaObservability {
+  AppObservability(
+      @Value('observability.tracing.endpoint', defaultValue: '') String endpoint)
+      : super(
+          tracing: endpoint.isEmpty
+              ? null
+              : TracingOptions(endpoint: endpoint, serviceName: 'my-api'));
+
+  @PreDestroy()
+  void shutdown() => close();   // flush the tracer on graceful shutdown
+}
+```
+
+### GET /actuator/metrics
+
+Served (when `management.enabled`) in the Prometheus 0.0.4 text format.
+Automatic series, all labelled by **route template** rather than concrete
+path so cardinality stays bounded:
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `diana_http_requests_total` | `method,route,status` | HTTP request count |
+| `diana_http_request_duration_seconds` | `method,route` | latency histogram |
+| `diana_http_unmatched_total` | — | 404s (no path label) |
+| `diana_db_queries_total` | `operation` | DB operations (`diana_data`) |
+| `diana_db_query_duration_seconds` | `operation` | DB latency histogram |
+| `diana_scheduled_runs_total` | `task,result` | `@Scheduled` runs |
+| `diana_events_dispatched_total` | `type` | event dispatches |
+| `diana_process_resident_memory_bytes` | — | RSS gauge |
+
+The metrics see the **final** status — including 4xx/5xx produced by the
+error boundary — because instrumentation wraps the whole route pipeline.
+
+**Application metrics.** Inject the provider (or any core-neutral surface it
+exposes) and use its registry:
+
+```dart
+@Service()
+class OrderService {
+  OrderService(this._obs);
+  final AppObservability _obs;
+  late final _placed = _obs.meters.counter('orders_placed_total', 'Orders.');
+
+  void place() => _placed.inc();
+}
+```
+
+### Tracing
+
+When `observability.tracing.endpoint` is set, every request opens a
+server span (continuing an inbound W3C `traceparent`) and each database
+operation a child span, exported to an OTLP collector. Leave the endpoint
+empty to disable tracing (metrics still work). Tracing is Beta upstream
+(`package:opentelemetry`); spans and OTLP export are functional, richer
+semantic conventions are evolving.
+
+| Key | Meaning |
+|---|---|
+| `observability.tracing.endpoint` | OTLP collector URL (empty ⇒ tracing off) |
+| `observability.tracing.serviceName` | `service.name` resource attribute |
+
+## Liveness and readiness (core)
+
+`management.enabled` also exposes two Kubernetes-style probes, split from
+`/actuator/health`:
+
+- **`GET /actuator/health/liveness`** — a trivial `200 UP`: the process is
+  running. Wire it to the k8s *livenessProbe* (a failure restarts the pod);
+  it deliberately does not consult dependencies.
+- **`GET /actuator/health/readiness`** — aggregates the same
+  `HealthIndicator`s as `/actuator/health` (503 when any is down). Wire it
+  to the *readinessProbe* (a failure stops traffic without a restart).
 
 ## Actuator endpoints
 

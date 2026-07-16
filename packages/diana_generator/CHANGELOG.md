@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- Discovers a `DianaObservability` provider and wires its observer into the
+  server, scheduler, event bus and database, plus `/actuator/metrics`
+  (compile-time gated) and always-on liveness/readiness routes. New
+  diagnostics for duplicate/non-singleton observability providers.
+
 ## 0.7.0
 
 - Scheduler emission forwards `perIsolate: true` from the annotation

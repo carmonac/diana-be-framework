@@ -35,8 +35,10 @@ packages/
 │                       # package importing package:grpc
 ├── diana_auth          # security; deps: diana, crypto — the ONLY
 │                       # package importing package:crypto
-└── diana_data          # persistence; deps: diana, knex_dart — the ONLY
-                        # package importing package:knex_dart
+├── diana_data          # persistence; deps: diana, knex_dart — the ONLY
+│                       # package importing package:knex_dart
+└── diana_observability # metrics/tracing; deps: diana, opentelemetry —
+                        # the ONLY package importing package:opentelemetry
 ```
 
 `diana_generator` depends only on `diana_annotation`, so the build-time
@@ -44,7 +46,8 @@ transitive closure stays free of the HTTP stack. Boundary rules enforced by
 tests: `package:relic` is imported only by
 `diana/src/adapter/relic_adapter.dart`; `package:grpc` only by `diana_grpc`;
 `package:crypto` only by `diana_auth`; `package:knex_dart` only by
-`diana_data`; and the generator imports none of the add-ons (it references
+`diana_data`; `package:opentelemetry` only by `diana_observability`; and the
+generator imports none of the add-ons (it references
 `DianaGrpcServer`, `SecuredGuard`, `Database`, the `$Tx$` proxies etc. by
 import-URL string, so apps depend only on the add-ons they use).
 

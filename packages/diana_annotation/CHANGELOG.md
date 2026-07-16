@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- Version bump only (kept in lockstep with the workspace).
+
 ## 0.7.0
 
 - `@Scheduled` gains `perIsolate` (default `false`) — opt a task into

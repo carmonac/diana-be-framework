@@ -198,13 +198,17 @@ See [Server-Sent Events](../guides/server-sent-events.md).
 - `HealthStatus.up([details]) / HealthStatus.down([details])`.
 - `healthEndpointHandler(List<HealthIndicator>)` /
   `infoEndpointHandler(DianaConfig)` — the generated `/actuator/*` handlers.
+- `livenessEndpointHandler()` (trivial `200 UP`) /
+  `readinessEndpointHandler(List<HealthIndicator>)` (indicator aggregate) —
+  the `/actuator/health/{liveness,readiness}` probes.
 
 ### Scheduler (`scheduler.dart`)
 
-`DianaScheduler({onError})` — `schedule({required task, int? fixedRateMs,
-int? fixedDelayMs, int initialDelayMs = 0, bool perIsolate = false})`,
-`start()` (skips leader-only tasks in worker isolates), `Future<void>
-stop()` (cancels timers, awaits in-flight runs). Semantics in
+`DianaScheduler({onError, DianaObserver? observer})` — `schedule({required
+task, int? fixedRateMs, int? fixedDelayMs, int initialDelayMs = 0, bool
+perIsolate = false, String? name})`, `start()` (skips leader-only tasks in
+worker isolates), `Future<void> stop()` (cancels timers, awaits in-flight
+runs). Semantics in
 [Observability](../guides/observability.md#scheduled-tasks).
 
 ### Events (`events.dart`)
@@ -498,6 +502,44 @@ generator wires it from a `diana_auth` `AuthenticationMiddleware` to secure
 `@GrpcService` classes (UNAUTHENTICATED / PERMISSION_DENIED).
 
 ---
+
+## Observability contract (`observer.dart`)
+
+`abstract class DianaObserver` — the neutral hook the runtime calls into so
+`package:diana` never depends on an observability implementation. All
+methods have no-op defaults:
+
+- `observeHttp(HttpMethod, String routeTemplate, DianaRequest, DianaHandler
+  next)` — wraps a route (outside the error boundary, so it sees the final
+  status and never an exception).
+- `observeUnmatched()` — a 404 (no path, bounded cardinality).
+- `observeQuery<T>(String operation, FutureOr<T> Function() run)` — a
+  database operation (wired by `diana_data`).
+- `observeScheduledRun(String? name, Duration, {required bool success})` and
+  `observeEventDispatch(String eventType, Duration)`.
+
+`DianaServer`, `DianaScheduler`, `DianaEventBus` and `Database` all take an
+optional `observer`; the generator wires the app's `DianaObservability`
+provider (from `package:diana_observability`) into each when present.
+
+## Observability (`package:diana_observability`)
+
+The optional metrics/tracing package — the only one depending on
+`package:opentelemetry`.
+
+- `class DianaObservability extends DianaObserver` — subclass and register
+  as a `@Component`. Records the built-in Prometheus series and, when
+  constructed with `TracingOptions`, OpenTelemetry spans. `MeterRegistry get
+  meters` for application metrics; `String scrape()` renders the exposition
+  text; `void close()` flushes the tracer.
+- `Counter`/`Gauge`/`Histogram`/`MeterRegistry` — the in-package metrics
+  model (Prometheus 0.0.4 text format).
+- `class TracingOptions {String? endpoint; String serviceName}` — OTLP
+  collector target; omit `endpoint` to disable tracing.
+- `metricsEndpointHandler(DianaObservability)` — the `/actuator/metrics`
+  handler.
+
+See the [observability guide](../guides/observability.md).
 
 ## Authentication (`package:diana_auth`)
 

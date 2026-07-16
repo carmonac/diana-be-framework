@@ -17,6 +17,10 @@ import 'readers/library_reader.dart';
 /// the generator never depends on diana_auth (mirrors `dianaGrpcLib`).
 const String _dianaAuthLib = 'package:diana_auth/diana_auth.dart';
 
+/// diana_observability's metrics handler is referenced by import URL only.
+const String dianaObservabilityLib =
+    'package:diana_observability/diana_observability.dart';
+
 /// Aggregating builder. Runs on the library annotated with
 /// `@DianaApplication`, discovers every `.diana.json` summary in the package,
 /// resolves the dependency injection graph and emits the composition root
@@ -85,6 +89,7 @@ class DianaBootstrapBuilder implements Builder {
       errors.addAll(_checkGrpcServices(result.graph!, summaries));
       errors.addAll(_checkGrpcSecurity(result.graph!, summaries));
       errors.addAll(_checkDatabase(result.graph!));
+      errors.addAll(_checkObservability(result.graph!));
     }
     if (errors.isNotEmpty) {
       log.severe(
@@ -280,6 +285,41 @@ class DianaBootstrapBuilder implements Builder {
           ))
             provider,
       ];
+
+  /// The `DianaObservability` providers in the graph (discovered by
+  /// supertype).
+  List<ResolvedProvider> _observabilityProviders(DiGraph graph) => [
+        for (final provider in graph.ordered)
+          if (provider.info.supertypes.any(
+            (s) =>
+                s.name == 'DianaObservability' &&
+                s.libraryUri.startsWith('package:diana_observability/'),
+          ))
+            provider,
+      ];
+
+  /// At most one `DianaObservability` provider, and it must be a singleton
+  /// (the server, scheduler, bus and database all hold the same instance).
+  List<String> _checkObservability(DiGraph graph) {
+    final providers = _observabilityProviders(graph);
+    if (providers.length > 1) {
+      return [
+        'Multiple DianaObservability providers: '
+        '${providers.map((p) => '${p.info.type.displayName} '
+            '(${p.declaredIn})').join(', ')}. Declare exactly one.',
+      ];
+    }
+    if (providers.isNotEmpty) {
+      final p = providers.single;
+      if (p.scope != 'singleton' || p.needsRequestScope) {
+        return [
+          '${p.info.type.displayName} extends DianaObservability but is '
+          '${p.scope}-scoped; observability providers must be singletons.',
+        ];
+      }
+    }
+    return const [];
+  }
 
   /// When the app uses diana_data (injects `Database` or declares
   /// `@Transactional`), it needs exactly one `DatabaseConnector` to open the
@@ -542,6 +582,13 @@ class DianaBootstrapBuilder implements Builder {
           provider,
     ];
 
+    // The observability provider (validated by _checkObservability), used to
+    // wire the observer into the server/scheduler/metrics endpoint.
+    final observabilityProviders = _observabilityProviders(graph);
+    final Expression? observabilityField = observabilityProviders.isEmpty
+        ? null
+        : refer('ctx').property(names.fields[observabilityProviders.single.key]!);
+
     // Exception handlers across all advices, most specific exception type
     // first (ties broken by advice type then declaration order).
     final advices = [for (final s in summaries) ...s.advices]
@@ -617,6 +664,7 @@ class DianaBootstrapBuilder implements Builder {
                 for (final codec in bodyCodecProviders)
                   refer('ctx').property(names.fields[codec.key]!),
               ]),
+            if (observabilityField != null) 'observer': observabilityField,
             if (mapExceptionFn != null)
               'exceptionMapper': Method((m) => m
                 ..requiredParameters.addAll([
@@ -699,9 +747,28 @@ class DianaBootstrapBuilder implements Builder {
       final healthHandler =
           allocate(refer('healthEndpointHandler', dianaLib));
       final infoHandler = allocate(refer('infoEndpointHandler', dianaLib));
+      final livenessHandler =
+          allocate(refer('livenessEndpointHandler', dianaLib));
+      final readinessHandler =
+          allocate(refer('readinessEndpointHandler', dianaLib));
       final indicators = healthIndicators
           .map((p) => 'ctx.${names.fields[p.key]!}')
           .join(', ');
+      // /actuator/metrics is emitted only when an observability provider
+      // exists (compile-time gate — apps without it stay byte-identical).
+      String metricsLine = '';
+      if (observabilityField != null) {
+        final metricsHandler =
+            allocate(refer('metricsEndpointHandler', dianaObservabilityLib));
+        final field = names.fields[observabilityProviders.single.key]!;
+        metricsLine = '''
+  server.register(
+    $httpMethod.get,
+    '/actuator/metrics',
+    $metricsHandler(ctx.$field),
+  );
+''';
+      }
       return '''
 if (cfg.get<bool>('management.enabled', defaultValue: false)) {
   server.register(
@@ -711,10 +778,20 @@ if (cfg.get<bool>('management.enabled', defaultValue: false)) {
   );
   server.register(
     $httpMethod.get,
+    '/actuator/health/liveness',
+    $livenessHandler(),
+  );
+  server.register(
+    $httpMethod.get,
+    '/actuator/health/readiness',
+    $readinessHandler([$indicators]),
+  );
+  server.register(
+    $httpMethod.get,
     '/actuator/info',
     $infoHandler(cfg),
   );
-}
+$metricsLine}
 ''';
     }));
 
@@ -812,12 +889,20 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
         .statement);
 
     // Scheduled tasks across all singleton providers.
-    final scheduledEntries = <({String field, ScheduledMethodInfo task})>[];
+    final scheduledEntries =
+        <({String field, String typeName, ScheduledMethodInfo task})>[];
     for (final provider in graph.ordered) {
       for (final task in provider.info.scheduled) {
-        scheduledEntries.add((field: names.fields[provider.key]!, task: task));
+        scheduledEntries.add((
+          field: names.fields[provider.key]!,
+          typeName: provider.info.type.name,
+          task: task,
+        ));
       }
     }
+    final schedulerObserver = observabilityProviders.isEmpty
+        ? ''
+        : 'observer: context.${names.fields[observabilityProviders.single.key]!}';
 
     final appClass = Class((c) {
       c
@@ -875,7 +960,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
             ..type = refer('DianaScheduler', dianaLib)
             ..assignment = Code.scope((allocate) {
               final scheduler = allocate(refer('DianaScheduler', dianaLib));
-              final buffer = StringBuffer('$scheduler()');
+              final buffer = StringBuffer('$scheduler($schedulerObserver)');
               for (final entry in scheduledEntries) {
                 final task = entry.task;
                 buffer.write('\n    ..schedule(task: () async => '
@@ -890,6 +975,12 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
                 }
                 if (task.perIsolate) {
                   buffer.write(', perIsolate: true');
+                }
+                // The task name labels observability metrics; emitted only
+                // when observability is in use (byte-identical otherwise).
+                if (schedulerObserver.isNotEmpty) {
+                  buffer.write(
+                      ", name: '${entry.typeName}.${task.methodName}'");
                 }
                 buffer.write(')');
               }

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0 — 2026-07-17
+
+### Observability (new `diana_observability` package)
+- In-package Prometheus metrics served at `/actuator/metrics` (0.0.4 text
+  format, no dependency): automatic HTTP (by route template, with the final
+  status), database, scheduler and event series, plus process RSS — and an
+  injectable `MeterRegistry` for application metrics.
+- OpenTelemetry tracing (opt-in via `observability.tracing.endpoint`): a
+  server span per request continuing an inbound W3C `traceparent`, child
+  spans per database operation, OTLP export. The only package depending on
+  `package:opentelemetry` (boundary-tested); tracing is Beta upstream.
+- Kubernetes-style probes in the core: `/actuator/health/liveness` (trivial
+  UP) and `/actuator/health/readiness` (indicator aggregate); the existing
+  `/actuator/health` is unchanged.
+- Neutral `DianaObserver` contract in `package:diana` (no dependency on the
+  add-on): `DianaServer`, `DianaScheduler`, `DianaEventBus` and (via
+  `diana_data`) `Database` take an optional observer, wired by the generator
+  when a `DianaObservability` provider is present. Apps without it emit
+  byte-identical code (bar the always-on liveness/readiness routes).
+- `examples/blog_api` scrapes real metrics; new build diagnostics for
+  duplicate or non-singleton observability providers.
+
 ## 0.7.0 — 2026-07-13
 
 ### @Scheduled: leader-only in multi-isolate serving (behavior fix)

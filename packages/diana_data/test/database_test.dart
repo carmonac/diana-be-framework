@@ -96,4 +96,37 @@ void main() {
     expect(await balance(db, 'ada'), 90,
         reason: 'outer commit survives; inner savepoint rolled back');
   });
+
+  test('observer sees each operation labelled by kind', () async {
+    final obs = _RecordingObserver();
+    final db = Database(SqliteConnector(), const DianaConfig.empty(),
+        observer: obs);
+    await db.open();
+    addTearDown(db.close);
+
+    await db.insert(db.table('accounts').insert({'name': 'ada', 'balance': 10}));
+    await db.select(db.table('accounts'));
+    await db.runTransactional(() async {
+      await db.update(
+          db.table('accounts').where('name', '=', 'ada').update({'balance': 5}));
+    });
+    expect(obs.ops, containsAll(['insert', 'select', 'transaction', 'update']));
+  });
+
+  test('without an observer the facade is a passthrough', () async {
+    final db = await openDb();
+    addTearDown(db.close);
+    await db.insert(db.table('accounts').insert({'name': 'x', 'balance': 1}));
+    expect(await balance(db, 'x'), 1);
+  });
+}
+
+class _RecordingObserver extends DianaObserver {
+  final List<String> ops = [];
+
+  @override
+  Future<T> observeQuery<T>(String operation, dynamic run) async {
+    ops.add(operation);
+    return await run() as T;
+  }
 }

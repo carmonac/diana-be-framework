@@ -329,6 +329,16 @@ Future<DianaApp> buildDianaApp({
     );
     server.register(
       _i2.HttpMethod.get,
+      '/actuator/health/liveness',
+      _i2.livenessEndpointHandler(),
+    );
+    server.register(
+      _i2.HttpMethod.get,
+      '/actuator/health/readiness',
+      _i2.readinessEndpointHandler([ctx.repositoryHealthIndicator]),
+    );
+    server.register(
+      _i2.HttpMethod.get,
       '/actuator/info',
       _i2.infoEndpointHandler(cfg),
     );

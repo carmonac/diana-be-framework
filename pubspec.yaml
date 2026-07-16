@@ -14,6 +14,7 @@ workspace:
   - packages/diana_generator
   - packages/diana_auth
   - packages/diana_data
+  - packages/diana_observability
   - packages/diana_grpc
   - examples/blog_api
   - examples/todo_api

@@ -60,6 +60,19 @@ DianaHandler healthEndpointHandler(List<HealthIndicator> indicators) {
   };
 }
 
+/// `/actuator/health/liveness` handler: a trivial `200 UP` — the process
+/// is running and serving. Kubernetes restarts the pod when this fails, so
+/// it deliberately does not consult dependencies.
+DianaHandler livenessEndpointHandler() {
+  return (request) => DianaResponse.json({'status': 'UP'});
+}
+
+/// `/actuator/health/readiness` handler: aggregates [indicators] like
+/// `/actuator/health` (503 when any is down). Kubernetes stops routing
+/// traffic to the pod when this fails, without restarting it.
+DianaHandler readinessEndpointHandler(List<HealthIndicator> indicators) =>
+    healthEndpointHandler(indicators);
+
 /// `/actuator/info` handler: serves the `info.*` configuration section,
 /// re-nested (`info.build.rev` → `{"build": {"rev": ...}}`).
 DianaHandler infoEndpointHandler(DianaConfig config) {

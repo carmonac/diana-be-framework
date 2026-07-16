@@ -31,16 +31,23 @@ class RelicAdapter {
   /// Body codecs stamped onto every [DianaRequest].
   final BodyCodecRegistry codecs;
 
+  /// Invoked once per request that matched no route (a 404).
+  final void Function()? onUnmatched;
+
   RelicAdapter({
     this.limits = const DianaRequestLimits(),
     this.codecs = const BodyCodecRegistry(),
+    this.onUnmatched,
   }) {
-    _app.fallback = (req) => relic.Response.notFound(
-          body: relic.Body.fromString(
-            '{"error":"not_found","message":"No route matches this path."}',
-            mimeType: relic.MimeType.json,
-          ),
-        );
+    _app.fallback = (req) {
+      onUnmatched?.call();
+      return relic.Response.notFound(
+        body: relic.Body.fromString(
+          '{"error":"not_found","message":"No route matches this path."}',
+          mimeType: relic.MimeType.json,
+        ),
+      );
+    };
   }
 
   void register(HttpMethod method, String path, DianaHandler handler) {

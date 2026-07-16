@@ -204,6 +204,15 @@ one binding annotation" / "combines multiple binding annotations" errors.
 
 ---
 
+## Observability
+
+**`Multiple DianaObservability providers: A (lib), B (lib). Declare exactly one.`**
+The server, scheduler, bus and database all share one observer instance.
+
+**`X extends DianaObservability but is <scope>-scoped; observability providers must be singletons.`**
+
+---
+
 ## Middleware
 
 **`X, referenced by @GlobalMiddleware, is not an injectable class. Annotate it with @Component (or another injectable annotation).`**

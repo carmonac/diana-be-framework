@@ -91,6 +91,16 @@ Future<DianaApp> buildDianaApp({
     );
     server.register(
       _i1.HttpMethod.get,
+      '/actuator/health/liveness',
+      _i1.livenessEndpointHandler(),
+    );
+    server.register(
+      _i1.HttpMethod.get,
+      '/actuator/health/readiness',
+      _i1.readinessEndpointHandler([]),
+    );
+    server.register(
+      _i1.HttpMethod.get,
       '/actuator/info',
       _i1.infoEndpointHandler(cfg),
     );

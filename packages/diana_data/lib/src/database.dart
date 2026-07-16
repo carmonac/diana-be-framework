@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:diana/diana.dart' show DianaConfig;
+import 'package:diana/diana.dart' show DianaConfig, DianaObserver;
 import 'package:knex_dart/knex_dart.dart' show QueryBuilder;
 
 import 'connector.dart';
@@ -25,9 +25,12 @@ class Database {
   final DatabaseConnector _connector;
   final DianaConfig config;
 
+  /// Observes query and transaction durations. `null` costs nothing.
+  final DianaObserver? observer;
+
   dynamic _conn;
 
-  Database(this._connector, this.config);
+  Database(this._connector, this.config, {this.observer});
 
   /// Opens the connection/pool (application startup).
   Future<void> open() async {
@@ -52,44 +55,54 @@ class Database {
   /// A bare query builder (for sub-queries, CTEs, …).
   QueryBuilder query() => (_conn as dynamic).queryBuilder() as QueryBuilder;
 
+  /// Wraps a database operation in the observer, if any.
+  Future<T> _observed<T>(String operation, Future<T> Function() run) async =>
+      observer == null ? await run() : await observer!.observeQuery(operation, run);
+
   /// Runs a SELECT-shaped [query] and returns the rows.
-  Future<List<Map<String, dynamic>>> select(QueryBuilder query) async =>
-      (await (_executor as dynamic).select(query) as List)
-          .cast<Map<String, dynamic>>();
+  Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
+      _observed('select', () async =>
+          (await (_executor as dynamic).select(query) as List)
+              .cast<Map<String, dynamic>>());
 
   /// Runs an INSERT [query].
-  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) async =>
-      (await (_executor as dynamic).insert(query) as List)
-          .cast<Map<String, dynamic>>();
+  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
+      _observed('insert', () async =>
+          (await (_executor as dynamic).insert(query) as List)
+              .cast<Map<String, dynamic>>());
 
   /// Runs an UPDATE [query].
-  Future<List<Map<String, dynamic>>> update(QueryBuilder query) async =>
-      (await (_executor as dynamic).update(query) as List)
-          .cast<Map<String, dynamic>>();
+  Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
+      _observed('update', () async =>
+          (await (_executor as dynamic).update(query) as List)
+              .cast<Map<String, dynamic>>());
 
   /// Runs a DELETE [query].
-  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) async =>
-      (await (_executor as dynamic).delete(query) as List)
-          .cast<Map<String, dynamic>>();
+  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
+      _observed('delete', () async =>
+          (await (_executor as dynamic).delete(query) as List)
+              .cast<Map<String, dynamic>>());
 
   /// Executes raw [sql] against the ambient executor.
   Future<List<Map<String, dynamic>>> raw(String sql,
-          [List<Object?> bindings = const []]) async =>
-      (await (_executor as dynamic).rawSql(sql, bindings) as List)
-          .cast<Map<String, dynamic>>();
+          [List<Object?> bindings = const []]) =>
+      _observed('raw', () async =>
+          (await (_executor as dynamic).rawSql(sql, bindings) as List)
+              .cast<Map<String, dynamic>>());
 
   /// Runs [body] inside a transaction. Nested calls **join** the enclosing
   /// transaction as a savepoint (propagation REQUIRED); a throw rolls the
   /// (save)point back and rethrows. This is what generated `@Transactional`
   /// proxies call.
-  Future<T> runTransactional<T>(Future<T> Function() body) async {
-    // Nest on the *current* executor so an inner transaction becomes a
-    // savepoint of the outer one rather than a new top-level transaction.
-    final executor = _executor;
-    return await (executor as dynamic).trx((dynamic tx) {
-      return runZoned(body, zoneValues: {_txZoneKey: tx});
-    }) as T;
-  }
+  Future<T> runTransactional<T>(Future<T> Function() body) =>
+      _observed('transaction', () async {
+        // Nest on the *current* executor so an inner transaction becomes a
+        // savepoint of the outer one rather than a new top-level transaction.
+        final executor = _executor;
+        return await (executor as dynamic).trx((dynamic tx) {
+          return runZoned(body, zoneValues: {_txZoneKey: tx});
+        }) as T;
+      });
 
   /// Applies pending SQL migrations from `db.migrations.dir` (opt-in — a no-op
   /// when the key is unset). Runs each `*.sql` file (lexically sorted) that

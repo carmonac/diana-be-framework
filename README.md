@@ -97,6 +97,12 @@ class TodoController {
   HTTP Basic, API key), `@Secured`/`@RolesAllowed` guards (401/403) and
   `@Principal` binding, enforced across HTTP, WebSocket handshakes and
   gRPC.
+- **Observability** — the optional
+  [`diana_observability`](packages/diana_observability) package: in-package
+  Prometheus metrics at `/actuator/metrics` (HTTP, database, scheduler and
+  event series, labelled by route template), OpenTelemetry tracing, an
+  injectable `MeterRegistry`, and Kubernetes-style liveness/readiness
+  probes.
 - **Persistence** — the optional [`diana_data`](packages/diana_data) package:
   an injectable `Database` query executor over
   [knex_dart](https://pub.dev/packages/knex_dart), Spring-style
@@ -121,11 +127,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.7.0
+  diana: ^0.8.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.7.0
+  diana_generator: ^0.8.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -191,6 +197,7 @@ pass `overrides:` to swap providers.
 | [`packages/diana_grpc`](packages/diana_grpc) | Optional gRPC runtime (`DianaGrpcServer`) — the only package depending on `package:grpc`. |
 | [`packages/diana_auth`](packages/diana_auth) | Optional security: authenticator strategies, guards, JWT — the only package depending on `package:crypto`. |
 | [`packages/diana_data`](packages/diana_data) | Optional persistence: injectable query executor, `@Transactional`, migrations — the only package depending on `knex_dart`. |
+| [`packages/diana_observability`](packages/diana_observability) | Optional observability: Prometheus metrics, OpenTelemetry tracing, liveness/readiness — the only package depending on `package:opentelemetry`. |
 | [`examples/todo_api`](examples/todo_api) | Complete example: controllers, DI, middleware, config, validation, advice, XML, SSE, events, auth. |
 | [`examples/greeter_grpc`](examples/greeter_grpc) | gRPC + HTTP side by side from one DI graph. |
 | [`examples/blog_api`](examples/blog_api) | Persistence with diana_data over SQLite: migrations, repository, transactions. |
@@ -226,10 +233,12 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.6: the Spring-parity feature set above — including content negotiation
+v0.8: the Spring-parity feature set above — including content negotiation
 (XML), Server-Sent Events, gRPC, application events with a cross-isolate
-bridge, authentication/authorization (`diana_auth`) and persistence with
-`@Transactional` (`diana_data`) — fully tested. Planned next: Spring-Data
-style query-method generation, caching (`@Cacheable`), observability
-(Prometheus/OpenTelemetry), STOMP-style messaging over WebSockets, cron
-expressions for `@Scheduled`, RS256/JWKS token verification.
+bridge, authentication/authorization (`diana_auth`), persistence with
+`@Transactional` (`diana_data`) and observability (`diana_observability`:
+Prometheus metrics + OpenTelemetry tracing) — fully tested. Planned next:
+`@Timed`/`@Cacheable` and resilience (`@Retryable`, circuit breaker) on the
+generated-proxy machinery, Spring-Data style query-method generation,
+STOMP-style messaging over WebSockets, cron expressions for `@Scheduled`,
+RS256/JWKS token verification.

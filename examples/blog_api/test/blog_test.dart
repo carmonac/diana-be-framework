@@ -79,4 +79,39 @@ void main() {
     expect(status, 200);
     expect(body['components']['database']['status'], 'UP');
   });
+
+  test('liveness and readiness endpoints respond', () async {
+    expect((await call('GET', '/actuator/health/liveness')).$1, 200);
+    expect((await call('GET', '/actuator/health/readiness')).$1, 200);
+  });
+
+  test('metrics endpoint scrapes as Prometheus text with expected series',
+      () async {
+    // Generate traffic across the observed surfaces.
+    await call('POST', '/posts', body: {
+      'first': {'title': 'a', 'body': 'aa'},
+      'second': {'title': 'b', 'body': 'bb'},
+    });
+    await call('GET', '/posts');
+    await call('GET', '/no/such/route'); // a 404
+
+    final client = HttpClient();
+    try {
+      final res = await (await client.getUrl(
+              Uri.parse('http://127.0.0.1:$port/actuator/metrics')))
+          .close();
+      expect(res.statusCode, 200);
+      expect(res.headers.contentType?.value, contains('text/plain'));
+      final text = await res.transform(utf8.decoder).join();
+      // HTTP metrics labelled by route template, not concrete path.
+      expect(text, contains('# TYPE diana_http_requests_total counter'));
+      expect(text, contains('route="/posts"'));
+      // Database and unmatched series populated.
+      expect(text, contains('diana_db_queries_total'));
+      expect(text, contains('diana_http_unmatched_total 1'));
+      expect(text, contains('diana_process_resident_memory_bytes'));
+    } finally {
+      client.close();
+    }
+  });
 }

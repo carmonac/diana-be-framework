@@ -10,6 +10,8 @@ library;
 
 import 'dart:async';
 
+import 'observer.dart';
+
 /// Publishes application events to `@EventListener` methods.
 ///
 /// Inject this interface (not the concrete bus) into any provider via
@@ -38,14 +40,19 @@ abstract interface class DianaEventPublisher {
 class DianaEventBus implements DianaEventPublisher {
   final void Function(Object error, StackTrace stackTrace) _onError;
 
+  /// Observes each local dispatch (type, duration). `null` costs nothing.
+  final DianaObserver? observer;
+
   final List<_Registration> _registrations = [];
 
   /// Where broadcast events are handed off for cross-isolate relay; set by
   /// the runtime, `null` in single-isolate mode.
   void Function(Object event)? remoteSink;
 
-  DianaEventBus({void Function(Object error, StackTrace stackTrace)? onError})
-      : _onError = onError ?? _defaultOnError;
+  DianaEventBus({
+    void Function(Object error, StackTrace stackTrace)? onError,
+    this.observer,
+  }) : _onError = onError ?? _defaultOnError;
 
   static void _defaultOnError(Object error, StackTrace stackTrace) {
     // ignore: avoid_print
@@ -65,9 +72,18 @@ class DianaEventBus implements DianaEventPublisher {
 
   @override
   Future<void> publish(Object event) async {
-    for (final registration in _registrations) {
-      if (registration.matches(event)) {
-        await Future.sync(() => registration.invoke(event));
+    final sw = observer == null ? null : (Stopwatch()..start());
+    try {
+      for (final registration in _registrations) {
+        if (registration.matches(event)) {
+          await Future.sync(() => registration.invoke(event));
+        }
+      }
+    } finally {
+      // Observed even when a listener throws (the error still propagates to
+      // the publisher), so the counter reflects every dispatch attempted.
+      if (sw != null) {
+        observer!.observeEventDispatch('${event.runtimeType}', sw.elapsed);
       }
     }
   }

@@ -67,6 +67,14 @@ abstract class DatabaseConnector {
   Future<void> close(Object connection);
 }
 ''',
+  'diana_observability|lib/diana_observability.dart': '''
+import 'package:diana/diana.dart';
+
+class DianaObservability extends DianaObserver {}
+
+DianaHandler metricsEndpointHandler(DianaObservability o) =>
+    (req) => throw UnimplementedError();
+''',
   'diana|lib/diana.dart': '''
 export 'package:diana_annotation/diana_annotation.dart';
 
@@ -75,8 +83,29 @@ export 'src/events.dart';
 export 'src/http/request.dart';
 export 'src/http/response.dart';
 export 'src/middleware.dart';
+export 'src/observer.dart';
 export 'src/sse.dart';
 export 'src/websocket.dart';
+''',
+  'diana|lib/src/observer.dart': '''
+import 'dart:async';
+
+import 'http/request.dart';
+import 'http/response.dart';
+import 'middleware.dart';
+
+abstract class DianaObserver {
+  const DianaObserver();
+  FutureOr<DianaResponse> observeHttp(Object method, String routeTemplate,
+          DianaRequest request, DianaHandler next) =>
+      next(request);
+  void observeUnmatched() {}
+  FutureOr<T> observeQuery<T>(String operation, FutureOr<T> Function() run) =>
+      run();
+  void observeScheduledRun(String? name, Duration elapsed,
+      {required bool success}) {}
+  void observeEventDispatch(String eventType, Duration elapsed) {}
+}
 ''',
   'diana|lib/src/events.dart': '''
 import 'dart:async';

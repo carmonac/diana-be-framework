@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0
+
+- `Database` accepts an optional `DianaObserver`, wrapping the five query
+  methods and `runTransactional` for metrics/tracing.
+
 ## 0.7.0
 
 - Version bump only (kept in lockstep with the workspace).

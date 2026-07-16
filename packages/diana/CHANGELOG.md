@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- Added the neutral `DianaObserver` contract (`observer.dart`) and threaded
+  an optional `observer` through `DianaServer`, `DianaScheduler` and
+  `DianaEventBus`; `DianaScheduler.schedule` gained `name`. New
+  `livenessEndpointHandler`/`readinessEndpointHandler`.
+
 ## 0.7.0
 
 - `DianaScheduler.schedule` gains `perIsolate` (default `false`): with
