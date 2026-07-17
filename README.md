@@ -77,7 +77,7 @@ class TodoController {
   406 guard.
 - **Platform** — build-time OpenAPI 3 document served at `/openapi.json`,
   actuator-style `/actuator/health` (via `HealthIndicator`) and
-  `/actuator/info`, `@Scheduled` fixed-rate/fixed-delay tasks.
+  `/actuator/info`, `@Scheduled` fixed-rate/fixed-delay/cron tasks.
 - **Content negotiation** — pluggable `BodyCodec` formats discovered
   through DI (XML included: `@Component() class AppXmlCodec extends
   XmlCodec {}`), with Spring-style `@Consumes`/`@Produces` on controllers
@@ -131,11 +131,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.11.0
+  diana: ^0.12.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.11.0
+  diana_generator: ^0.12.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -237,7 +237,7 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.11: the Spring-parity feature set above — including content negotiation
+v0.12: the Spring-parity feature set above — including content negotiation
 (XML), Server-Sent Events, gRPC, application events with a cross-isolate
 bridge, authentication/authorization (`diana_auth`), persistence with
 `@Transactional` (`diana_data`), observability (`diana_observability`:

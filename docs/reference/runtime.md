@@ -216,11 +216,23 @@ See [Server-Sent Events](../guides/server-sent-events.md).
 ### Scheduler (`scheduler.dart`)
 
 `DianaScheduler({onError, DianaObserver? observer})` — `schedule({required
-task, int? fixedRateMs, int? fixedDelayMs, int initialDelayMs = 0, bool
-perIsolate = false, String? name})`, `start()` (skips leader-only tasks in
+task, int? fixedRateMs, int? fixedDelayMs, String? cron, int initialDelayMs
+= 0, bool perIsolate = false, String? name})` (exactly one of
+`fixedRateMs`/`fixedDelayMs`/`cron`), `start()` (skips leader-only tasks in
 worker isolates), `Future<void> stop()` (cancels timers, awaits in-flight
 runs). Semantics in
 [Observability](../guides/observability.md#scheduled-tasks).
+
+### Cron (`cron.dart`)
+
+`CronExpression.parse(String)` — a dependency-free 6-field cron parser
+(`second minute hour day-of-month month day-of-week`, Spring style; ranges,
+lists, `*/step`, three-letter month/day names, and macros `@yearly`/
+`@monthly`/`@weekly`/`@daily`/`@hourly`). Throws `FormatException` with a
+specific message on a malformed field. `DateTime? nextAfter(DateTime from)`
+returns the next matching instant in **local time** (`null` for an
+impossible expression). Day-of-month and day-of-week combine like Vixie
+cron: when both are restricted a day matches if either does.
 
 ### Events (`events.dart`)
 

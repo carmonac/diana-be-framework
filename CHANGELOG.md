@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.0 — 2026-07-17
+
+### Cron expressions for @Scheduled
+- `@Scheduled(cron: '...')` runs a task on a cron schedule alongside the
+  existing `fixedRate`/`fixedDelay` triggers (exactly one is required). Six
+  fields, Spring style (`second minute hour day-of-month month
+  day-of-week`), with ranges, lists, `*/step`, three-letter month/day names
+  and the macros `@yearly`/`@monthly`/`@weekly`/`@daily`/`@hourly`.
+- A dependency-free `CronExpression` parser in `package:diana`
+  (`parse`/`nextAfter`), evaluated in the process's local time — pin the
+  schedule with `TZ`. The next occurrence is computed after the previous run
+  completes, so cron runs never overlap. Cron tasks are leader-only by
+  default like the other schedules.
+- The expression's shape is validated at build time (exact diagnostic for a
+  wrong field count / unknown macro); per-field range errors surface at
+  startup. Apps without cron emit byte-identical output.
+
+
 ## 0.11.0 — 2026-07-17
 
 ### Pluggable @Cacheable store

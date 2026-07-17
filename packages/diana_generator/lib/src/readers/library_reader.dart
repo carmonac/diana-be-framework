@@ -699,13 +699,17 @@ List<ScheduledMethodInfo> _scheduledOf(ClassElement cls, String scope) {
     }
     final fixedRate = ann.getField('fixedRate')?.toIntValue();
     final fixedDelay = ann.getField('fixedDelay')?.toIntValue();
-    if ((fixedRate == null) == (fixedDelay == null)) {
+    final cron = ann.getField('cron')?.toStringValue();
+    final provided =
+        [fixedRate, fixedDelay, cron].where((v) => v != null).length;
+    if (provided != 1) {
       throw DianaSourceError(
         method,
         '@Scheduled on ${cls.name}.${method.name} requires exactly one of '
-        'fixedRate or fixedDelay.',
+        'fixedRate, fixedDelay or cron.',
       );
     }
+    if (cron != null) _validateCron(method, cls, cron);
     if (scope != 'singleton') {
       throw DianaSourceError(
         method,
@@ -716,11 +720,35 @@ List<ScheduledMethodInfo> _scheduledOf(ClassElement cls, String scope) {
       methodName: method.name!,
       fixedRateMs: fixedRate,
       fixedDelayMs: fixedDelay,
+      cron: cron,
       initialDelayMs: ann.getField('initialDelay')?.toIntValue() ?? 0,
       perIsolate: ann.getField('perIsolate')?.toBoolValue() ?? false,
     ));
   }
   return result;
+}
+
+/// Known cron macros (mirrors `CronExpression` in `package:diana`, which the
+/// generator cannot import). The reader only checks shape here — a 6-field
+/// expression or a known macro; per-field range validation happens when the
+/// runtime parses the expression at startup.
+const _cronMacros = {
+  '@yearly', '@annually', '@monthly', '@weekly', '@daily', '@midnight',
+  '@hourly',
+};
+
+void _validateCron(MethodElement method, ClassElement cls, String cron) {
+  final trimmed = cron.trim();
+  if (_cronMacros.contains(trimmed.toLowerCase())) return;
+  final fields = trimmed.split(RegExp(r'\s+'));
+  if (fields.length != 6) {
+    throw DianaSourceError(
+      method,
+      '@Scheduled cron on ${cls.name}.${method.name} must have 6 fields '
+      '(second minute hour day-of-month month day-of-week) or be a macro '
+      'like @daily; got ${fields.length}.',
+    );
+  }
 }
 
 /// Reads `@EventListener` methods, validating signatures, the event

@@ -113,4 +113,45 @@ void main() {
     await scheduler.stop();
     expect(runs, greaterThan(0));
   });
+
+  test('a cron task fires on its schedule', () async {
+    var runs = 0;
+    final scheduler = DianaScheduler()
+      // Every second — the fastest cron cadence.
+      ..schedule(task: () async => runs++, cron: '* * * * * *')
+      ..start();
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    await scheduler.stop();
+    expect(runs, inInclusiveRange(1, 3),
+        reason: 'roughly one run per second, re-armed after completion');
+  });
+
+  test('requires exactly one of fixedRate/fixedDelay/cron', () {
+    final scheduler = DianaScheduler();
+    expect(() => scheduler.schedule(task: () async {}),
+        throwsArgumentError);
+    expect(
+        () => scheduler.schedule(
+            task: () async {}, fixedRateMs: 10, cron: '* * * * * *'),
+        throwsArgumentError);
+  });
+
+  test('an invalid cron expression throws at registration', () {
+    final scheduler = DianaScheduler();
+    expect(() => scheduler.schedule(task: () async {}, cron: 'nope'),
+        throwsA(isA<FormatException>()));
+  });
+
+  test('a cron task is leader-only by default', () async {
+    DianaRuntime.isWorkerIsolate = true;
+    addTearDown(() => DianaRuntime.isWorkerIsolate = false);
+
+    var runs = 0;
+    final scheduler = DianaScheduler()
+      ..schedule(task: () async => runs++, cron: '* * * * * *')
+      ..start();
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    await scheduler.stop();
+    expect(runs, 0, reason: 'leader-only cron tasks skip worker isolates');
+  });
 }

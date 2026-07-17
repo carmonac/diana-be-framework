@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 
+import 'cron.dart';
 import 'observer.dart';
 import 'runtime.dart';
 
@@ -35,24 +36,37 @@ class DianaScheduler {
     this.observer,
   }) : onError = onError ?? _defaultOnError;
 
-  /// Registers a task. Call before [start]; exactly one of
-  /// [fixedRateMs]/[fixedDelayMs] must be provided. [perIsolate] tasks run
-  /// in every isolate; by default a task runs only in the main isolate.
-  /// [name] (`Class.method`) labels observability metrics.
+  /// Registers a task. Call before [start]; provide exactly one of
+  /// [fixedRateMs]/[fixedDelayMs]/[cron]. A [cron] task fires at each
+  /// expression match (next occurrence computed after the previous run
+  /// completes, so runs never overlap); [initialDelayMs] is ignored for it.
+  /// [perIsolate] tasks run in every isolate; by default a task runs only
+  /// in the main isolate. [name] (`Class.method`) labels observability
+  /// metrics.
   void schedule({
     required Future<void> Function() task,
     int? fixedRateMs,
     int? fixedDelayMs,
+    String? cron,
     int initialDelayMs = 0,
     bool perIsolate = false,
     String? name,
   }) {
-    if ((fixedRateMs == null) == (fixedDelayMs == null)) {
+    final provided =
+        [fixedRateMs, fixedDelayMs, cron].where((v) => v != null).length;
+    if (provided != 1) {
       throw ArgumentError(
-          'Provide exactly one of fixedRateMs or fixedDelayMs.');
+          'Provide exactly one of fixedRateMs, fixedDelayMs or cron.');
     }
-    _tasks.add(_Task(task, fixedRateMs, fixedDelayMs, initialDelayMs,
-        perIsolate: perIsolate, name: name));
+    _tasks.add(_Task(
+      task,
+      fixedRateMs,
+      fixedDelayMs,
+      initialDelayMs,
+      cron: cron == null ? null : CronExpression.parse(cron),
+      perIsolate: perIsolate,
+      name: name,
+    ));
   }
 
   /// Starts every registered task (leader-only tasks are skipped in worker
@@ -62,6 +76,10 @@ class DianaScheduler {
     _started = true;
     for (final task in _tasks) {
       if (!task.perIsolate && DianaRuntime.isWorkerIsolate) continue;
+      if (task.cron != null) {
+        _scheduleCron(task); // absolute schedule; initialDelay does not apply
+        continue;
+      }
       // Each task owns exactly one live timer slot; re-arms REPLACE it (a
       // grow-only timer list would leak one Timer per fixedDelay run).
       task.timer = Timer(Duration(milliseconds: task.initialDelayMs), () {
@@ -128,6 +146,27 @@ class DianaScheduler {
     });
   }
 
+  /// Arms the one-shot timer for a cron task's next occurrence; on fire it
+  /// runs the task and re-arms from the completion time (so a slow run
+  /// never overlaps the next, matching Spring's single-threaded cron).
+  void _scheduleCron(_Task task) {
+    if (_stopped) return;
+    final now = DateTime.now();
+    final next = task.cron!.nextAfter(now);
+    if (next == null) return; // impossible expression: never fires
+    final delay = next.difference(now);
+    task.timer = Timer(delay.isNegative ? Duration.zero : delay, () {
+      if (_stopped) return;
+      task.inFlight = _measuredRun(task).catchError((Object e, StackTrace st) {
+        onError(e, st);
+      }).whenComplete(() {
+        task.inFlight = null;
+        if (_stopped) return;
+        _scheduleCron(task);
+      });
+    });
+  }
+
   static void _defaultOnError(Object error, StackTrace stackTrace) {
     // ignore: avoid_print
     print('[diana] Scheduled task failed: $error\n$stackTrace');
@@ -139,6 +178,7 @@ class _Task {
   final int? fixedRateMs;
   final int? fixedDelayMs;
   final int initialDelayMs;
+  final CronExpression? cron;
   final bool perIsolate;
   final String? name;
   Future<void>? inFlight;
@@ -148,5 +188,5 @@ class _Task {
   Timer? timer;
 
   _Task(this.run, this.fixedRateMs, this.fixedDelayMs, this.initialDelayMs,
-      {required this.perIsolate, this.name});
+      {this.cron, required this.perIsolate, this.name});
 }

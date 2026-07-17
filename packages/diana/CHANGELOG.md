@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+
+- New dependency-free `CronExpression` (`cron.dart`): 6-field Spring-style
+  parser with macros, `nextAfter` in local time. `DianaScheduler.schedule`
+  gains a `cron` parameter (exactly one of fixedRate/fixedDelay/cron); cron
+  runs are re-armed after completion so they never overlap.
+
 ## 0.11.0
 
 - New pluggable `@Cacheable` backend contract in `aspects.dart`:

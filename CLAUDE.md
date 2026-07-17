@@ -130,7 +130,11 @@ dart run build_runner build   # regenerate an example (generated files are commi
 ## Multi-isolate semantics (subtle, user-decided)
 
 - `@Scheduled` runs **once per process** (leader-only; workers skip via
-  `DianaRuntime.isWorkerIsolate`); `perIsolate: true` opts out.
+  `DianaRuntime.isWorkerIsolate`); `perIsolate: true` opts out. Supports
+  `cron:` (6-field Spring, `CronExpression` in `diana/lib/src/cron.dart`,
+  local time; re-armed after completion so no overlap). The generator can't
+  import package:diana, so the reader only shape-checks cron (6 fields or
+  macro); range errors surface at startup via `CronExpression.parse`.
 - Event `broadcast()` bridges isolates hub-and-spoke, exactly-once each.
 - gRPC serving and per-isolate state constraints: see
   `docs/guides/operations.md`.

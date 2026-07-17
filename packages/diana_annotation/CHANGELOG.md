@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0
+
+- `@Scheduled` gains a `cron` parameter (6-field expression or a macro).
+
 ## 0.11.0
 
 - Version bump only (kept in lockstep with the workspace).

@@ -72,7 +72,12 @@ Function types, records and type variables aren't injectable.
 (Same for `@PreDestroy` and `@Scheduled` — per-instance lifecycle on
 transient/request providers is not supported.)
 
-**`@Scheduled on X.y requires exactly one of fixedRate or fixedDelay.`**
+**`@Scheduled on X.y requires exactly one of fixedRate, fixedDelay or cron.`**
+
+**`@Scheduled cron on X.y must have 6 fields (second minute hour day-of-month month day-of-week) or be a macro like @daily; got N.`**
+(The shape is checked at build time; per-field range errors — e.g. an
+out-of-range hour — surface when the runtime parses the expression at
+startup, as a `FormatException`.)
 
 ---
 

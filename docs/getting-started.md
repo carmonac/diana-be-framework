@@ -16,11 +16,11 @@ cd my_api
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.11.0
+  diana: ^0.12.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.11.0
+  diana_generator: ^0.12.0
 ```
 
 > **Working inside the Diana monorepo?** Add your package to the `workspace:`

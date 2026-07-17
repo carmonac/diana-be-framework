@@ -151,15 +151,20 @@ graceful shutdown in `dispose()` (reverse order). See the
 
 ## Scheduling
 
-### `@Scheduled({int? fixedRate, int? fixedDelay, int initialDelay = 0, bool perIsolate = false})`
+### `@Scheduled({int? fixedRate, int? fixedDelay, String? cron, int initialDelay = 0, bool perIsolate = false})`
 
 **Target:** method (same signature rules as lifecycle hooks; singleton
-providers only). Exactly one of `fixedRate`/`fixedDelay` (milliseconds).
-Tasks start after initialization and stop on shutdown; `fixedRate` skips
-overlapping ticks, `fixedDelay` re-arms after completion. With
-multi-isolate serving, tasks run **once per process** (main isolate only);
-`perIsolate: true` opts a task into running in every isolate. See
-[Observability](../guides/observability.md#scheduled-tasks).
+providers only). Exactly one of `fixedRate`/`fixedDelay` (milliseconds) or
+`cron`. Tasks start after initialization and stop on shutdown; `fixedRate`
+skips overlapping ticks, `fixedDelay` re-arms after completion, `cron` fires
+at each expression match (next occurrence computed after completion, so runs
+never overlap). `cron` is a 6-field expression (`second minute hour
+day-of-month month day-of-week`, Spring style; three-letter month/day names,
+ranges, lists and `*/step`) or a macro (`@yearly`, `@monthly`, `@weekly`,
+`@daily`, `@hourly`), evaluated in the process's local time (`initialDelay`
+does not apply). With multi-isolate serving, tasks run **once per process**
+(main isolate only); `perIsolate: true` opts a task into running in every
+isolate. See [Observability](../guides/observability.md#scheduled-tasks).
 
 ---
 

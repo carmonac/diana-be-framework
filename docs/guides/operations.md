@@ -67,6 +67,37 @@ Constraints:
 - Labeled experimental; `server.isolates: 1` (the default) uses none of the
   isolate machinery.
 
+## Scheduled tasks
+
+Annotate a no-argument `void`/`Future<void>` method on a singleton provider
+with `@Scheduled`. Pick exactly one trigger:
+
+```dart
+@Component()
+class Jobs {
+  @Scheduled(fixedDelay: 30000)          // 30s after each run completes
+  Future<void> poll() async { ... }
+
+  @Scheduled(cron: '0 0 3 * * MON-FRI')  // 03:00 on weekdays
+  Future<void> nightlyReport() async { ... }
+
+  @Scheduled(cron: '@hourly')            // top of every hour
+  Future<void> sweep() async { ... }
+}
+```
+
+The **cron** expression has six fields — `second minute hour day-of-month
+month day-of-week` (Spring style) — and supports ranges (`9-17`), lists
+(`1,15`), steps (`*/15`), three-letter month/day names, and the macros
+`@yearly`/`@monthly`/`@weekly`/`@daily`/`@hourly`. The next run is computed
+after the previous completes, so a slow task never overlaps itself.
+
+**Time zone.** Cron expressions are evaluated in the **process's local
+time**. Diana has no per-expression zone; pin the schedule by running the
+process with a fixed zone, e.g. `TZ=UTC dart run bin/server.dart` (or set
+`TZ` in the container). A malformed field's shape is a build error; an
+out-of-range value surfaces as a `FormatException` at startup.
+
 ## Profiles
 
 Spring-style configuration profiles:

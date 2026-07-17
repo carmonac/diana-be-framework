@@ -1242,8 +1242,12 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
                     'context.${entry.field}.${task.methodName}(), ');
                 if (task.fixedRateMs != null) {
                   buffer.write('fixedRateMs: ${task.fixedRateMs}');
-                } else {
+                } else if (task.fixedDelayMs != null) {
                   buffer.write('fixedDelayMs: ${task.fixedDelayMs}');
+                } else {
+                  final literal =
+                      task.cron!.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+                  buffer.write("cron: '$literal'");
                 }
                 if (task.initialDelayMs != 0) {
                   buffer.write(', initialDelayMs: ${task.initialDelayMs}');

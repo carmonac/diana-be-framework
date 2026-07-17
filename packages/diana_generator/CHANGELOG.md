@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+
+- `@Scheduled(cron:)` support: cron carried on the summary and emitted as
+  `schedule(cron: '...')`; build diagnostics for the cron field count and
+  for combining cron with fixedRate/fixedDelay. Byte-identical for apps
+  without cron.
+
 ## 0.11.0
 
 - `@Cacheable` methods route through a discovered `DianaCacheStore`

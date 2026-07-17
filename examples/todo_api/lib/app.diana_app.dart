@@ -206,7 +206,11 @@ class DianaApp {
   final _i2.DianaServer server;
 
   late final _i2.DianaScheduler scheduler = _i2.DianaScheduler()
-    ..schedule(task: () async => context.heartbeatJob.beat(), fixedDelayMs: 50);
+    ..schedule(task: () async => context.heartbeatJob.beat(), fixedDelayMs: 50)
+    ..schedule(
+      task: () async => context.heartbeatJob.everySecond(),
+      cron: '* * * * * *',
+    );
 
   Future<void> initialize() async {
     await context.initialize();

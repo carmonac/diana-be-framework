@@ -701,6 +701,76 @@ class Jobs {
     );
   });
 
+  test('emits a cron schedule from @Scheduled(cron:)', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/jobs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Component()
+class Jobs {
+  @Scheduled(cron: '0 0 3 * * *')
+  Future<void> nightly() async {}
+
+  @Scheduled(cron: '@daily')
+  Future<void> daily() async {}
+}
+''',
+      },
+      output: allOf([
+        contains('..schedule(task: () async => context.jobs.nightly(), '
+            "cron: '0 0 3 * * *')"),
+        contains("cron: '@daily'"),
+      ]),
+    );
+  });
+
+  test('rejects a cron with the wrong field count', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/jobs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Component()
+class Jobs {
+  @Scheduled(cron: '0 0 3 * *')
+  Future<void> nightly() async {}
+}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        '@Scheduled cron on Jobs.nightly must have 6 fields (second minute '
+            'hour day-of-month month day-of-week) or be a macro like @daily; '
+            'got 5.',
+      ],
+    );
+  });
+
+  test('rejects combining cron with fixedRate', () async {
+    await expectBootstrap(
+      {
+        'lib/app.dart': app,
+        'lib/jobs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Component()
+class Jobs {
+  @Scheduled(cron: '@daily', fixedRate: 100)
+  Future<void> nightly() async {}
+}
+''',
+      },
+      output: '',
+      expectedErrors: [
+        '@Scheduled on Jobs.nightly requires exactly one of fixedRate, '
+            'fixedDelay or cron.',
+      ],
+    );
+  });
+
   test('wires @EventListener methods and DianaEventPublisher injection',
       () async {
     await expectBootstrap(

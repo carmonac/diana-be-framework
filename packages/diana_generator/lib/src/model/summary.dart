@@ -503,6 +503,9 @@ class ScheduledMethodInfo {
   final String methodName;
   final int? fixedRateMs;
   final int? fixedDelayMs;
+
+  /// A 6-field cron expression (macros pre-expanded by the reader), or null.
+  final String? cron;
   final int initialDelayMs;
   final bool perIsolate;
 
@@ -510,6 +513,7 @@ class ScheduledMethodInfo {
     required this.methodName,
     this.fixedRateMs,
     this.fixedDelayMs,
+    this.cron,
     this.initialDelayMs = 0,
     this.perIsolate = false,
   });
@@ -518,6 +522,7 @@ class ScheduledMethodInfo {
         'method': methodName,
         if (fixedRateMs != null) 'fixedRate': fixedRateMs,
         if (fixedDelayMs != null) 'fixedDelay': fixedDelayMs,
+        if (cron != null) 'cron': cron,
         if (initialDelayMs != 0) 'initialDelay': initialDelayMs,
         if (perIsolate) 'perIsolate': true,
       };
@@ -527,6 +532,7 @@ class ScheduledMethodInfo {
         methodName: json['method'] as String,
         fixedRateMs: json['fixedRate'] as int?,
         fixedDelayMs: json['fixedDelay'] as int?,
+        cron: json['cron'] as String?,
         initialDelayMs: json['initialDelay'] as int? ?? 0,
         perIsolate: json['perIsolate'] as bool? ?? false,
       );

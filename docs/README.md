@@ -88,5 +88,5 @@ Complete API documentation — every public symbol and every diagnostic:
 
 ## Versioning and stability
 
-Diana is currently `0.11.0`. APIs may change before `1.0.0`. The
+Diana is currently `0.12.0`. APIs may change before `1.0.0`. The
 [roadmap](../README.md#status--roadmap) lists what's planned.
