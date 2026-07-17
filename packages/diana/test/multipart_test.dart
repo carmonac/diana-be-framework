@@ -49,6 +49,23 @@ void main() {
       expect(form.file('nope'), isNull);
     });
 
+    test('decodes multipart text fields as UTF-8', () async {
+      final body = [
+        '--XBOUND',
+        'Content-Disposition: form-data; name="city"',
+        '',
+        'caf\u00e9 \u2615',
+        '--XBOUND--',
+        '',
+      ].join('\r\n');
+      final form = await decodeFormBody(formRequest(
+        body,
+        contentType: 'multipart/form-data; boundary=XBOUND',
+      ));
+      // Latin-1 decoding would yield mojibake ('caf\u00c3\u00a9 ...').
+      expect(form.fields, {'city': 'caf\u00e9 \u2615'});
+    });
+
     test('parses urlencoded bodies as fields', () async {
       final form = await decodeFormBody(formRequest(
         'a=1&b=hello%20world',

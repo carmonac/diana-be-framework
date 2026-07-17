@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:diana_auth/diana_auth.dart';
 import 'package:test/test.dart';
 
@@ -7,6 +8,16 @@ const secret = 'a-test-secret-of-decent-length';
 
 String seg(Object value) =>
     base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+
+/// Signs a raw JSON payload text — for claim shapes `jsonEncode` cannot
+/// produce (e.g. the `1e999` literal, which decodes to `double.infinity`).
+String signRaw(String payloadJson) {
+  final head = seg({'alg': 'HS256', 'typ': 'JWT'});
+  final payload = base64Url.encode(utf8.encode(payloadJson)).replaceAll('=', '');
+  final mac =
+      Hmac(sha256, utf8.encode(secret)).convert(utf8.encode('$head.$payload'));
+  return '$head.$payload.${base64Url.encode(mac.bytes).replaceAll('=', '')}';
+}
 
 Future<AuthPrincipal?> auth(String token,
     {Hs256TokenVerifier? verifier, String rolesClaim = 'roles'}) async {
@@ -70,6 +81,35 @@ void main() {
         reason: 'alg $alg must be rejected',
       );
     }
+  });
+
+  test('a numeric sub builds the principal (common IdP shape)', () async {
+    final principal = await auth(signer.sign({'sub': 12345}));
+    expect(principal!.name, '12345');
+  });
+
+  test('a sub that is neither string nor number is a clean 401', () {
+    expect(() => auth(signer.sign({'sub': true})),
+        throwsA(isA<InvalidCredentialsException>()));
+  });
+
+  test('malformed exp/nbf claims reject cleanly — never crash or fail open',
+      () {
+    // A present but non-numeric expiry must NOT be silently skipped (that
+    // would accept a should-be-expired token forever), and a non-finite
+    // number must not crash round() into a 500.
+    for (final claims in [
+      {'sub': 'ada', 'exp': '1'},
+      {'sub': 'ada', 'exp': true},
+      {'sub': 'ada', 'nbf': 'soon'},
+    ]) {
+      expect(() => auth(signer.sign(claims)),
+          throwsA(isA<InvalidCredentialsException>()),
+          reason: 'claims $claims must be rejected');
+    }
+    expect(() => auth(signRaw('{"sub":"ada","exp":1e999}')),
+        throwsA(isA<InvalidCredentialsException>()),
+        reason: 'an Infinity exp must be rejected, not crash');
   });
 
   test('expired and not-yet-valid tokens are rejected; skew is tolerated',

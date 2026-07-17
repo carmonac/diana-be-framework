@@ -112,6 +112,82 @@ void main() {
           onTimeout: () => fail('handler stream was not cancelled'));
     });
 
+    test('hijacked head: real reason phrase, headers CRLF-sanitized',
+        () async {
+      final server = DianaServer()
+        ..register(
+          HttpMethod.get,
+          '/stream',
+          (req) => DianaResponse.stream(
+            Stream.value(utf8.encode('hi')),
+            statusCode: 201,
+            mimeType: 'text/plain',
+            headers: const {'x-meta': 'clean\r\ninjected: 1'},
+          ),
+        );
+      await server.serve(port: 0, quiet: true);
+      addTearDown(server.close);
+
+      final socket = await Socket.connect('127.0.0.1', server.port!);
+      socket.write('GET /stream HTTP/1.1\r\nhost: localhost\r\n\r\n');
+      await socket.flush();
+      final raw = utf8.decode(
+          await socket.fold<List<int>>([], (a, b) => a..addAll(b)));
+      socket.destroy();
+
+      expect(raw, startsWith('HTTP/1.1 201 Created\r\n'));
+      final head = raw.split('\r\n\r\n').first;
+      expect(head, contains('x-meta: clean injected: 1'),
+          reason: 'CR/LF in app-supplied header values must be stripped');
+      expect(head.split('\r\n').where((l) => l.startsWith('injected')),
+          isEmpty,
+          reason: 'a header value must not be able to inject header lines');
+    });
+
+    test('zero-length chunks do not terminate the chunked framing', () async {
+      final server = DianaServer()
+        ..register(
+          HttpMethod.get,
+          '/stream',
+          (req) => DianaResponse.stream(
+            Stream.fromIterable(<List<int>>[
+              utf8.encode('first'),
+              const [], // must be skipped: 0\r\n\r\n is the terminator
+              utf8.encode('second'),
+            ]),
+            mimeType: 'application/octet-stream',
+          ),
+        );
+      await server.serve(port: 0, quiet: true);
+      addTearDown(server.close);
+
+      final client = HttpClient();
+      addTearDown(client.close);
+      final response = await (await client.getUrl(
+              Uri.parse('http://127.0.0.1:${server.port}/stream')))
+          .close();
+      final body = await response.transform(utf8.decoder).join();
+      expect(body, 'firstsecond');
+    });
+
+    test('a source error terminates the encoded stream (no live heartbeat)',
+        () async {
+      final source = StreamController<ServerSentEvent>();
+      final out = encodeSse(source.stream, heartbeatSeconds: 1);
+      final errors = <Object>[];
+      var done = false;
+      out.listen((_) {}, onError: errors.add, onDone: () => done = true);
+
+      source.addError(StateError('source boom'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(errors, hasLength(1));
+      expect(done, isTrue,
+          reason: 'the stream must close after a source error — an open '
+              'stream would keep the heartbeat writing forever');
+      await source.close();
+    });
+
     test('copyWith preserves the stream body (middleware compatibility)',
         () {
       final response = DianaResponse.stream(const Stream.empty(),

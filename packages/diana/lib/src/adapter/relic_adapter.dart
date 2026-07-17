@@ -216,17 +216,37 @@ class RelicAdapter {
   /// back indefinitely. Hijacking the socket lets every chunk flush
   /// immediately (manual HTTP/1.1 + chunked framing), and the socket's
   /// close is the disconnect signal that cancels the source stream.
+  /// Reason phrases for the manually framed status line (empty for codes
+  /// not listed — RFC 7230 allows an empty reason-phrase).
+  static const Map<int, String> _reasonPhrases = {
+    200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content',
+    206: 'Partial Content', 301: 'Moved Permanently', 302: 'Found',
+    304: 'Not Modified', 400: 'Bad Request', 401: 'Unauthorized',
+    403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed',
+    406: 'Not Acceptable', 409: 'Conflict', 413: 'Payload Too Large',
+    415: 'Unsupported Media Type', 429: 'Too Many Requests',
+    500: 'Internal Server Error', 502: 'Bad Gateway',
+    503: 'Service Unavailable',
+  };
+
+  /// Strips CR/LF so app-supplied values cannot inject extra header lines
+  /// into the manually framed response head.
+  static String _headerSafe(String value) =>
+      value.replaceAll(RegExp('[\r\n]+'), ' ');
+
   relic.Hijack _hijackStream(DianaResponse response) {
     return relic.Hijack((channel) {
       final sink = channel.sink;
       final head = StringBuffer()
-        ..write('HTTP/1.1 ${response.statusCode} OK\r\n')
+        ..write('HTTP/1.1 ${response.statusCode} '
+            '${_reasonPhrases[response.statusCode] ?? ''}\r\n')
         ..write('content-type: '
-            '${response.mimeType ?? 'application/octet-stream'}\r\n')
+            '${_headerSafe(response.mimeType ?? 'application/octet-stream')}\r\n')
         ..write('transfer-encoding: chunked\r\n')
         ..write('connection: close\r\n');
       for (final entry in response.headers.entries) {
-        head.write('${entry.key}: ${entry.value}\r\n');
+        head.write(
+            '${_headerSafe(entry.key)}: ${_headerSafe(entry.value)}\r\n');
       }
       head.write('\r\n');
       sink.add(head.toString().codeUnits);
@@ -243,11 +263,15 @@ class RelicAdapter {
 
       subscription = response.bodyStream!.listen(
         (chunk) {
+          // A zero-length chunk would frame as `0\r\n\r\n` — the HTTP/1.1
+          // terminator — truncating the stream mid-body.
+          if (chunk.isEmpty) return;
           sink.add('${chunk.length.toRadixString(16)}\r\n'.codeUnits);
           sink.add(chunk);
           sink.add('\r\n'.codeUnits);
         },
         onError: (Object _) {
+          unawaited(subscription.cancel());
           finish();
         },
         onDone: () => finish(trailer: true),

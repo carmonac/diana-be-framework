@@ -48,7 +48,8 @@ underscores). Your application adds its own keys freely (`@Value`,
 
 | Key | Default | Meaning |
 |---|---|---|
-| `server.multipart.maxSize` | `10485760` (10 MiB) | Multipart body limit; exceeding ⇒ 413 |
+| `server.maxBodyBytes` | `10485760` (10 MiB) | Request body limit for non-multipart bodies (JSON, forms, raw `String`, custom codecs); exceeding ⇒ 413. `0` disables |
+| `server.multipart.maxSize` | `10485760` (10 MiB) | Multipart body limit (raw stream, including part headers); exceeding ⇒ 413. Replaces `server.maxBodyBytes` for `multipart/form-data` requests |
 
 ## Server-Sent Events
 

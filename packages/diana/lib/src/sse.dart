@@ -56,7 +56,15 @@ Stream<List<int>> encodeSse(
     startHeartbeat();
     subscription = events.listen(
       (event) => controller.add(utf8.encode(encodeSseEvent(event))),
-      onError: controller.addError,
+      onError: (Object error, StackTrace stackTrace) {
+        // A source error terminates the stream: cancel the heartbeat (it
+        // would otherwise keep writing into the closed connection forever)
+        // and close after forwarding.
+        heartbeat?.cancel();
+        unawaited(subscription.cancel());
+        controller.addError(error, stackTrace);
+        controller.close();
+      },
       onDone: controller.close,
     );
   };

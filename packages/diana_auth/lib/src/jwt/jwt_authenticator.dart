@@ -31,8 +31,16 @@ class JwtAuthenticator implements Authenticator {
     }
 
     final claims = verifier.verify(token);
+    // `sub` is StringOrURI per RFC 7519, but many issuers emit numeric ids;
+    // anything else is malformed and must reject as 401, never crash (500).
+    final sub = switch (claims['sub']) {
+      null => '',
+      final String value => value,
+      final num value => '$value',
+      _ => throw const InvalidCredentialsException('Malformed subject claim'),
+    };
     return AuthPrincipal(
-      claims['sub'] as String? ?? '',
+      sub,
       roles: _rolesOf(claims[rolesClaim]),
       attributes: claims,
     );

@@ -2,6 +2,7 @@
 /// `application/x-www-form-urlencoded` bodies, bound with `@Body() FormData`.
 library;
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:mime/mime.dart';
@@ -52,7 +53,10 @@ class FormData {
 
 /// Decodes a `multipart/form-data` or `application/x-www-form-urlencoded`
 /// body. Any other content type is a 415; a multipart body larger than
-/// `request.limits.multipartMaxBytes` is a 413.
+/// `request.limits.multipartMaxBytes` is a 413 (the raw stream — including
+/// part headers and boundaries — is capped by [DianaRequest.readBodyAsBytes];
+/// the per-part sum below is a second, decoded-content check). Urlencoded
+/// bodies are capped at `request.limits.maxBodyBytes` by the string read.
 Future<FormData> decodeFormBody(DianaRequest request) async {
   final contentType = request.header('content-type') ?? '';
   final mime = contentType.split(';').first.trim().toLowerCase();
@@ -102,7 +106,12 @@ Future<FormData> decodeFormBody(DianaRequest request) async {
     final bytes = builder.takeBytes();
 
     if (filename == null && part.headers['content-type'] == null) {
-      fields[name] = String.fromCharCodes(bytes);
+      try {
+        fields[name] = utf8.decode(bytes);
+      } on FormatException {
+        throw BadRequestException(
+            "Multipart field '$name' is not valid UTF-8.");
+      }
     } else {
       files.add(UploadedFile(
         name: name,

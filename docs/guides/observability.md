@@ -15,8 +15,8 @@ scheduler, event bus and database (no per-route code):
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.8.0
-  diana_observability: ^0.8.0
+  diana: ^0.9.0
+  diana_observability: ^0.9.0
 ```
 
 ```dart

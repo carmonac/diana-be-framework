@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0
+
+- The migration runner splits SQL files on top-level `;` only: quoted
+  strings/identifiers and comments may contain semicolons. Dollar-quoted
+  and trigger bodies remain unsupported (documented).
+
+## 0.8.1
+
+- `migrate()` is leader-only: worker isolates skip it so a shared database
+  is migrated exactly once under multi-isolate serving.
+
 ## 0.8.0
 
 - `Database` accepts an optional `DianaObserver`, wrapping the five query

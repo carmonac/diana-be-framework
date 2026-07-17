@@ -21,6 +21,27 @@ void main() {
     expect(runs, inInclusiveRange(2, 4));
   });
 
+  test('a task that throws synchronously lands in onError, not the zone',
+      () async {
+    final errors = <Object>[];
+    var laterRuns = 0;
+    Future<void> syncBoom() {
+      throw StateError('sync throw'); // before returning any future
+    }
+
+    final scheduler = DianaScheduler(onError: (e, st) => errors.add(e))
+      ..schedule(task: syncBoom, fixedDelayMs: 20)
+      ..schedule(task: () async => laterRuns++, fixedDelayMs: 20)
+      ..start();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await scheduler.stop();
+
+    expect(errors, isNotEmpty,
+        reason: 'a synchronous throw must reach onError — escaping the '
+            'timer callback would kill the isolate');
+    expect(laterRuns, greaterThan(0));
+  });
+
   test('errors are reported and do not stop the schedule', () async {
     final errors = <Object>[];
     var runs = 0;

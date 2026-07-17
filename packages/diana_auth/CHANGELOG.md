@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0
+
+- Version bump only (kept in lockstep with the workspace).
+
+## 0.8.1
+
+- JWT claim hardening: numeric `sub` accepted, malformed `sub` rejects as
+  401; a present but non-numeric (or non-finite) `exp`/`nbf` now rejects
+  instead of crashing (500) or being silently skipped (fail-open).
+
 ## 0.8.0
 
 - Version bump only (kept in lockstep with the workspace).

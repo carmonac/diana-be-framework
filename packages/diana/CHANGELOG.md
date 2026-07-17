@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.9.0
+
+- Request body size limit: `server.maxBodyBytes` (default 10 MiB) caps
+  every non-multipart body read through `DianaRequest` with streaming
+  enforcement (413); `server.multipart.maxSize` now bounds the raw
+  multipart stream, part headers included.
+- Shutdown drains in-flight remote-event dispatches before `dispose()`;
+  `dispatchRemote` tolerates listeners registered mid-dispatch. Hijacked
+  streaming responses send a real reason phrase and strip CR/LF from
+  header values.
+- Multi-isolate startup is coordinated and fail-closed: no isolate serves
+  until all are initialized, and a startup failure shuts down
+  already-spawned workers before rethrowing.
+
+## 0.8.1
+
+- Multi-isolate shutdown never hangs: worker dispose failures are reported,
+  hung workers are killed after `DianaRuntime.workerShutdownTimeout`, dead
+  worker isolates are detected and skipped. Scheduler: no more `Timer` leak
+  on `fixedDelay` re-arms; synchronous task throws reach `onError`.
+  Multipart fields decode as UTF-8; zero-length chunks no longer truncate
+  streamed responses; SSE source errors stop the heartbeat; denied CORS
+  responses carry `Vary: Origin`; the event bus tolerates listeners
+  registered mid-dispatch.
+
 ## 0.8.0
 
 - Added the neutral `DianaObserver` contract (`observer.dart`) and threaded

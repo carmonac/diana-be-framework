@@ -14,8 +14,8 @@ and supply the connection through a small connector.
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.8.0
-  diana_data: ^0.8.0
+  diana: ^0.9.0
+  diana_data: ^0.9.0
   knex_dart_sqlite: ^0.4.0   # your driver of choice
 ```
 
@@ -108,11 +108,22 @@ Constraints (build errors): the class must be **extendable** (not
 `@Transactional` only applies to `@Service`/`@Component`/`@Repository`
 providers.
 
+**Caveat — always `await` database work inside a transaction.** The ambient
+transaction travels on the current `Zone`, so anything fired and forgotten
+inside a `@Transactional` body (`unawaited(db.insert(...))`, a `Timer`, a
+detached `Future`) still carries the transaction after the method returns —
+by then it has committed or rolled back, and a late query against it throws.
+This fails loudly rather than corrupting data, but the fix is structural:
+`await` every database call before the transactional method returns.
+
 ## Migrations
 
 Set `db.migrations.dir` and Diana runs every `*.sql` file in that directory
 (lexically sorted) that hasn't been applied yet, once each, during startup —
-tracked in a `_diana_migrations` table. It is opt-in: with the key unset,
+tracked in a `_diana_migrations` table. Migrations are **leader-only**
+(like `@Scheduled`): under multi-isolate serving only the main isolate
+migrates, so a shared database is migrated exactly once. It is opt-in:
+with the key unset,
 nothing runs.
 
 ```yaml
@@ -128,6 +139,24 @@ CREATE TABLE posts (
   title TEXT NOT NULL
 );
 ```
+
+A file may hold several statements, separated by `;`. The splitter
+understands single-quoted strings (including `''` escapes), double-quoted
+identifiers and `--` / `/* */` comments, so a `;` inside any of those does
+not break a statement apart, and separator-only or comment-only segments
+are dropped.
+
+**Limitations** — it is not a full SQL parser. Constructs that carry a raw
+`;` inside a statement body still fragment:
+
+- Postgres **dollar-quoted bodies** (`$$ … $$` in `CREATE FUNCTION` /
+  `DO` blocks);
+- SQLite **trigger bodies** (`CREATE TRIGGER … BEGIN … ; … END`).
+
+Apply such DDL outside the migration runner (e.g. via `db.raw(...)` from a
+`@PostConstruct` hook), or write the body without inner semicolons. Each
+migration file runs in a single transaction, so a mis-split statement fails
+the file atomically at startup — the schema is left untouched.
 
 ## Health
 

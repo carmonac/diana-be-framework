@@ -27,7 +27,6 @@ class DianaScheduler {
   final DianaObserver? observer;
 
   final List<_Task> _tasks = [];
-  final List<Timer> _timers = [];
   var _started = false;
   var _stopped = false;
 
@@ -63,26 +62,28 @@ class DianaScheduler {
     _started = true;
     for (final task in _tasks) {
       if (!task.perIsolate && DianaRuntime.isWorkerIsolate) continue;
-      _timers.add(Timer(Duration(milliseconds: task.initialDelayMs), () {
+      // Each task owns exactly one live timer slot; re-arms REPLACE it (a
+      // grow-only timer list would leak one Timer per fixedDelay run).
+      task.timer = Timer(Duration(milliseconds: task.initialDelayMs), () {
         if (_stopped) return;
         if (task.fixedRateMs != null) {
           _runGuarded(task); // first tick fires at initialDelay
-          _timers.add(Timer.periodic(
+          task.timer = Timer.periodic(
             Duration(milliseconds: task.fixedRateMs!),
             (_) => _runGuarded(task),
-          ));
+          );
         } else {
           _runFixedDelay(task);
         }
-      }));
+      });
     }
   }
 
   /// Cancels all timers and waits for in-flight runs to finish.
   Future<void> stop() async {
     _stopped = true;
-    for (final timer in _timers) {
-      timer.cancel();
+    for (final task in _tasks) {
+      task.timer?.cancel();
     }
     await Future.wait([
       for (final task in _tasks)
@@ -91,10 +92,13 @@ class DianaScheduler {
   }
 
   /// Runs [task], reporting duration and success/failure to [observer].
+  /// `Future.sync`: a task that throws before returning its future must land
+  /// in the schedule's error path, not escape the timer callback (which
+  /// would kill the isolate).
   Future<void> _measuredRun(_Task task) {
-    if (observer == null) return task.run();
+    if (observer == null) return Future.sync(task.run);
     final sw = Stopwatch()..start();
-    return task.run().then(
+    return Future.sync(task.run).then(
       (_) => observer!.observeScheduledRun(task.name, sw.elapsed, success: true),
       onError: (Object e, StackTrace st) {
         observer!.observeScheduledRun(task.name, sw.elapsed, success: false);
@@ -117,10 +121,10 @@ class DianaScheduler {
     }).whenComplete(() {
       task.inFlight = null;
       if (_stopped) return;
-      _timers.add(Timer(
+      task.timer = Timer(
         Duration(milliseconds: task.fixedDelayMs!),
         () => _runFixedDelay(task),
-      ));
+      );
     });
   }
 
@@ -138,6 +142,10 @@ class _Task {
   final bool perIsolate;
   final String? name;
   Future<void>? inFlight;
+
+  /// The single live timer for this task (initial delay, then the periodic
+  /// or re-armed one).
+  Timer? timer;
 
   _Task(this.run, this.fixedRateMs, this.fixedDelayMs, this.initialDelayMs,
       {required this.perIsolate, this.name});

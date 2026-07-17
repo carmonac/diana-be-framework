@@ -38,6 +38,40 @@ void main() {
     });
   });
 
+  group('cache safety', () {
+    test('denied or absent origins still get Vary: Origin (cache safety)',
+        () async {
+      const policy = CorsPolicy(allowedOrigins: ['https://ok.example']);
+      final handler =
+          withCors(policy, (req) async => const DianaResponse.text('hi'));
+
+      final denied = await handler(DianaRequest(
+        method: HttpMethod.get,
+        uri: Uri.parse('/x'),
+        headers: {
+          'origin': ['https://evil.example'],
+        },
+      ));
+      expect(denied.headers['access-control-allow-origin'], isNull);
+      expect(denied.headers['vary'], 'Origin');
+
+      final sameOrigin = await handler(
+          DianaRequest(method: HttpMethod.get, uri: Uri.parse('/x')));
+      expect(sameOrigin.headers['vary'], 'Origin');
+
+      final preflight = corsPreflightHandler(const {});
+      final deniedPreflight = await preflight(DianaRequest(
+        method: HttpMethod.options,
+        uri: Uri.parse('/x'),
+        headers: {
+          'origin': ['https://evil.example'],
+          'access-control-request-method': ['DELETE'],
+        },
+      ));
+      expect(deniedPreflight.headers['vary'], 'Origin');
+    });
+  });
+
   group('end-to-end over DianaServer', () {
     late DianaServer server;
 

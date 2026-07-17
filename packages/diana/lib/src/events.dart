@@ -74,7 +74,10 @@ class DianaEventBus implements DianaEventPublisher {
   Future<void> publish(Object event) async {
     final sw = observer == null ? null : (Stopwatch()..start());
     try {
-      for (final registration in _registrations) {
+      // Snapshot: a listener registering another listener mid-dispatch must
+      // not throw ConcurrentModificationError (the new listener joins from
+      // the next publish).
+      for (final registration in List.of(_registrations)) {
         if (registration.matches(event)) {
           await Future.sync(() => registration.invoke(event));
         }
@@ -112,7 +115,9 @@ class DianaEventBus implements DianaEventPublisher {
   /// routed to `onError` instead of thrown — there is no cross-isolate
   /// caller to propagate them to.
   Future<void> dispatchRemote(Object event) async {
-    for (final registration in _registrations) {
+    // Same snapshot as publish(): registering a listener mid-dispatch must
+    // not throw ConcurrentModificationError.
+    for (final registration in List.of(_registrations)) {
       if (registration.matches(event)) {
         try {
           await Future.sync(() => registration.invoke(event));

@@ -77,9 +77,16 @@ class Hs256TokenVerifier implements TokenVerifier {
         _ => false,
       };
 
-  static DateTime? _numericDate(Object? claim) => claim is num
-      ? DateTime.fromMillisecondsSinceEpoch((claim * 1000).round())
-      : null;
+  /// `null` only when the claim is absent. A present claim that is not a
+  /// finite number is malformed and REJECTED — silently skipping the check
+  /// would fail open on expiry, and `Infinity`/`NaN` would crash `round()`.
+  static DateTime? _numericDate(Object? claim) {
+    if (claim == null) return null;
+    if (claim is! num || !claim.isFinite) {
+      throw const InvalidCredentialsException('Malformed token claims');
+    }
+    return DateTime.fromMillisecondsSinceEpoch((claim * 1000).round());
+  }
 
   static Map<String, Object?> _decodeJsonSegment(String segment) {
     final Object? decoded;

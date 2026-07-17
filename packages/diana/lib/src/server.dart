@@ -40,6 +40,8 @@ class DianaServer {
 
   late final RelicAdapter _adapter = RelicAdapter(
     limits: DianaRequestLimits(
+      maxBodyBytes: config.get<int>('server.maxBodyBytes',
+          defaultValue: 10 * 1024 * 1024),
       multipartMaxBytes: config.get<int>('server.multipart.maxSize',
           defaultValue: 10 * 1024 * 1024),
       sseHeartbeatSeconds:

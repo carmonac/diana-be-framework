@@ -73,7 +73,12 @@ DianaHandler withCors(CorsPolicy policy, DianaHandler inner) {
   return (request) async {
     final response = await inner(request);
     final allow = policy.allowOriginFor(request.header('origin'));
-    if (allow == null) return response;
+    if (allow == null) {
+      // Still `Vary: Origin`: shared caches must not serve this no-CORS
+      // response to a request from an allowed origin (or vice versa).
+      return response
+          .copyWith(headers: {...response.headers, 'vary': 'Origin'});
+    }
     return response.copyWith(headers: {
       ...response.headers,
       'access-control-allow-origin': allow,
@@ -102,8 +107,9 @@ DianaHandler corsPreflightHandler(Map<HttpMethod, CorsPolicy> policies) {
     final allow = policy?.allowOriginFor(request.header('origin'));
     if (policy == null || allow == null) {
       // Not a valid CORS preflight for this path: 204 without CORS headers
-      // (the browser will reject the cross-origin call).
-      return const DianaResponse.noContent();
+      // (the browser will reject the cross-origin call). `Vary: Origin`
+      // keeps shared caches from replaying the denial to allowed origins.
+      return const DianaResponse.noContent(headers: {'vary': 'Origin'});
     }
     final methods = policy.allowedMethods ??
         [for (final m in policies.keys) m.name.toUpperCase()];

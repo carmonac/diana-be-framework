@@ -100,6 +100,12 @@ Body handling is strict and automatic:
 - If the DTO carries [validation](validation.md) constraints, the generated
   validator runs before your method — an invalid payload never reaches you
   (structured **400**).
+- Bodies larger than `server.maxBodyBytes` (default 10 MiB) → **413**,
+  rejected while streaming, so an oversized body is never buffered in
+  memory. Multipart uploads have their own cap, `server.multipart.maxSize`
+  (also 10 MiB by default) — raise that one for large file uploads. Setting
+  either key to `0` disables it. See
+  [config keys](../reference/config-keys.md#bodies).
 
 ## Return types
 

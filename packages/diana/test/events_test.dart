@@ -17,6 +17,22 @@ class OtherEvent {
 }
 
 void main() {
+  test('a listener registering another listener mid-dispatch is safe', () async {
+    final bus = DianaEventBus();
+    final seen = <String>[];
+    bus.on<String>((e) {
+      seen.add('first:$e');
+      // Must not throw ConcurrentModificationError; the new listener joins
+      // from the next publish.
+      bus.on<String>((e2) => seen.add('second:$e2'));
+    });
+    await bus.publish('a');
+    expect(seen, ['first:a']);
+    seen.clear();
+    await bus.publish('b');
+    expect(seen, ['first:b', 'second:b']);
+  });
+
   test('dispatches by subtype and skips unrelated listeners', () async {
     final bus = DianaEventBus();
     final base = <String>[];

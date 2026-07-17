@@ -41,7 +41,7 @@ Directly constructible — useful in unit tests.
 | `Map<String, List<String>> queryParametersAll` | Multi-valued query parameters. |
 | `String? header(String name)` | First value of a header, case-insensitive; `null` when absent. |
 | `List<String> headerAll(String name)` | All values of a header. |
-| `Future<String> readBodyAsString()` | Reads the body; the first read is cached, so multiple readers (middleware + binding) are safe. |
+| `Future<String> readBodyAsString()` | Reads the body; the first read is cached, so multiple readers (middleware + binding) are safe. A body over the applicable size limit is a 413 (`PayloadTooLargeException`), enforced while streaming. |
 | `Map<String, Object?> attributes` | Per-request bag for middleware → handler communication. |
 | `BodyCodecRegistry codecs` | Registered body codecs (JSON always available) — consulted by the `@Consumes`/`@Produces` helpers. Stamped by the server, like `limits`. |
 
@@ -69,13 +69,23 @@ generated adapter build one; return a `DianaResponse` for full control.
 
 ### `DianaRequestLimits`
 
-`const DianaRequestLimits({int multipartMaxBytes = 10485760, int
-sseHeartbeatSeconds = 15})` — limits stamped onto every request by the
-server (from `server.multipart.maxSize` and `server.sse.heartbeatSeconds`),
-consulted by binding helpers. Exposed as `DianaRequest.limits`.
+`const DianaRequestLimits({int maxBodyBytes = 10485760, int
+multipartMaxBytes = 10485760, int sseHeartbeatSeconds = 15})` — limits
+stamped onto every request by the server (from `server.maxBodyBytes`,
+`server.multipart.maxSize` and `server.sse.heartbeatSeconds`), consulted by
+`readBodyAsString`/`readBodyAsBytes` and the binding helpers. Exposed as
+`DianaRequest.limits`.
+
+The body cap is picked by content type: `multipartMaxBytes` for
+`multipart/form-data` requests, `maxBodyBytes` for everything else (JSON,
+urlencoded forms, raw `@Body String`, custom codecs). Enforcement is
+streaming — an oversized `Content-Length` is rejected before reading, and a
+chunked body is cut off as soon as the count exceeds the cap — and throws
+`PayloadTooLargeException` (413). A zero or negative value disables the
+corresponding cap.
 
 `DianaRequest` also exposes `Stream<Uint8List> readBodyAsBytes()` for raw
-byte access (used by multipart decoding).
+byte access (used by multipart decoding), enforcing the same limit.
 
 ---
 
@@ -188,8 +198,9 @@ See [Server-Sent Events](../guides/server-sent-events.md).
 - `UploadedFile { String name; String? filename; String? contentType; Uint8List bytes; int size; }`
 - `FormData { Map<String, String> fields; List<UploadedFile> files; UploadedFile? file(name); }`
 - `Future<FormData> decodeFormBody(DianaRequest)` — parses
-  `multipart/form-data` (with the size guard → 413) and
-  `application/x-www-form-urlencoded`; other types ⇒ 415.
+  `multipart/form-data` (raw stream capped at `multipartMaxBytes`,
+  including part headers → 413) and `application/x-www-form-urlencoded`
+  (capped at `maxBodyBytes`); other types ⇒ 415.
 
 ### Health (`health.dart`)
 
@@ -241,10 +252,15 @@ See [Application events](../guides/events.md).
   [operations](../guides/operations.md#multi-isolate-serving-experimental).
   With multiple isolates and an event bus, broadcast events are bridged
   hub-and-spoke through the main isolate (exactly-once per isolate).
+  Startup is coordinated (no isolate serves until all are initialized) and
+  fail-closed (a startup error shuts down already-spawned workers before
+  it propagates out of `run`).
 - `DianaRuntime.isWorkerIsolate` — `true` inside worker isolates spawned
   by multi-isolate serving (set before the worker's bootstrap runs);
   `false` on the main isolate and in embedded use. `DianaScheduler`
   consults it to run leader-only tasks once per process.
+- `DianaRuntime.workerShutdownTimeout` — how long shutdown waits for each
+  worker isolate to close and dispose before killing it (default 15s).
 
 ### OpenAPI (`openapi.dart`)
 

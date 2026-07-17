@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:diana/diana.dart' show DianaConfig, DianaObserver;
+import 'package:diana/diana.dart' show DianaConfig, DianaObserver, DianaRuntime;
 import 'package:knex_dart/knex_dart.dart' show QueryBuilder;
 
 import 'connector.dart';
@@ -57,38 +57,42 @@ class Database {
 
   /// Wraps a database operation in the observer, if any.
   Future<T> _observed<T>(String operation, Future<T> Function() run) async =>
-      observer == null ? await run() : await observer!.observeQuery(operation, run);
+      observer == null
+          ? await run()
+          : await observer!.observeQuery(operation, run);
 
   /// Runs a SELECT-shaped [query] and returns the rows.
-  Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
-      _observed('select', () async =>
-          (await (_executor as dynamic).select(query) as List)
-              .cast<Map<String, dynamic>>());
+  Future<List<Map<String, dynamic>>> select(QueryBuilder query) => _observed(
+      'select',
+      () async => (await (_executor as dynamic).select(query) as List)
+          .cast<Map<String, dynamic>>());
 
   /// Runs an INSERT [query].
-  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
-      _observed('insert', () async =>
-          (await (_executor as dynamic).insert(query) as List)
-              .cast<Map<String, dynamic>>());
+  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) => _observed(
+      'insert',
+      () async => (await (_executor as dynamic).insert(query) as List)
+          .cast<Map<String, dynamic>>());
 
   /// Runs an UPDATE [query].
-  Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
-      _observed('update', () async =>
-          (await (_executor as dynamic).update(query) as List)
-              .cast<Map<String, dynamic>>());
+  Future<List<Map<String, dynamic>>> update(QueryBuilder query) => _observed(
+      'update',
+      () async => (await (_executor as dynamic).update(query) as List)
+          .cast<Map<String, dynamic>>());
 
   /// Runs a DELETE [query].
-  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
-      _observed('delete', () async =>
-          (await (_executor as dynamic).delete(query) as List)
-              .cast<Map<String, dynamic>>());
+  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) => _observed(
+      'delete',
+      () async => (await (_executor as dynamic).delete(query) as List)
+          .cast<Map<String, dynamic>>());
 
   /// Executes raw [sql] against the ambient executor.
   Future<List<Map<String, dynamic>>> raw(String sql,
           [List<Object?> bindings = const []]) =>
-      _observed('raw', () async =>
-          (await (_executor as dynamic).rawSql(sql, bindings) as List)
-              .cast<Map<String, dynamic>>());
+      _observed(
+          'raw',
+          () async =>
+              (await (_executor as dynamic).rawSql(sql, bindings) as List)
+                  .cast<Map<String, dynamic>>());
 
   /// Runs [body] inside a transaction. Nested calls **join** the enclosing
   /// transaction as a savepoint (propagation REQUIRED); a throw rolls the
@@ -110,6 +114,10 @@ class Database {
   Future<void> migrate() async {
     final dir = config.get<String?>('db.migrations.dir');
     if (dir == null) return;
+    // Leader-only, like @Scheduled: every isolate opens the pool, but with
+    // multi-isolate serving a shared database must be migrated exactly once
+    // (concurrent DDL from N isolates races and crashes worker startup).
+    if (DianaRuntime.isWorkerIsolate) return;
     await raw('CREATE TABLE IF NOT EXISTS _diana_migrations '
         '(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
     final applied = {
@@ -137,8 +145,56 @@ class Database {
     }
   }
 
-  static Iterable<String> _splitStatements(String sql) => sql
-      .split(';')
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty);
+  /// Splits [sql] into statements on top-level `;`, skipping separators that
+  /// appear inside single-quoted strings (with `''` escapes), double-quoted
+  /// identifiers (with `""` escapes), `--` line comments or `/* */` block
+  /// comments. Segments containing only whitespace/comments are dropped.
+  ///
+  /// Not a full SQL parser — dollar-quoted bodies (`$$ … $$`, Postgres) and
+  /// procedural `BEGIN … END;` bodies (SQLite triggers) still fragment; see
+  /// the limitations note in docs/guides/persistence.md.
+  static Iterable<String> _splitStatements(String sql) sync* {
+    final statement = StringBuffer();
+    var hasContent = false; // any non-comment, non-whitespace character
+    var i = 0;
+    while (i < sql.length) {
+      final c = sql[i];
+      if (c == ';') {
+        if (hasContent) yield statement.toString().trim();
+        statement.clear();
+        hasContent = false;
+        i++;
+      } else if (c == "'" || c == '"') {
+        // Quoted string/identifier: a doubled quote is an escape, not an end.
+        final start = i++;
+        while (i < sql.length) {
+          if (sql[i] != c) {
+            i++;
+          } else if (i + 1 < sql.length && sql[i + 1] == c) {
+            i += 2;
+          } else {
+            i++;
+            break;
+          }
+        }
+        statement.write(sql.substring(start, i));
+        hasContent = true;
+      } else if (c == '-' && i + 1 < sql.length && sql[i + 1] == '-') {
+        final start = i;
+        final newline = sql.indexOf('\n', i);
+        i = newline == -1 ? sql.length : newline;
+        statement.write(sql.substring(start, i));
+      } else if (c == '/' && i + 1 < sql.length && sql[i + 1] == '*') {
+        final start = i;
+        final end = sql.indexOf('*/', i + 2);
+        i = end == -1 ? sql.length : end + 2;
+        statement.write(sql.substring(start, i));
+      } else {
+        statement.write(c);
+        if (c.trim().isNotEmpty) hasContent = true;
+        i++;
+      }
+    }
+    if (hasContent) yield statement.toString().trim();
+  }
 }

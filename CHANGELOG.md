@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.9.0 — 2026-07-17
+
+### Request body size limit (security hardening)
+- New `server.maxBodyBytes` config key (default 10 MiB): all request
+  bodies read through `DianaRequest` — JSON, urlencoded forms, raw
+  `@Body String`, custom codecs — are now capped, returning **413** when
+  exceeded. Enforcement is streaming: an oversized declared
+  `Content-Length` is rejected before the body is read, and chunked bodies
+  are cut off as soon as the count passes the cap — an oversized body is
+  never fully buffered. `multipart/form-data` keeps its own key,
+  `server.multipart.maxSize`, which now bounds the raw stream (part
+  headers included). Setting either key to `0` disables that cap.
+
+### Multi-isolate startup hardening (behavior fix)
+- Startup is now fail-closed: if a worker fails to spawn or the main
+  isolate's `initialize()`/bind throws, `DianaRuntime.run` shuts down the
+  already-spawned workers before rethrowing instead of leaking live
+  serving isolates with no coordinator.
+- Workers no longer serve during the startup window: they bootstrap and
+  `initialize()` when spawned but bind the shared socket only after every
+  worker exists and the main isolate has initialized, so an early request
+  can no longer trigger a broadcast that reaches an uninitialized main
+  context or misses a not-yet-spawned sibling (restores the documented
+  exactly-once delivery from the very first request).
+
+### Remaining audit follow-ups
+- Shutdown now drains in-flight cross-isolate event dispatches (on the main
+  isolate and in workers) before `dispose()`, so a listener mid-run never
+  sees its dependencies torn down; `dispatchRemote` also tolerates listeners
+  registered mid-dispatch.
+- Hijacked streaming responses send a real reason phrase per status code,
+  and CR/LF in application-supplied header values is stripped (no header
+  injection through the manually framed head).
+- Documented the ambient-transaction caveat: database work fired and
+  forgotten inside `@Transactional` outlives the transaction and fails
+  loudly — always `await` it (persistence guide).
+
+### Migration runner: robust SQL statement splitting
+- `diana_data` now splits migration files on top-level `;` only —
+  single-quoted strings (with `''` escapes), double-quoted identifiers and
+  `--` / `/* */` comments may contain semicolons without fragmenting a
+  statement. Dollar-quoted (Postgres) and trigger `BEGIN … END` (SQLite)
+  bodies remain unsupported (documented in the persistence guide).
+
+## 0.8.1 — 2026-07-17
+
+### Hardening (adversarial-review fixes)
+- **Auth**: malformed-but-signed claims now reject cleanly as 401 instead of
+  crashing to 500 (numeric `sub` is accepted, other non-string shapes
+  reject; non-finite `exp`/`nbf` reject) — and a present but non-numeric
+  `exp`/`nbf` is **rejected instead of silently skipped** (was fail-open:
+  such a token never expired).
+- **Multi-isolate shutdown never hangs**: a worker whose dispose throws is
+  reported (with its stack) instead of deadlocking the process; a worker
+  that hangs is killed after `DianaRuntime.workerShutdownTimeout`; a worker
+  isolate that dies is detected (`onExit`/`onError`), logged, and skipped
+  by the event relay and shutdown. An erroring `shutdownTrigger` still
+  shuts down.
+- **Scheduler**: `fixedDelay` re-arms no longer leak a `Timer` per run;
+  a task throwing synchronously lands in `onError` instead of killing the
+  isolate.
+- **HTTP**: multipart text fields are UTF-8 decoded (was Latin-1 mojibake;
+  invalid UTF-8 is a 400); a zero-length chunk no longer terminates chunked
+  streaming responses; an SSE source error now closes the stream and stops
+  the heartbeat (was a timer/socket leak); CORS responses for denied or
+  absent origins carry `Vary: Origin` (shared-cache safety).
+- **Events**: a listener registering another listener mid-dispatch no
+  longer throws `ConcurrentModificationError`; failed dispatches are still
+  counted by the observer.
+- **Data**: `migrate()` is leader-only, like `@Scheduled` — with
+  multi-isolate serving a shared database is migrated exactly once.
+
 ## 0.8.0 — 2026-07-17
 
 ### Observability (new `diana_observability` package)

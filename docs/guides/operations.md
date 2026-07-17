@@ -28,7 +28,20 @@ server:
 `initialize()` — and binds the same port with shared sockets; the OS
 distributes connections. The main isolate owns the signal handlers and
 coordinates worker shutdown (workers close and dispose before the main
-isolate does).
+isolate does). Worker failure is contained: a worker whose dispose throws
+is reported on stderr (shutdown still completes), a worker that hangs is
+killed after `DianaRuntime.workerShutdownTimeout` (default 15s), and a
+worker isolate that dies from an uncaught error is logged and skipped by
+the event relay and by shutdown.
+
+Startup is coordinated and fail-closed: workers bootstrap and run
+`initialize()` when spawned, but no isolate accepts connections until every
+worker exists and the main isolate has initialized — early traffic can
+neither reach an isolate whose `@PostConstruct` hasn't run nor trigger a
+broadcast that misses a not-yet-spawned sibling. If any isolate fails to
+start (or the main `initialize()` throws), the already-spawned workers are
+shut down before the error propagates — a failed startup never leaves
+orphan isolates serving.
 
 Constraints:
 
