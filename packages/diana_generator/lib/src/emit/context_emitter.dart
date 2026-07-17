@@ -97,6 +97,18 @@ ContextEmission emitContext(DiGraph graph) {
     }
   }
 
+  // The single DianaCacheStore provider (validated in the bootstrap), if
+  // any — threaded as the proxy's `_cacheStore` slot for cached classes.
+  ResolvedProvider? cacheStoreProvider;
+  for (final p in graph.ordered) {
+    if (p.info.supertypes.any((s) =>
+        s.name == 'DianaCacheStore' &&
+        s.libraryUri.startsWith('package:diana/'))) {
+      cacheStoreProvider = p;
+      break;
+    }
+  }
+
   // 'eventBus'/'database' are reserved only when used, so apps without those
   // features keep byte-identical output.
   final used = <String>{
@@ -183,18 +195,35 @@ ContextEmission emitContext(DiGraph graph) {
           positional.add(depExpr(dep));
         }
       }
-      // @Transactional providers are constructed as a generated proxy
-      // subclass ($Tx$X, local to the app library) that takes the Database
-      // as its first positional argument.
-      final isTransactional = provider.info.transactionalMethods.isNotEmpty;
-      if (isTransactional) {
-        construction = refer('\$Tx\$${provider.info.type.name}').newInstance(
+      // Aspect-annotated providers are constructed as a generated proxy
+      // subclass, local to the app library: the historical $Tx$X (Database
+      // first) when only @Transactional is used, or $Aspect$X — observer
+      // and/or Database prepended — when new aspects are present.
+      final info = provider.info;
+      final observability = observabilityProvider;
+      final cacheStore = cacheStoreProvider;
+      if (info.hasNewAspects) {
+        construction = refer('\$Aspect\$${info.type.name}').newInstance(
+          [
+            if (info.hasTimed)
+              observability == null
+                  ? literalNull
+                  : ctxProp(names.fields[observability.key]!),
+            if (info.hasCacheable && cacheStore != null)
+              ctxProp(names.fields[cacheStore.key]!),
+            if (info.hasTx) ctxProp(names.database!),
+            ...positional,
+          ],
+          named,
+        );
+      } else if (info.hasTx) {
+        construction = refer('\$Tx\$${info.type.name}').newInstance(
           [ctxProp(names.database!), ...positional],
           named,
         );
       } else {
         construction =
-            referenceOf(provider.info.type).newInstance(positional, named);
+            referenceOf(info.type).newInstance(positional, named);
       }
     }
     final overridesExpr =

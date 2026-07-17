@@ -152,8 +152,10 @@ class InjectableInfo {
   /// `@EventListener` methods of this provider.
   final List<EventListenerInfo> eventListeners;
 
-  /// `@Transactional` methods of this provider (proxied by the generator).
-  final List<TransactionalMethodInfo> transactionalMethods;
+  /// Aspect-annotated methods of this provider (`@Transactional`, `@Timed`,
+  /// `@Cacheable`, `@Retryable`, `@CircuitBreaker`) — proxied by the
+  /// generator.
+  final List<AspectMethodInfo> aspectMethods;
 
   const InjectableInfo({
     required this.type,
@@ -170,7 +172,7 @@ class InjectableInfo {
     this.preDestroyAwaited = false,
     this.scheduled = const [],
     this.eventListeners = const [],
-    this.transactionalMethods = const [],
+    this.aspectMethods = const [],
   });
 
   /// Unique key of this provider in the graph.
@@ -195,9 +197,8 @@ class InjectableInfo {
           'scheduled': [for (final t in scheduled) t.toJson()],
         if (eventListeners.isNotEmpty)
           'eventListeners': [for (final l in eventListeners) l.toJson()],
-        if (transactionalMethods.isNotEmpty)
-          'transactionalMethods':
-              [for (final t in transactionalMethods) t.toJson()],
+        if (aspectMethods.isNotEmpty)
+          'aspectMethods': [for (final t in aspectMethods) t.toJson()],
       };
 
   factory InjectableInfo.fromJson(Map<String, Object?> json) => InjectableInfo(
@@ -230,49 +231,215 @@ class InjectableInfo {
               in (json['eventListeners'] as List<Object?>? ?? const []))
             EventListenerInfo.fromJson((l as Map).cast<String, Object?>()),
         ],
-        transactionalMethods: [
+        aspectMethods: [
           for (final t
-              in (json['transactionalMethods'] as List<Object?>? ?? const []))
-            TransactionalMethodInfo.fromJson(
-                (t as Map).cast<String, Object?>()),
+              in (json['aspectMethods'] as List<Object?>? ?? const []))
+            AspectMethodInfo.fromJson((t as Map).cast<String, Object?>()),
         ],
       );
+
+  /// Whether any aspect method is transactional (gates diana_data wiring).
+  bool get hasTx => aspectMethods.any((m) => m.transactional);
+
+  /// Whether any method carries `@Timed` (gates the proxy observer param).
+  bool get hasTimed => aspectMethods.any((m) => m.timed != null);
+
+  /// Whether any method carries `@Cacheable` (gates the proxy store param
+  /// when a `DianaCacheStore` provider exists).
+  bool get hasCacheable => aspectMethods.any((m) => m.cacheable != null);
+
+  /// Whether any method carries a non-transactional aspect (selects the
+  /// `$Aspect$` proxy shape over the legacy `$Tx$` one).
+  bool get hasNewAspects => aspectMethods.any((m) =>
+      m.timed != null ||
+      m.cacheable != null ||
+      m.retryable != null ||
+      m.circuitBreaker != null);
 }
 
-/// One `@Transactional` method of a provider, with enough of its signature
+/// One aspect-annotated method of a provider, with enough of its signature
 /// captured to re-declare a faithful override in the generated proxy.
-class TransactionalMethodInfo {
+class AspectMethodInfo {
   final String methodName;
   final TypeRef returnType;
-  final List<TxParamInfo> params;
 
-  const TransactionalMethodInfo({
+  /// Declared type parameters (generic methods), re-declared on overrides.
+  final List<TypeParamInfo> typeParams;
+  final List<AspectParamInfo> params;
+
+  /// Wrapped in a transaction (`@Transactional`, the innermost layer).
+  final bool transactional;
+
+  final TimedInfo? timed;
+  final CacheableInfo? cacheable;
+  final RetryableInfo? retryable;
+  final CircuitBreakerInfo? circuitBreaker;
+
+  const AspectMethodInfo({
     required this.methodName,
     required this.returnType,
+    this.typeParams = const [],
     this.params = const [],
+    this.transactional = false,
+    this.timed,
+    this.cacheable,
+    this.retryable,
+    this.circuitBreaker,
   });
 
   Map<String, Object?> toJson() => {
         'method': methodName,
         'returnType': returnType.toJson(),
+        if (typeParams.isNotEmpty)
+          'typeParams': [for (final t in typeParams) t.toJson()],
         if (params.isNotEmpty)
           'params': [for (final p in params) p.toJson()],
+        if (transactional) 'tx': true,
+        if (timed != null) 'timed': timed!.toJson(),
+        if (cacheable != null) 'cacheable': cacheable!.toJson(),
+        if (retryable != null) 'retryable': retryable!.toJson(),
+        if (circuitBreaker != null)
+          'circuitBreaker': circuitBreaker!.toJson(),
       };
 
-  factory TransactionalMethodInfo.fromJson(Map<String, Object?> json) =>
-      TransactionalMethodInfo(
+  factory AspectMethodInfo.fromJson(Map<String, Object?> json) =>
+      AspectMethodInfo(
         methodName: json['method'] as String,
         returnType: TypeRef.fromJson(
             (json['returnType'] as Map).cast<String, Object?>()),
+        typeParams: [
+          for (final t in (json['typeParams'] as List<Object?>? ?? const []))
+            TypeParamInfo.fromJson((t as Map).cast<String, Object?>()),
+        ],
         params: [
           for (final p in (json['params'] as List<Object?>? ?? const []))
-            TxParamInfo.fromJson((p as Map).cast<String, Object?>()),
+            AspectParamInfo.fromJson((p as Map).cast<String, Object?>()),
+        ],
+        transactional: json['tx'] as bool? ?? false,
+        timed: json['timed'] == null
+            ? null
+            : TimedInfo.fromJson((json['timed'] as Map).cast()),
+        cacheable: json['cacheable'] == null
+            ? null
+            : CacheableInfo.fromJson((json['cacheable'] as Map).cast()),
+        retryable: json['retryable'] == null
+            ? null
+            : RetryableInfo.fromJson((json['retryable'] as Map).cast()),
+        circuitBreaker: json['circuitBreaker'] == null
+            ? null
+            : CircuitBreakerInfo.fromJson(
+                (json['circuitBreaker'] as Map).cast()),
+      );
+}
+
+/// One declared type parameter of a generic aspect method.
+class TypeParamInfo {
+  final String name;
+
+  /// The `extends` bound, or null for an unbounded parameter.
+  final TypeRef? bound;
+
+  const TypeParamInfo({required this.name, this.bound});
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        if (bound != null) 'bound': bound!.toJson(),
+      };
+
+  factory TypeParamInfo.fromJson(Map<String, Object?> json) => TypeParamInfo(
+        name: json['name'] as String,
+        bound: json['bound'] == null
+            ? null
+            : TypeRef.fromJson((json['bound'] as Map).cast<String, Object?>()),
+      );
+}
+
+/// `@Timed` spec (omit-if-default JSON).
+class TimedInfo {
+  /// Metric label override; null = `ClassName.methodName`.
+  final String? name;
+
+  const TimedInfo({this.name});
+
+  Map<String, Object?> toJson() => {if (name != null) 'name': name};
+
+  factory TimedInfo.fromJson(Map<String, Object?> json) =>
+      TimedInfo(name: json['name'] as String?);
+}
+
+/// `@Cacheable` spec (omit-if-default JSON).
+class CacheableInfo {
+  final int ttlSeconds;
+  final int maxEntries;
+
+  const CacheableInfo({this.ttlSeconds = 60, this.maxEntries = 1024});
+
+  Map<String, Object?> toJson() => {
+        if (ttlSeconds != 60) 'ttl': ttlSeconds,
+        if (maxEntries != 1024) 'max': maxEntries,
+      };
+
+  factory CacheableInfo.fromJson(Map<String, Object?> json) => CacheableInfo(
+        ttlSeconds: json['ttl'] as int? ?? 60,
+        maxEntries: json['max'] as int? ?? 1024,
+      );
+}
+
+/// `@Retryable` spec (omit-if-default JSON). [retryOn] carries the
+/// exception types as [TypeRef]s; the emitter turns them into an
+/// `e is X || ...` predicate.
+class RetryableInfo {
+  final int maxAttempts;
+  final int backoffMs;
+  final List<TypeRef> retryOn;
+
+  const RetryableInfo({
+    this.maxAttempts = 3,
+    this.backoffMs = 200,
+    this.retryOn = const [],
+  });
+
+  Map<String, Object?> toJson() => {
+        if (maxAttempts != 3) 'attempts': maxAttempts,
+        if (backoffMs != 200) 'backoff': backoffMs,
+        if (retryOn.isNotEmpty)
+          'retryOn': [for (final t in retryOn) t.toJson()],
+      };
+
+  factory RetryableInfo.fromJson(Map<String, Object?> json) => RetryableInfo(
+        maxAttempts: json['attempts'] as int? ?? 3,
+        backoffMs: json['backoff'] as int? ?? 200,
+        retryOn: [
+          for (final t in (json['retryOn'] as List<Object?>? ?? const []))
+            TypeRef.fromJson((t as Map).cast<String, Object?>()),
         ],
       );
 }
 
-/// One parameter of a `@Transactional` method.
-class TxParamInfo {
+/// `@CircuitBreaker` spec (omit-if-default JSON).
+class CircuitBreakerInfo {
+  final int failureThreshold;
+  final int resetTimeoutMs;
+
+  const CircuitBreakerInfo({
+    this.failureThreshold = 5,
+    this.resetTimeoutMs = 30000,
+  });
+
+  Map<String, Object?> toJson() => {
+        if (failureThreshold != 5) 'threshold': failureThreshold,
+        if (resetTimeoutMs != 30000) 'reset': resetTimeoutMs,
+      };
+
+  factory CircuitBreakerInfo.fromJson(Map<String, Object?> json) =>
+      CircuitBreakerInfo(
+        failureThreshold: json['threshold'] as int? ?? 5,
+        resetTimeoutMs: json['reset'] as int? ?? 30000,
+      );
+}
+
+/// One parameter of an aspect-proxied method.
+class AspectParamInfo {
   final String name;
   final TypeRef type;
 
@@ -283,7 +450,7 @@ class TxParamInfo {
   /// Verbatim default-value source (e.g. `const []`), or null.
   final String? defaultCode;
 
-  const TxParamInfo({
+  const AspectParamInfo({
     required this.name,
     required this.type,
     required this.kind,
@@ -299,7 +466,8 @@ class TxParamInfo {
         if (defaultCode != null) 'default': defaultCode,
       };
 
-  factory TxParamInfo.fromJson(Map<String, Object?> json) => TxParamInfo(
+  factory AspectParamInfo.fromJson(Map<String, Object?> json) =>
+      AspectParamInfo(
         name: json['name'] as String,
         type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
         kind: json['kind'] as String,

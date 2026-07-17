@@ -41,6 +41,12 @@ abstract class DianaObserver {
   FutureOr<T> observeQuery<T>(String operation, FutureOr<T> Function() run) =>
       run();
 
+  /// Wraps a `@Timed` proxied method invocation ([run]). [name] is
+  /// `Class.method`, or the annotation's `name:` override; cardinality is
+  /// bounded by the set of annotated methods.
+  FutureOr<T> observeTimedMethod<T>(String name, FutureOr<T> Function() run) =>
+      run();
+
   /// Reports a completed `@Scheduled` run. [name] is `Class.method` when the
   /// generator wired it, else `null`.
   void observeScheduledRun(

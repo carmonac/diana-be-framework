@@ -2,7 +2,7 @@ name: diana_observability
 description: >-
   Observability for the Diana backend framework: in-package Prometheus
   metrics, OpenTelemetry tracing, and Kubernetes-style liveness/readiness.
-version: 0.9.0
+version: 0.11.0
 publish_to: none
 
 environment:
@@ -11,7 +11,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  diana: ^0.9.0
+  diana: ^0.11.0
   opentelemetry: ^0.18.0
 
 dev_dependencies:

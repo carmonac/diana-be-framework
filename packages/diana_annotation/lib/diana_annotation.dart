@@ -6,6 +6,7 @@
 library;
 
 export 'src/app.dart';
+export 'src/aspects.dart';
 export 'src/auth.dart';
 export 'src/config.dart';
 export 'src/data.dart';

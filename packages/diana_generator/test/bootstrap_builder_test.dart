@@ -1205,6 +1205,488 @@ class XController {
     );
   });
 
+  group('aspect proxies', () {
+    test('tx-only providers keep the historical shape with no aspect '
+        'machinery', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/data.dart': '''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+@Component()
+class AppDb extends DatabaseConnector {
+  @override
+  Future<Object> connect(Object config) async => Object();
+  @override
+  Future<void> close(Object connection) async {}
+}
+
+@Repository()
+class Ledger {
+  Ledger(this.db);
+  final Database db;
+
+  @Transactional()
+  Future<void> transfer(int amount) async {}
+}
+''',
+        },
+        output: allOf([
+          contains(r'class $Tx$Ledger'),
+          isNot(contains(r'$Aspect$')),
+          isNot(contains('runTimed')),
+          isNot(contains('DianaObserver')),
+          isNot(contains('MethodCache')),
+        ]),
+      );
+    });
+
+    test('composes all five aspects in the fixed order', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/data.dart': '''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+class DbUnavailable implements Exception {}
+
+@Component()
+class AppDb extends DatabaseConnector {
+  @override
+  Future<Object> connect(Object config) async => Object();
+  @override
+  Future<void> close(Object connection) async {}
+}
+
+@Service()
+class Reports {
+  Reports(this.db);
+  final Database db;
+
+  @Timed()
+  @Cacheable(ttlSeconds: 30, maxEntries: 16)
+  @Retryable(maxAttempts: 4, backoffMs: 100, retryOn: [DbUnavailable])
+  @CircuitBreaker(failureThreshold: 2, resetTimeoutMs: 5000)
+  @Transactional()
+  Future<List<String>> summarize(int year, String region) async => [];
+}
+''',
+        },
+        output: allOf([
+          // Proxy class with observer + db prepended in the constructor.
+          matches(RegExp(r'class \$Aspect\$Reports extends (_i\d+\.)?Reports')),
+          matches(RegExp(
+              r'\$Aspect\$Reports\(\s*this\._observer,\s*this\._db,')),
+          matches(RegExp(r'final (_i\d+\.)?DianaObserver\? _observer;')),
+          // Per-method state fields with the annotation's values.
+          matches(RegExp(
+              r'final _cache\$summarize = (_i\d+\.)?MethodCache<List<String>>\(')),
+          contains('ttl: const Duration(seconds: 30)'),
+          contains('maxEntries: 16'),
+          contains('failureThreshold: 2'),
+          contains('resetTimeout: const Duration(milliseconds: 5000)'),
+          contains('maxAttempts: 4'),
+          matches(RegExp(r'retryWhen: \(e\) => e is (_i\d+\.)?DbUnavailable')),
+          // Nesting order: Timed → Cacheable → Breaker → Retry → Tx.
+          matches(RegExp(
+              r"runTimed\(\s*_observer,\s*'Reports\.summarize',\s*\(\) =>\s*"
+              r'_cache\$summarize\.run\(\s*\[\s*year,\s*region,?\s*\],\s*\(\) =>\s*'
+              r'_breaker\$summarize\.run\(\s*\(\) =>\s*'
+              r'_retry\$summarize\.run\(\s*\(\) =>\s*'
+              r'_db\.runTransactional\(\s*\(\) =>\s*super\.summarize\(year, region\)',
+              multiLine: true)),
+          // Context constructs the proxy with observer slot = null (no
+          // observability provider in this app).
+          matches(RegExp(r'\$Aspect\$Reports\(\s*null,\s*database,')),
+        ]),
+      );
+    });
+
+    test('@Timed wires the observability provider into the proxy', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/obs.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+import 'package:diana_observability/diana_observability.dart';
+
+@Component()
+class AppObservability extends DianaObservability {}
+''',
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Timed()
+  Future<int> count() async => 1;
+}
+''',
+        },
+        output: allOf([
+          matches(RegExp(r'\$Aspect\$Reporter\(appObservability\)')),
+          matches(RegExp(
+              r"runTimed\(\s*_observer,\s*'Reporter\.count',\s*\(\) =>\s*"
+              r'super\.count\(\)',
+              multiLine: true)),
+        ]),
+      );
+    });
+
+    test('cache/retry/breaker alone require no database', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class Lookup {
+  @Cacheable(ttlSeconds: 5)
+  Future<String> find(int id) async => '\$id';
+
+  @Retryable(maxAttempts: 2)
+  @CircuitBreaker()
+  Future<void> ping() async {}
+}
+''',
+        },
+        output: allOf([
+          isNot(contains('diana_data')),
+          matches(RegExp(r'class \$Aspect\$Lookup')),
+          contains(r'_cache$find.run('),
+          matches(RegExp(
+              r'_breaker\$ping\.run\(\s*\(\) =>\s*_retry\$ping\.run\(',
+              multiLine: true)),
+          isNot(contains('_observer')),
+        ]),
+      );
+    });
+
+    test('generic aspect methods re-declare their type parameters',
+        () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class Picker {
+  @Retryable(maxAttempts: 2)
+  Future<T> first<T extends Object>(List<T> items) async => items.first;
+}
+''',
+        },
+        output: allOf([
+          matches(RegExp(
+              r'Future<T> first<T extends Object>\(List<T> items\)')),
+          contains(r'_retry$first.run(() => super.first(items))'),
+        ]),
+      );
+    });
+  });
+
+  group('pluggable cache store', () {
+    const storeLib = '''
+import 'package:diana/diana.dart';
+
+@Component()
+class AppCacheStore extends DianaCacheStore {
+  @override
+  Future<V> run<V>(
+          CacheSpec spec, List<Object?> key, Future<V> Function() miss) =>
+      miss();
+}
+''';
+
+    test('routes @Cacheable through the declared store', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/store.dart': storeLib,
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class Lookup {
+  @Timed()
+  @Cacheable(ttlSeconds: 5, maxEntries: 4)
+  Future<String> find(int id) async => '\$id';
+}
+''',
+        },
+        output: allOf([
+          // Constructor order: observer, store (no tx here).
+          matches(RegExp(
+              r'\$Aspect\$Lookup\(\s*this\._observer,\s*this\._cacheStore\)')),
+          matches(RegExp(r'final (_i\d+\.)?DianaCacheStore _cacheStore;')),
+          // Per-method const spec replaces the MethodCache field.
+          matches(RegExp(r'static const _spec\$find = (_i\d+\.)?CacheSpec\(')),
+          contains("method: 'Lookup.find'"),
+          contains('ttl: Duration(seconds: 5)'),
+          contains('maxEntries: 4'),
+          isNot(contains('MethodCache')),
+          // Cache layer goes through the store.
+          matches(RegExp(
+              r'_cacheStore\.run\(\s*_spec\$find,\s*\[\s*id,?\s*\]',
+              multiLine: true)),
+          // Context passes the store provider into the proxy.
+          matches(RegExp(r'\$Aspect\$Lookup\(\s*null,\s*appCacheStore\)')),
+        ]),
+      );
+    });
+
+    test('without a store the built-in MethodCache emission is unchanged',
+        () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class Lookup {
+  @Cacheable(ttlSeconds: 5)
+  Future<String> find(int id) async => '\$id';
+}
+''',
+        },
+        output: allOf([
+          contains(r'_cache$find'),
+          matches(RegExp(r'(_i\d+\.)?MethodCache<String>\(')),
+          isNot(contains('_cacheStore')),
+          isNot(contains('CacheSpec')),
+        ]),
+      );
+    });
+
+    test('a store without @Cacheable is a plain provider', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/store.dart': storeLib,
+        },
+        output: isNot(contains('_cacheStore')),
+      );
+    });
+
+    test('rejects multiple stores and non-singleton stores', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/stores.dart': '''
+import 'package:diana/diana.dart';
+
+@Component()
+class StoreA extends DianaCacheStore {
+  @override
+  Future<V> run<V>(
+          CacheSpec spec, List<Object?> key, Future<V> Function() miss) =>
+      miss();
+}
+
+@Component()
+class StoreB extends DianaCacheStore {
+  @override
+  Future<V> run<V>(
+          CacheSpec spec, List<Object?> key, Future<V> Function() miss) =>
+      miss();
+}
+''',
+        },
+        output: '',
+        expectedErrors: [
+          'Multiple DianaCacheStore providers: StoreA (package:a/stores.dart), '
+              'StoreB (package:a/stores.dart). Declare exactly one.',
+        ],
+      );
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/stores.dart': '''
+import 'package:diana/diana.dart';
+
+@Component(scope: Scope.transient)
+class StoreA extends DianaCacheStore {
+  @override
+  Future<V> run<V>(
+          CacheSpec spec, List<Object?> key, Future<V> Function() miss) =>
+      miss();
+}
+''',
+        },
+        output: '',
+        expectedErrors: [
+          'StoreA extends DianaCacheStore but is transient-scoped; '
+              'cache stores must be singletons.',
+        ],
+      );
+    });
+  });
+
+  group('aspect annotation diagnostics', () {
+    Future<void> expectAspectError(String svc, String message) =>
+        expectBootstrap(
+          {'lib/app.dart': app, 'lib/svc.dart': svc},
+          output: '',
+          expectedErrors: [message],
+        );
+
+    test('rejects class-level @Timed (method-level only)', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+@Timed()
+class Reporter {
+  Future<int> count() async => 1;
+}
+''', '@Timed is method-level only; annotate individual methods of Reporter.');
+    });
+
+    test('rejects @Cacheable on a non-Future method', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Cacheable()
+  int count() => 1;
+}
+''', '@Cacheable method Reporter.count must return Future (aspect proxies '
+          'are asynchronous); found int.');
+    });
+
+    test('rejects @Retryable on a static method', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Retryable()
+  static Future<int> count() async => 1;
+}
+''', '@Retryable method Reporter.count must be a public instance method.');
+    });
+
+    test('rejects a non-extendable class with new aspects', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+final class Reporter {
+  @Timed()
+  Future<int> count() async => 1;
+}
+''', 'Aspect-annotated class Reporter must be extendable: remove the '
+          'final/base/sealed modifier so Diana can generate an aspect proxy '
+          'subclass.');
+    });
+
+    test('rejects @Cacheable on a generic method', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Cacheable()
+  Future<T> first<T>(List<T> items) async => items.first;
+}
+''', '@Cacheable method Reporter.first declares type parameters; caching '
+          'generic methods is not supported.');
+    });
+
+    test('rejects @Cacheable on Future<void>', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Cacheable()
+  Future<void> warm() async {}
+}
+''', '@Cacheable method Reporter.warm must return Future<T> with a '
+          'non-void T (a void result cannot be cached); found Future<void>.');
+    });
+
+    test('rejects out-of-range aspect values', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Cacheable(ttlSeconds: 0)
+  Future<int> count() async => 1;
+}
+''', '@Cacheable on Reporter.count requires ttlSeconds >= 1; found 0.');
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Retryable(maxAttempts: 0)
+  Future<int> count() async => 1;
+}
+''', '@Retryable on Reporter.count requires maxAttempts >= 1; found 0.');
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Retryable(backoffMs: -5)
+  Future<int> count() async => 1;
+}
+''', '@Retryable on Reporter.count requires backoffMs >= 0; found -5.');
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @CircuitBreaker(failureThreshold: 0)
+  Future<int> count() async => 1;
+}
+''', '@CircuitBreaker on Reporter.count requires failureThreshold >= 1; '
+          'found 0.');
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @CircuitBreaker(resetTimeoutMs: 0)
+  Future<int> count() async => 1;
+}
+''', '@CircuitBreaker on Reporter.count requires resetTimeoutMs >= 1; '
+          'found 0.');
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Reporter {
+  @Timed(name: '')
+  Future<int> count() async => 1;
+}
+''', '@Timed name on Reporter.count must not be empty.');
+    });
+
+    test('rejects @Timed on a non-provider class', () async {
+      await expectAspectError('''
+import 'package:diana/diana.dart';
+
+@RestController('/x')
+class XController {
+  @Get()
+  @Timed()
+  Future<String> hello() async => 'hi';
+}
+''', '@Timed on XController has no effect: it is not a '
+          '@Service/@Component/@Repository provider.');
+    });
+  });
+
   test('wires the observability provider into server, scheduler and metrics',
       () async {
     await expectBootstrap(

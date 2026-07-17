@@ -6,6 +6,35 @@ DianaRequest req({Map<String, List<String>> headers = const {}}) =>
     DianaRequest(method: HttpMethod.get, uri: Uri.parse('/x'), headers: headers);
 
 void main() {
+  test('@Timed hook records duration and result labels', () async {
+    final obs = DianaObservability();
+    addTearDown(obs.close);
+
+    expect(obs.scrape(), contains('diana_method_calls_total'),
+        reason: 'series registered before the first observation');
+    expect(obs.scrape(), contains('diana_method_duration_seconds'));
+
+    expect(await obs.observeTimedMethod('Svc.ok', () async => 42), 42);
+    await expectLater(
+      Future.sync(() =>
+          obs.observeTimedMethod<void>('Svc.bad', () async {
+            throw StateError('boom');
+          })),
+      throwsStateError,
+    );
+
+    final text = obs.scrape();
+    expect(
+        text,
+        contains(
+            'diana_method_calls_total{method="Svc.ok",result="success"} 1'));
+    expect(
+        text,
+        contains(
+            'diana_method_calls_total{method="Svc.bad",result="failure"} 1'));
+    expect(text, contains('diana_method_duration_seconds_count{method="Svc.ok"} 1'));
+  });
+
   test('HTTP observation records a labelled counter and duration', () async {
     final obs = DianaObservability();
     await obs.observeHttp(HttpMethod.get, '/todos/:id', req(),

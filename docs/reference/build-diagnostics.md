@@ -204,6 +204,25 @@ one binding annotation" / "combines multiple binding annotations" errors.
 
 ---
 
+## Aspects
+
+| Message | Fix |
+|---|---|
+| `@Timed is method-level only; annotate individual methods of X.` | Move the annotation from the class to specific methods (same for `@Cacheable`/`@Retryable`/`@CircuitBreaker`) |
+| `@Timed on X has no effect: it is not a @Service/@Component/@Repository provider.` | Aspects only proxy DI providers (same template for the other aspects) |
+| `@Timed method X.m must return Future (aspect proxies are asynchronous); found void.` | Make the method async (same template for the other aspects) |
+| `@Timed method X.m must be a public instance method.` | Aspects cannot proxy static or private methods (same template for the other aspects) |
+| `Aspect-annotated class X must be extendable: remove the final/base/sealed modifier so Diana can generate an aspect proxy subclass.` | Drop the modifier |
+| `@Cacheable method X.m declares type parameters; caching generic methods is not supported.` | Cache a concrete-typed wrapper instead |
+| `@Cacheable method X.m must return Future<T> with a non-void T (a void result cannot be cached); found Future<void>.` | Return the value you want cached |
+| `@Cacheable on X.m requires ttlSeconds >= 1; found 0.` | Use a positive TTL (same shape for `maxEntries >= 1`) |
+| `@Retryable on X.m requires maxAttempts >= 1; found 0.` | Use at least one attempt (same shape for `backoffMs >= 0`) |
+| `@Retryable retryOn entries must be type literals.` | List exception types directly, e.g. `retryOn: [TimeoutException]` |
+| `@CircuitBreaker on X.m requires failureThreshold >= 1; found 0.` | Use a positive threshold (same shape for `resetTimeoutMs >= 1`) |
+| `@Timed name on X.m must not be empty.` | Omit `name:` for the default label or give a non-empty one |
+| `Multiple DianaCacheStore providers: A (lib), B (lib). Declare exactly one.` | Keep a single pluggable cache store |
+| `X extends DianaCacheStore but is <scope>-scoped; cache stores must be singletons.` | Make the store a singleton provider |
+
 ## Observability
 
 **`Multiple DianaObservability providers: A (lib), B (lib). Declare exactly one.`**

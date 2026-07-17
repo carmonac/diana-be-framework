@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.0
+
+- Version bump only (kept in lockstep with the workspace).
+
+## 0.10.0
+
+- Implements `observeTimedMethod`: `diana_method_duration_seconds{method}`,
+  `diana_method_calls_total{method,result}` and a `method.<name>` child
+  span per `@Timed` invocation.
+
 ## 0.9.0
 
 - Version bump only (kept in lockstep with the workspace).

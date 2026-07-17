@@ -531,6 +531,9 @@ methods have no-op defaults:
 - `observeUnmatched()` — a 404 (no path, bounded cardinality).
 - `observeQuery<T>(String operation, FutureOr<T> Function() run)` — a
   database operation (wired by `diana_data`).
+- `observeTimedMethod<T>(String name, FutureOr<T> Function() run)` — a
+  `@Timed` proxied method invocation (name = `Class.method` or the
+  annotation override).
 - `observeScheduledRun(String? name, Duration, {required bool success})` and
   `observeEventDispatch(String eventType, Duration)`.
 
@@ -556,6 +559,35 @@ The optional metrics/tracing package — the only one depending on
   handler.
 
 See the [observability guide](../guides/observability.md).
+
+## Aspect runtime (`aspects.dart`)
+
+The helpers the generated `$Aspect$X` proxies call — usable directly too:
+
+- `Future<T> runTimed<T>(DianaObserver? observer, String name, Future<T>
+  Function() run)` — `@Timed` glue; a `null` observer is a passthrough.
+- `MethodCache<V>({required Duration ttl, required int maxEntries})` —
+  TTL+LRU per-isolate cache. `Future<V> run(List<Object?> key, miss)`
+  compares keys element-wise, shares in-flight computations (single-flight)
+  and never caches errors; `clear()` empties it.
+- `RetryPolicy({int maxAttempts = 3, Duration backoff, bool
+  Function(Object)? retryWhen})` — `run<T>(attempt)` retries with a fixed
+  backoff; `retryWhen` filters retryable errors (`null` = all).
+- `CircuitBreakerPolicy({int failureThreshold = 5, Duration resetTimeout})`
+  — `run<T>(call)` throws `CircuitOpenException` while open; one half-open
+  trial after `resetTimeout`. State is per instance, per isolate.
+- `CacheSpec({required String method, required Duration ttl, required int
+  maxEntries})` — per-method cache config handed to a store.
+- `abstract DianaCacheStore` — pluggable `@Cacheable` backend:
+  `Future<V> run<V>(CacheSpec spec, List<Object?> key, Future<V>
+  Function() miss)` (wrap-style — the store owns lookup/populate/TTL/
+  eviction and value serialization) plus an optional `clear()`. Declare one
+  singleton provider extending it and every cached method routes through it.
+- `InMemoryCacheStore` — the per-isolate default (one `MethodCache` per
+  `spec.method`), exposed so custom stores can delegate to it.
+
+See the [aspects guide](../guides/aspects.md) for the composition order and
+the pluggable-store contract.
 
 ## Authentication (`package:diana_auth`)
 

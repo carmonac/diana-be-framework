@@ -276,6 +276,21 @@ subclass. Nesting joins the enclosing transaction as a savepoint
 
 ---
 
+## Aspects
+
+Method-level, on `@Service`/`@Component`/`@Repository` providers; the
+methods must be public instance methods returning `Future`, and the class
+must be extendable. Fixed composition order `@Timed` → `@Cacheable` →
+`@CircuitBreaker` → `@Retryable` → `@Transactional`. See the
+[aspects guide](../guides/aspects.md).
+
+| Annotation | Parameters | Meaning |
+|---|---|---|
+| `@Timed` | `String? name` (default `Class.method`) | Duration/result metrics + a trace span via the observability provider (silent no-op without one) |
+| `@Cacheable` | `int ttlSeconds = 60`, `int maxEntries = 1024` | Per-isolate TTL+LRU cache keyed by the argument list (or a shared backend via a [`DianaCacheStore`](../guides/aspects.md#pluggable-cache-store) provider); needs `Future<T>` with non-void `T`, no type parameters |
+| `@Retryable` | `int maxAttempts = 3`, `int backoffMs = 200`, `List<Type> retryOn = const []` | Fixed-backoff retry; `retryOn` limits the exception types (empty = all) |
+| `@CircuitBreaker` | `int failureThreshold = 5`, `int resetTimeoutMs = 30000` | Fail-fast after consecutive failures; half-open trial after the timeout |
+
 ## Middleware
 
 ### `@GlobalMiddleware({int order = 0})`

@@ -44,6 +44,40 @@ Future<DianaResponse> $diana$PostController$fail(
   return const DianaResponse.noContent();
 }
 
+Future<DianaResponse> $diana$PostController$stats(
+  PostController c,
+  DianaRequest req,
+) async {
+  final result = await c.stats();
+  return DianaResponse.json($StatsToJson(result));
+}
+
+Future<DianaResponse> $diana$PostController$flaky(
+  PostController c,
+  DianaRequest req,
+) async {
+  final $a0$json = await decodeJsonMapBody(req);
+  final $a0 = decodeDto(() => $CreatePostFromJson($a0$json));
+  const $CreatePostValidator().validate($a0).throwIfInvalid();
+  final result = await c.flaky($a0);
+  return DianaResponse.json($ArticleToJson(result), statusCode: 201);
+}
+
+Future<DianaResponse> $diana$PostController$unstable(
+  PostController c,
+  DianaRequest req,
+) async {
+  await c.unstable();
+  return const DianaResponse.noContent();
+}
+
+Stats $StatsFromJson(Map<String, dynamic> json) =>
+    Stats(total: (json['total'] as num).toInt());
+
+Map<String, dynamic> $StatsToJson(Stats value) => <String, dynamic>{
+  'total': value.total,
+};
+
 PostPair $PostPairFromJson(Map<String, dynamic> json) => PostPair(
   first: $CreatePostFromJson((json['first'] as Map).cast<String, dynamic>()),
   second: $CreatePostFromJson((json['second'] as Map).cast<String, dynamic>()),

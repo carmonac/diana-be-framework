@@ -62,7 +62,7 @@ LibrarySummary readLibrary(LibraryElement library) {
     // @Transactional is proxied, so it is valid only on @Injectable-family
     // providers (services/components/repositories), never controllers,
     // advices, config-props, etc.
-    _checkTransactionalPlacement(cls, isInjectable: injectableAnn != null);
+    _checkAspectPlacement(cls, isInjectable: injectableAnn != null);
 
     final roles = [
       if (injectableAnn != null) '@Injectable/@Service/@Repository/@Component',
@@ -244,7 +244,7 @@ InjectableInfo _injectableFrom(
     preDestroyAwaited: lifecycle.preDestroyAwaited,
     scheduled: _scheduledOf(cls, scope),
     eventListeners: _eventListenersOf(cls, scope),
-    transactionalMethods: _transactionalOf(cls),
+    aspectMethods: _aspectMethodsOf(cls),
   );
 }
 
@@ -774,20 +774,59 @@ List<EventListenerInfo> _eventListenersOf(ClassElement cls, String scope) {
   return result;
 }
 
-/// Reads `@Transactional` methods (directly annotated, or all eligible
-/// methods when the class carries `@Transactional`), capturing each
-/// signature so the generated proxy can re-declare a faithful override.
-List<TransactionalMethodInfo> _transactionalOf(ClassElement cls) {
+/// Reads aspect-annotated methods — `@Transactional` (directly annotated,
+/// or every eligible method when the class carries it) plus the
+/// method-level `@Timed`/`@Cacheable`/`@Retryable`/`@CircuitBreaker` —
+/// capturing each signature so the generated proxy can re-declare a
+/// faithful override.
+List<AspectMethodInfo> _aspectMethodsOf(ClassElement cls) {
   final classAnnotated = transactionalChecker.firstAnnotationOf(cls) != null;
+
+  const newAspects = [
+    (checker: timedChecker, name: 'Timed'),
+    (checker: cacheableChecker, name: 'Cacheable'),
+    (checker: retryableChecker, name: 'Retryable'),
+    (checker: circuitBreakerChecker, name: 'CircuitBreaker'),
+  ];
+  // Method-level only: a class-level default for cache/retry/breaker/timed
+  // invites silent misconfiguration (one TTL for every method, ...).
+  for (final aspect in newAspects) {
+    if (aspect.checker.firstAnnotationOf(cls) != null) {
+      throw DianaSourceError(
+        cls,
+        '@${aspect.name} is method-level only; annotate individual methods '
+        'of ${cls.name}.',
+      );
+    }
+  }
+
+  String? newAspectNameOf(MethodElement m) {
+    for (final aspect in newAspects) {
+      if (aspect.checker.firstAnnotationOf(m) != null) return aspect.name;
+    }
+    return null;
+  }
+
   final annotated = [
     for (final method in cls.methods)
-      if (classAnnotated || transactionalChecker.firstAnnotationOf(method) != null)
+      if (classAnnotated ||
+          transactionalChecker.firstAnnotationOf(method) != null ||
+          newAspectNameOf(method) != null)
         method,
   ];
   if (annotated.isEmpty) return const [];
 
   // The proxy is a generated subclass, so the class must be extendable.
+  // Transactional-only classes keep the historical message.
   if (cls.isFinal || cls.isBase || cls.isSealed) {
+    if (annotated.any((m) => newAspectNameOf(m) != null)) {
+      throw DianaSourceError(
+        cls,
+        'Aspect-annotated class ${cls.name} must be extendable: remove the '
+        'final/base/sealed modifier so Diana can generate an aspect proxy '
+        'subclass.',
+      );
+    }
     throw DianaSourceError(
       cls,
       '@Transactional class ${cls.name} must be extendable: remove the '
@@ -796,9 +835,19 @@ List<TransactionalMethodInfo> _transactionalOf(ClassElement cls) {
     );
   }
 
-  final result = <TransactionalMethodInfo>[];
+  final result = <AspectMethodInfo>[];
   for (final method in annotated) {
+    final directTx = transactionalChecker.firstAnnotationOf(method) != null;
+    final newAspectName = newAspectNameOf(method);
+
     if (method.isStatic || method.name!.startsWith('_')) {
+      if (newAspectName != null) {
+        throw DianaSourceError(
+          method,
+          '@$newAspectName method ${cls.name}.${method.name} must be a '
+          'public instance method.',
+        );
+      }
       // Class-level @Transactional silently skips these; a direct annotation
       // on one is caught by the placement check.
       if (classAnnotated) continue;
@@ -807,20 +856,154 @@ List<TransactionalMethodInfo> _transactionalOf(ClassElement cls) {
     final returnsFuture =
         returnType is InterfaceType && returnType.isDartAsyncFuture;
     if (!returnsFuture) {
-      if (classAnnotated) continue; // only proxy Future-returning methods
-      throw DianaSourceError(
-        method,
-        '@Transactional method ${cls.name}.${method.name} must return Future '
-        '(transactions are asynchronous); found '
-        '${returnType.getDisplayString()}.',
+      if (directTx && !classAnnotated) {
+        throw DianaSourceError(
+          method,
+          '@Transactional method ${cls.name}.${method.name} must return Future '
+          '(transactions are asynchronous); found '
+          '${returnType.getDisplayString()}.',
+        );
+      }
+      if (newAspectName != null) {
+        throw DianaSourceError(
+          method,
+          '@$newAspectName method ${cls.name}.${method.name} must return '
+          'Future (aspect proxies are asynchronous); found '
+          '${returnType.getDisplayString()}.',
+        );
+      }
+      continue; // class-level @Transactional: only proxy Future methods
+    }
+
+    TimedInfo? timed;
+    final timedAnn = timedChecker.firstAnnotationOf(method);
+    if (timedAnn != null) {
+      final name = timedAnn.getField('name')?.toStringValue();
+      if (name != null && name.isEmpty) {
+        throw DianaSourceError(
+          method,
+          '@Timed name on ${cls.name}.${method.name} must not be empty.',
+        );
+      }
+      timed = TimedInfo(name: name);
+    }
+
+    CacheableInfo? cacheable;
+    final cacheableAnn = cacheableChecker.firstAnnotationOf(method);
+    if (cacheableAnn != null) {
+      // The proxy's cache field is typed on the concrete value type, so
+      // generic methods and void results cannot be cached.
+      if (method.typeParameters.isNotEmpty) {
+        throw DianaSourceError(
+          method,
+          '@Cacheable method ${cls.name}.${method.name} declares type '
+          'parameters; caching generic methods is not supported.',
+        );
+      }
+      if (returnType.typeArguments.single is VoidType) {
+        throw DianaSourceError(
+          method,
+          '@Cacheable method ${cls.name}.${method.name} must return '
+          'Future<T> with a non-void T (a void result cannot be cached); '
+          'found Future<void>.',
+        );
+      }
+      final ttl = cacheableAnn.getField('ttlSeconds')?.toIntValue() ?? 60;
+      final max = cacheableAnn.getField('maxEntries')?.toIntValue() ?? 1024;
+      if (ttl < 1) {
+        throw DianaSourceError(
+          method,
+          '@Cacheable on ${cls.name}.${method.name} requires '
+          'ttlSeconds >= 1; found $ttl.',
+        );
+      }
+      if (max < 1) {
+        throw DianaSourceError(
+          method,
+          '@Cacheable on ${cls.name}.${method.name} requires '
+          'maxEntries >= 1; found $max.',
+        );
+      }
+      cacheable = CacheableInfo(ttlSeconds: ttl, maxEntries: max);
+    }
+
+    RetryableInfo? retryable;
+    final retryAnn = retryableChecker.firstAnnotationOf(method);
+    if (retryAnn != null) {
+      final attempts = retryAnn.getField('maxAttempts')?.toIntValue() ?? 3;
+      final backoff = retryAnn.getField('backoffMs')?.toIntValue() ?? 200;
+      if (attempts < 1) {
+        throw DianaSourceError(
+          method,
+          '@Retryable on ${cls.name}.${method.name} requires '
+          'maxAttempts >= 1; found $attempts.',
+        );
+      }
+      if (backoff < 0) {
+        throw DianaSourceError(
+          method,
+          '@Retryable on ${cls.name}.${method.name} requires '
+          'backoffMs >= 0; found $backoff.',
+        );
+      }
+      final entries = retryAnn.getField('retryOn')?.toListValue() ?? const [];
+      retryable = RetryableInfo(
+        maxAttempts: attempts,
+        backoffMs: backoff,
+        retryOn: [
+          for (final item in entries)
+            _typeRefOf(
+                item.toTypeValue() ??
+                    (throw DianaSourceError(
+                      method,
+                      '@Retryable retryOn entries must be type literals.',
+                    )),
+                method),
+        ],
       );
     }
-    result.add(TransactionalMethodInfo(
+
+    CircuitBreakerInfo? circuitBreaker;
+    final breakerAnn = circuitBreakerChecker.firstAnnotationOf(method);
+    if (breakerAnn != null) {
+      final threshold =
+          breakerAnn.getField('failureThreshold')?.toIntValue() ?? 5;
+      final reset = breakerAnn.getField('resetTimeoutMs')?.toIntValue() ?? 30000;
+      if (threshold < 1) {
+        throw DianaSourceError(
+          method,
+          '@CircuitBreaker on ${cls.name}.${method.name} requires '
+          'failureThreshold >= 1; found $threshold.',
+        );
+      }
+      if (reset < 1) {
+        throw DianaSourceError(
+          method,
+          '@CircuitBreaker on ${cls.name}.${method.name} requires '
+          'resetTimeoutMs >= 1; found $reset.',
+        );
+      }
+      circuitBreaker = CircuitBreakerInfo(
+        failureThreshold: threshold,
+        resetTimeoutMs: reset,
+      );
+    }
+
+    result.add(AspectMethodInfo(
       methodName: method.name!,
       returnType: _typeRefLenient(returnType, method),
+      typeParams: [
+        for (final tp in method.typeParameters)
+          TypeParamInfo(
+            name: tp.name!,
+            bound: tp.bound == null
+                ? null
+                : _typeRefLenient(tp.bound!, method),
+          ),
+      ],
       params: [
         for (final param in method.formalParameters)
-          TxParamInfo(
+          AspectParamInfo(
             name: param.name!,
             type: _typeRefLenient(param.type, param),
             kind: param.isNamed
@@ -832,26 +1015,38 @@ List<TransactionalMethodInfo> _transactionalOf(ClassElement cls) {
             defaultCode: param.defaultValueCode,
           ),
       ],
+      transactional: classAnnotated || directTx,
+      timed: timed,
+      cacheable: cacheable,
+      retryable: retryable,
+      circuitBreaker: circuitBreaker,
     ));
   }
   return result;
 }
 
-/// Rejects `@Transactional` where the generator can't proxy it (not a
+/// Rejects aspect annotations where the generator can't proxy them (not a
 /// service/component/repository provider).
-void _checkTransactionalPlacement(
+void _checkAspectPlacement(
   ClassElement cls, {
   required bool isInjectable,
 }) {
-  bool hasTx(Element e) => transactionalChecker.firstAnnotationOf(e) != null;
-  final onClass = hasTx(cls);
-  final onMethod = cls.methods.any(hasTx);
-  if ((onClass || onMethod) && !isInjectable) {
-    throw DianaSourceError(
-      cls,
-      '@Transactional on ${cls.name} has no effect: it is not a '
-      '@Service/@Component/@Repository provider.',
-    );
+  const aspects = [
+    (checker: transactionalChecker, name: 'Transactional'),
+    (checker: timedChecker, name: 'Timed'),
+    (checker: cacheableChecker, name: 'Cacheable'),
+    (checker: retryableChecker, name: 'Retryable'),
+    (checker: circuitBreakerChecker, name: 'CircuitBreaker'),
+  ];
+  for (final aspect in aspects) {
+    bool has(Element e) => aspect.checker.firstAnnotationOf(e) != null;
+    if ((has(cls) || cls.methods.any(has)) && !isInjectable) {
+      throw DianaSourceError(
+        cls,
+        '@${aspect.name} on ${cls.name} has no effect: it is not a '
+        '@Service/@Component/@Repository provider.',
+      );
+    }
   }
 }
 

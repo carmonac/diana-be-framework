@@ -55,6 +55,13 @@ const principalChecker = TypeChecker.fromUrl('$_base/auth.dart#Principal');
 const transactionalChecker =
     TypeChecker.fromUrl('$_base/data.dart#Transactional');
 
+// Aspects
+const timedChecker = TypeChecker.fromUrl('$_base/aspects.dart#Timed');
+const cacheableChecker = TypeChecker.fromUrl('$_base/aspects.dart#Cacheable');
+const retryableChecker = TypeChecker.fromUrl('$_base/aspects.dart#Retryable');
+const circuitBreakerChecker =
+    TypeChecker.fromUrl('$_base/aspects.dart#CircuitBreaker');
+
 // WebSocket
 const webSocketControllerChecker =
     TypeChecker.fromUrl('$_base/websocket.dart#WebSocketController');

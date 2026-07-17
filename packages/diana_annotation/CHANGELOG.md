@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+- Version bump only (kept in lockstep with the workspace).
+
+## 0.10.0
+
+- New method-level aspect annotations: `@Timed`, `@Cacheable`,
+  `@Retryable`, `@CircuitBreaker`.
+
 ## 0.9.0
 
 - Version bump only (kept in lockstep with the workspace).

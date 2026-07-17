@@ -52,6 +52,8 @@ Task-oriented explanations of each feature:
   `@Principal`
 - [Persistence](guides/persistence.md) — `diana_data`, injectable
   `Database` over knex_dart, `@Transactional`, migrations
+- **[Aspects](guides/aspects.md)** — `@Timed`, `@Cacheable`, `@Retryable`,
+  `@CircuitBreaker` on service methods, composed at compile time
 - [Observability](guides/observability.md) — `diana_observability`
   (Prometheus metrics, OpenTelemetry tracing, liveness/readiness),
   `/actuator/health`/`/info`, `@Scheduled` tasks
@@ -86,5 +88,5 @@ Complete API documentation — every public symbol and every diagnostic:
 
 ## Versioning and stability
 
-Diana is currently `0.9.0`. APIs may change before `1.0.0`. The
+Diana is currently `0.11.0`. APIs may change before `1.0.0`. The
 [roadmap](../README.md#status--roadmap) lists what's planned.

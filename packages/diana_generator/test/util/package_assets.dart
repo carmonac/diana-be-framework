@@ -78,6 +78,7 @@ DianaHandler metricsEndpointHandler(DianaObservability o) =>
   'diana|lib/diana.dart': '''
 export 'package:diana_annotation/diana_annotation.dart';
 
+export 'src/aspects.dart';
 export 'src/codec.dart';
 export 'src/events.dart';
 export 'src/http/request.dart';
@@ -86,6 +87,54 @@ export 'src/middleware.dart';
 export 'src/observer.dart';
 export 'src/sse.dart';
 export 'src/websocket.dart';
+''',
+  'diana|lib/src/aspects.dart': '''
+import 'dart:async';
+
+import 'observer.dart';
+
+Future<T> runTimed<T>(
+        DianaObserver? observer, String name, Future<T> Function() run) =>
+    run();
+
+class MethodCache<V> {
+  MethodCache({required Duration ttl, required int maxEntries});
+  Future<V> run(List<Object?> key, Future<V> Function() miss) => miss();
+  void clear() {}
+}
+
+class RetryPolicy {
+  const RetryPolicy(
+      {int maxAttempts = 3,
+      Duration backoff = Duration.zero,
+      bool Function(Object error)? retryWhen});
+  Future<T> run<T>(Future<T> Function() attempt) => attempt();
+}
+
+class CircuitBreakerPolicy {
+  CircuitBreakerPolicy(
+      {int failureThreshold = 5, Duration resetTimeout = Duration.zero});
+  Future<T> run<T>(Future<T> Function() call) => call();
+}
+
+class CircuitOpenException implements Exception {
+  const CircuitOpenException();
+}
+
+class CacheSpec {
+  const CacheSpec(
+      {required String method, required Duration ttl, required int maxEntries});
+}
+
+abstract class DianaCacheStore {
+  const DianaCacheStore();
+  Future<V> run<V>(
+          CacheSpec spec, List<Object?> key, Future<V> Function() miss) =>
+      miss();
+  FutureOr<void> clear() {}
+}
+
+class InMemoryCacheStore extends DianaCacheStore {}
 ''',
   'diana|lib/src/observer.dart': '''
 import 'dart:async';
@@ -101,6 +150,8 @@ abstract class DianaObserver {
       next(request);
   void observeUnmatched() {}
   FutureOr<T> observeQuery<T>(String operation, FutureOr<T> Function() run) =>
+      run();
+  FutureOr<T> observeTimedMethod<T>(String name, FutureOr<T> Function() run) =>
       run();
   void observeScheduledRun(String? name, Duration elapsed,
       {required bool success}) {}

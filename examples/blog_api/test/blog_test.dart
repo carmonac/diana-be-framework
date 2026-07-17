@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:blog_api/app.diana_app.dart';
+import 'package:blog_api/caching/app_cache_store.dart';
 import 'package:diana/diana.dart';
 import 'package:test/test.dart';
 
@@ -113,5 +114,105 @@ void main() {
     } finally {
       client.close();
     }
+  });
+
+  test('@Cacheable serves the cached count and @Timed feeds metrics',
+      () async {
+    await call('POST', '/posts', body: {
+      'first': {'title': 'a', 'body': 'a'},
+      'second': {'title': 'b', 'body': 'b'},
+    });
+    final (s1, first) = await call('GET', '/posts/stats/total');
+    expect(s1, 200);
+    expect(first['total'], 2);
+
+    // New writes are invisible through the cache within the TTL.
+    await call('POST', '/posts', body: {
+      'first': {'title': 'c', 'body': 'c'},
+      'second': {'title': 'd', 'body': 'd'},
+    });
+    final (s2, second) = await call('GET', '/posts/stats/total');
+    expect(s2, 200);
+    expect(second['total'], 2, reason: 'cache hit skips the database');
+
+    final client = HttpClient();
+    final res = await (await client
+            .getUrl(Uri.parse('http://127.0.0.1:$port/actuator/metrics')))
+        .close();
+    final scrape = await res.transform(utf8.decoder).join();
+    client.close();
+    expect(scrape, contains('diana_method_duration_seconds'));
+    expect(
+        scrape,
+        contains('diana_method_calls_total'
+            '{method="BlogService.totalPosts",result="success"}'));
+  });
+
+  test('@Retryable + @Transactional commits exactly once after retries',
+      () async {
+    final (status, article) =
+        await call('POST', '/posts/flaky', body: {'title': 'f', 'body': 'x'});
+    expect(status, 201);
+    expect(article['title'], 'f');
+
+    final (_, posts) = await call('GET', '/posts');
+    final flaky = (posts as List).where((p) => p['title'] == 'f');
+    expect(flaky, hasLength(1),
+        reason: 'each failed attempt must roll its insert back; only the '
+            'successful attempt commits');
+  });
+
+  test('@CircuitBreaker opens after the threshold', () async {
+    expect((await call('GET', '/posts/unstable/ping')).$1, 409);
+    expect((await call('GET', '/posts/unstable/ping')).$1, 409);
+    // Third call: the open circuit rejects without invoking the method —
+    // CircuitOpenException surfaces as an opaque 500.
+    expect((await call('GET', '/posts/unstable/ping')).$1, 500);
+  });
+
+  test('@Cacheable routes through the pluggable DianaCacheStore', () async {
+    // A fresh app wired with a known store instance so the test can observe
+    // that the custom store — not the built-in cache — actually intercepts.
+    final store = AppCacheStore();
+    final app = await buildDianaApp(
+      config: config(),
+      overrides: DianaOverrides(appCacheStore: store),
+    );
+    await app.initialize();
+    await app.server.serve(quiet: true);
+    final storePort = app.server.port!;
+    addTearDown(() async {
+      await app.server.close();
+      await app.dispose();
+    });
+
+    Future<(int, dynamic)> get(String path) async {
+      final client = HttpClient();
+      try {
+        final res = await (await client
+                .getUrl(Uri.parse('http://127.0.0.1:$storePort$path')))
+            .close();
+        final text = await res.transform(utf8.decoder).join();
+        return (res.statusCode, text.isEmpty ? null : jsonDecode(text));
+      } finally {
+        client.close();
+      }
+    }
+
+    final (s1, first) = await get('/posts/stats/total');
+    expect(s1, 200);
+    expect(first['total'], 0);
+    expect(store.runs, greaterThan(0),
+        reason: 'the custom store must intercept the @Cacheable call');
+
+    // Cache semantics survive through the custom store: a write is invisible
+    // within the TTL because the store returns the cached value.
+    final runsAfterFirst = store.runs;
+    final (s2, second) = await get('/posts/stats/total');
+    expect(s2, 200);
+    expect(second['total'], 0, reason: 'served from the store cache');
+    expect(store.runs, greaterThan(runsAfterFirst),
+        reason: 'every cached call still consults the store (which decides '
+            'hit vs miss)');
   });
 }

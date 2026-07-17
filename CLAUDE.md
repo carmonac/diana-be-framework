@@ -87,6 +87,20 @@ dart run build_runner build   # regenerate an example (generated files are commi
   no-op contract in `package:diana` (e.g. `DianaObserver` in `observer.dart`);
   runtime classes take an optional `observer`; the generator discovers the
   add-on provider by supertype and threads it in, gated for byte-identity.
+- **Composable aspect pipeline** (@Timed/@Cacheable/@Retryable/
+  @CircuitBreaker/@Transactional): ONE proxy subclass per provider class —
+  `$Tx$X` kept verbatim when tx-only (byte-identity), `$Aspect$X` otherwise
+  (`bootstrap_builder.dart` `_txOnlyProxy`/`_aspectProxy`). Semantics in
+  `diana/lib/src/aspects.dart` runtime helpers; overrides nest one-liners
+  in the FIXED order Timed→Cacheable→Breaker→Retry→Tx; per-method state as
+  `_cache$m`/`_retry$m`/`_breaker$m` fields; `Code.scope` + `_typeCode` for
+  allocator-prefixed types in string bodies; annotation `Type` lists read
+  via `toListValue()`/`toTypeValue()` and emitted as `e is X` predicates.
+  @Cacheable has a pluggable backend: a `DianaCacheStore` provider
+  (discovered by supertype in core, patrón DianaObservability) swaps the
+  `_cache$m` MethodCache field for a `static const _spec$m` CacheSpec routed
+  through `_cacheStore.run(...)` — gated so store-less apps stay
+  byte-identical; ctor slot order is observer?/cacheStore/db.
 - **Discovery by supertype** (BodyCodec/HealthIndicator/AuthenticationMiddleware):
   scan `provider.info.supertypes` for name + library-prefix; singleton-scope
   check with the `'X implements Y but is <scope>-scoped'` message pattern.

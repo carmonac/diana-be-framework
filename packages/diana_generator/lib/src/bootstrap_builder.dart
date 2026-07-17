@@ -90,6 +90,7 @@ class DianaBootstrapBuilder implements Builder {
       errors.addAll(_checkGrpcSecurity(result.graph!, summaries));
       errors.addAll(_checkDatabase(result.graph!));
       errors.addAll(_checkObservability(result.graph!));
+      errors.addAll(_checkCacheStore(result.graph!));
     }
     if (errors.isNotEmpty) {
       log.severe(
@@ -298,6 +299,41 @@ class DianaBootstrapBuilder implements Builder {
             provider,
       ];
 
+  /// The `DianaCacheStore` providers in the graph (discovered by
+  /// supertype; the contract lives in `package:diana` core).
+  List<ResolvedProvider> _cacheStoreProviders(DiGraph graph) => [
+        for (final provider in graph.ordered)
+          if (provider.info.supertypes.any(
+            (s) =>
+                s.name == 'DianaCacheStore' &&
+                s.libraryUri.startsWith('package:diana/'),
+          ))
+            provider,
+      ];
+
+  /// At most one `DianaCacheStore` provider, and it must be a singleton
+  /// (every cached method routes through the same instance).
+  List<String> _checkCacheStore(DiGraph graph) {
+    final providers = _cacheStoreProviders(graph);
+    if (providers.length > 1) {
+      return [
+        'Multiple DianaCacheStore providers: '
+        '${providers.map((p) => '${p.info.type.displayName} '
+            '(${p.declaredIn})').join(', ')}. Declare exactly one.',
+      ];
+    }
+    if (providers.isNotEmpty) {
+      final p = providers.single;
+      if (p.scope != 'singleton' || p.needsRequestScope) {
+        return [
+          '${p.info.type.displayName} extends DianaCacheStore but is '
+          '${p.scope}-scoped; cache stores must be singletons.',
+        ];
+      }
+    }
+    return const [];
+  }
+
   /// At most one `DianaObservability` provider, and it must be a singleton
   /// (the server, scheduler, bus and database all hold the same instance).
   List<String> _checkObservability(DiGraph graph) {
@@ -413,91 +449,330 @@ class DianaBootstrapBuilder implements Builder {
     return errors;
   }
 
-  /// Generates `$Tx$X` proxy subclasses for every provider with
-  /// `@Transactional` methods: each override wraps `super.method(...)` in an
-  /// ambient transaction via the injected `Database`.
-  List<Spec> _transactionalProxies(DiGraph graph) {
+  /// Generates proxy subclasses for every provider with aspect-annotated
+  /// methods: the historical `$Tx$X` shape when only `@Transactional` is
+  /// used (byte-identical output for existing apps), or `$Aspect$X` when
+  /// any new aspect (@Timed/@Cacheable/@Retryable/@CircuitBreaker) is
+  /// present — each override nests the aspect runtimes in the fixed order
+  /// Timed → Cacheable → CircuitBreaker → Retryable → Transactional.
+  List<Spec> _aspectProxies(DiGraph graph) {
     final proxies = <Spec>[];
+    final useStore = _cacheStoreProviders(graph).isNotEmpty;
     for (final provider in graph.ordered) {
-      final txMethods = provider.info.transactionalMethods;
-      if (txMethods.isEmpty) continue;
-      final base = provider.info.type;
+      if (provider.info.aspectMethods.isEmpty) continue;
+      proxies.add(provider.info.hasNewAspects
+          ? _aspectProxy(provider, useStore: useStore)
+          : _txOnlyProxy(provider));
+    }
+    return proxies;
+  }
 
-      proxies.add(Class((c) {
-        c
-          ..name = '\$Tx\$${base.name}'
-          ..extend = referenceOf(base)
-          ..fields.add(Field((f) => f
-            ..name = '_db'
+  /// The historical `$Tx$X` proxy — the emission is kept verbatim so
+  /// transactional-only apps stay byte-identical.
+  Spec _txOnlyProxy(ResolvedProvider provider) {
+    final txMethods = [
+      for (final m in provider.info.aspectMethods)
+        if (m.transactional) m,
+    ];
+    final base = provider.info.type;
+
+    return Class((c) {
+      c
+        ..name = '\$Tx\$${base.name}'
+        ..extend = referenceOf(base)
+        ..fields.add(Field((f) => f
+          ..name = '_db'
+          ..modifier = FieldModifier.final$
+          ..type = refer('Database', dianaDataLib)));
+
+      // Constructor: (Database _db, <base ctor params>) : super(<forward>).
+      final forwardPositional = <String>[];
+      final forwardNamed = <String>[];
+      c.constructors.add(Constructor((ctor) {
+        ctor.requiredParameters.add(Parameter((p) => p
+          ..name = '_db'
+          ..toThis = true));
+        for (final param in provider.info.ctorParams) {
+          if (param.isNamed) {
+            ctor.optionalParameters.add(Parameter((p) => p
+              ..name = param.name
+              ..named = true
+              ..required = true
+              ..type = referenceOf(param.type)));
+            forwardNamed.add('${param.name}: ${param.name}');
+          } else {
+            ctor.requiredParameters.add(Parameter((p) => p
+              ..name = param.name
+              ..type = referenceOf(param.type)));
+            forwardPositional.add(param.name);
+          }
+        }
+        final superArgs =
+            [...forwardPositional, ...forwardNamed].join(', ');
+        ctor.initializers.add(Code('super($superArgs)'));
+      }));
+
+      // One override per @Transactional method.
+      for (final method in txMethods) {
+        final forwardArgs = <String>[];
+        c.methods.add(Method((m) {
+          m
+            ..annotations.add(refer('override'))
+            ..name = method.methodName
+            ..returns = referenceOf(method.returnType);
+          _declareTypeParams(m, method);
+          for (final param in method.params) {
+            final p = Parameter((b) {
+              b
+                ..name = param.name
+                ..type = referenceOf(param.type);
+              if (param.defaultCode != null) {
+                b.defaultTo = Code(param.defaultCode!);
+              }
+              if (param.kind == 'named') b.named = true;
+            });
+            switch (param.kind) {
+              case 'named':
+                m.optionalParameters.add(p);
+                forwardArgs.add('${param.name}: ${param.name}');
+              case 'optionalPositional':
+                m.optionalParameters.add(p);
+                forwardArgs.add(param.name);
+              default:
+                m.requiredParameters.add(p);
+                forwardArgs.add(param.name);
+            }
+          }
+          m
+            ..lambda = true
+            ..body = Code('_db.runTransactional(() => '
+                'super.${method.methodName}(${forwardArgs.join(', ')}))');
+        }));
+      }
+    });
+  }
+
+  /// The `$Aspect$X` proxy: per-method cache/retry/breaker state fields and
+  /// overrides nesting the aspect runtimes around `super.m(...)`.
+  Spec _aspectProxy(ResolvedProvider provider, {required bool useStore}) {
+    final info = provider.info;
+    final base = info.type;
+    // The store slot exists only when the app declares a DianaCacheStore
+    // AND this class caches — otherwise the built-in MethodCache fields are
+    // emitted verbatim (byte-identity for store-less apps).
+    final storeSlot = useStore && info.hasCacheable;
+
+    return Class((c) {
+      c
+        ..name = '\$Aspect\$${base.name}'
+        ..extend = referenceOf(base);
+
+      if (info.hasTimed) {
+        c.fields.add(Field((f) => f
+          ..name = '_observer'
+          ..modifier = FieldModifier.final$
+          ..type = TypeReference((t) => t
+            ..symbol = 'DianaObserver'
+            ..url = dianaLib
+            ..isNullable = true)));
+      }
+      if (storeSlot) {
+        c.fields.add(Field((f) => f
+          ..name = '_cacheStore'
+          ..modifier = FieldModifier.final$
+          ..type = refer('DianaCacheStore', dianaLib)));
+      }
+      if (info.hasTx) {
+        c.fields.add(Field((f) => f
+          ..name = '_db'
+          ..modifier = FieldModifier.final$
+          ..type = refer('Database', dianaDataLib)));
+      }
+
+      // Per-method aspect state (method names are unique per class).
+      for (final method in info.aspectMethods) {
+        final name = method.methodName;
+        final cacheable = method.cacheable;
+        if (cacheable != null && storeSlot) {
+          // With a store the cache field becomes a const spec handed to it.
+          c.fields.add(Field((f) => f
+            ..name = '_spec\$$name'
+            ..static = true
+            ..modifier = FieldModifier.constant
+            ..assignment = Code.scope((allocate) =>
+                '${allocate(refer('CacheSpec', dianaLib))}('
+                "method: '${base.name}.$name', "
+                'ttl: Duration(seconds: ${cacheable.ttlSeconds}), '
+                'maxEntries: ${cacheable.maxEntries})')));
+        } else if (cacheable != null) {
+          final valueType = method.returnType.typeArgs.isEmpty
+              ? const TypeRef(libraryUri: '', name: 'dynamic')
+              : method.returnType.typeArgs.first;
+          c.fields.add(Field((f) => f
+            ..name = '_cache\$$name'
             ..modifier = FieldModifier.final$
-            ..type = refer('Database', dianaDataLib)));
+            ..assignment = Code.scope((allocate) =>
+                '${allocate(refer('MethodCache', dianaLib))}'
+                '<${_typeCode(valueType, allocate)}>('
+                'ttl: const Duration(seconds: ${cacheable.ttlSeconds}), '
+                'maxEntries: ${cacheable.maxEntries})')));
+        }
+        final breaker = method.circuitBreaker;
+        if (breaker != null) {
+          c.fields.add(Field((f) => f
+            ..name = '_breaker\$$name'
+            ..modifier = FieldModifier.final$
+            ..assignment = Code.scope((allocate) =>
+                '${allocate(refer('CircuitBreakerPolicy', dianaLib))}('
+                'failureThreshold: ${breaker.failureThreshold}, '
+                'resetTimeout: const Duration('
+                'milliseconds: ${breaker.resetTimeoutMs}))')));
+        }
+        final retryable = method.retryable;
+        if (retryable != null) {
+          c.fields.add(Field((f) => f
+            ..name = '_retry\$$name'
+            ..modifier = FieldModifier.final$
+            ..assignment = Code.scope((allocate) {
+              final predicate = retryable.retryOn.isEmpty
+                  ? ''
+                  : ', retryWhen: (e) => ${retryable.retryOn.map(
+                        (t) => 'e is ${_typeCode(t, allocate)}',
+                      ).join(' || ')}';
+              return '${allocate(refer('RetryPolicy', dianaLib))}('
+                  'maxAttempts: ${retryable.maxAttempts}, '
+                  'backoff: const Duration('
+                  'milliseconds: ${retryable.backoffMs})$predicate)';
+            })));
+        }
+      }
 
-        // Constructor: (Database _db, <base ctor params>) : super(<forward>).
-        final forwardPositional = <String>[];
-        final forwardNamed = <String>[];
-        c.constructors.add(Constructor((ctor) {
+      // Constructor: ([observer,] [db,] <base ctor params>) : super(...).
+      final forwardPositional = <String>[];
+      final forwardNamed = <String>[];
+      c.constructors.add(Constructor((ctor) {
+        if (info.hasTimed) {
+          ctor.requiredParameters.add(Parameter((p) => p
+            ..name = '_observer'
+            ..toThis = true));
+        }
+        if (storeSlot) {
+          ctor.requiredParameters.add(Parameter((p) => p
+            ..name = '_cacheStore'
+            ..toThis = true));
+        }
+        if (info.hasTx) {
           ctor.requiredParameters.add(Parameter((p) => p
             ..name = '_db'
             ..toThis = true));
-          for (final param in provider.info.ctorParams) {
-            if (param.isNamed) {
-              ctor.optionalParameters.add(Parameter((p) => p
-                ..name = param.name
-                ..named = true
-                ..required = true
-                ..type = referenceOf(param.type)));
-              forwardNamed.add('${param.name}: ${param.name}');
-            } else {
-              ctor.requiredParameters.add(Parameter((p) => p
-                ..name = param.name
-                ..type = referenceOf(param.type)));
-              forwardPositional.add(param.name);
-            }
-          }
-          final superArgs =
-              [...forwardPositional, ...forwardNamed].join(', ');
-          ctor.initializers.add(Code('super($superArgs)'));
-        }));
-
-        // One override per @Transactional method.
-        for (final method in txMethods) {
-          final forwardArgs = <String>[];
-          c.methods.add(Method((m) {
-            m
-              ..annotations.add(refer('override'))
-              ..name = method.methodName
-              ..returns = referenceOf(method.returnType);
-            for (final param in method.params) {
-              final p = Parameter((b) {
-                b
-                  ..name = param.name
-                  ..type = referenceOf(param.type);
-                if (param.defaultCode != null) {
-                  b.defaultTo = Code(param.defaultCode!);
-                }
-                if (param.kind == 'named') b.named = true;
-              });
-              switch (param.kind) {
-                case 'named':
-                  m.optionalParameters.add(p);
-                  forwardArgs.add('${param.name}: ${param.name}');
-                case 'optionalPositional':
-                  m.optionalParameters.add(p);
-                  forwardArgs.add(param.name);
-                default:
-                  m.requiredParameters.add(p);
-                  forwardArgs.add(param.name);
-              }
-            }
-            m
-              ..lambda = true
-              ..body = Code('_db.runTransactional(() => '
-                  'super.${method.methodName}(${forwardArgs.join(', ')}))');
-          }));
         }
+        for (final param in info.ctorParams) {
+          if (param.isNamed) {
+            ctor.optionalParameters.add(Parameter((p) => p
+              ..name = param.name
+              ..named = true
+              ..required = true
+              ..type = referenceOf(param.type)));
+            forwardNamed.add('${param.name}: ${param.name}');
+          } else {
+            ctor.requiredParameters.add(Parameter((p) => p
+              ..name = param.name
+              ..type = referenceOf(param.type)));
+            forwardPositional.add(param.name);
+          }
+        }
+        final superArgs =
+            [...forwardPositional, ...forwardNamed].join(', ');
+        ctor.initializers.add(Code('super($superArgs)'));
+      }));
+
+      // One override per aspect method, layers nested in the fixed order.
+      for (final method in info.aspectMethods) {
+        final name = method.methodName;
+        final forwardArgs = <String>[];
+        final keyArgs = <String>[];
+        c.methods.add(Method((m) {
+          m
+            ..annotations.add(refer('override'))
+            ..name = name
+            ..returns = referenceOf(method.returnType);
+          _declareTypeParams(m, method);
+          for (final param in method.params) {
+            final p = Parameter((b) {
+              b
+                ..name = param.name
+                ..type = referenceOf(param.type);
+              if (param.defaultCode != null) {
+                b.defaultTo = Code(param.defaultCode!);
+              }
+              if (param.kind == 'named') b.named = true;
+            });
+            switch (param.kind) {
+              case 'named':
+                m.optionalParameters.add(p);
+                forwardArgs.add('${param.name}: ${param.name}');
+              case 'optionalPositional':
+                m.optionalParameters.add(p);
+                forwardArgs.add(param.name);
+              default:
+                m.requiredParameters.add(p);
+                forwardArgs.add(param.name);
+            }
+            keyArgs.add(param.name);
+          }
+          m
+            ..lambda = true
+            ..body = Code.scope((allocate) {
+              var body = 'super.$name(${forwardArgs.join(', ')})';
+              if (method.transactional) {
+                body = '_db.runTransactional(() => $body)';
+              }
+              if (method.retryable != null) {
+                body = '_retry\$$name.run(() => $body)';
+              }
+              if (method.circuitBreaker != null) {
+                body = '_breaker\$$name.run(() => $body)';
+              }
+              if (method.cacheable != null) {
+                body = storeSlot
+                    ? '_cacheStore.run('
+                        '_spec\$$name, [${keyArgs.join(', ')}], () => $body)'
+                    : '_cache\$$name.run('
+                        '[${keyArgs.join(', ')}], () => $body)';
+              }
+              if (method.timed != null) {
+                final label = method.timed!.name ?? '${base.name}.$name';
+                body = '${allocate(refer('runTimed', dianaLib))}('
+                    "_observer, '$label', () => $body)";
+              }
+              return body;
+            });
+        }));
+      }
+    });
+  }
+
+  /// Re-declares a generic method's `<T extends B>` on its override.
+  void _declareTypeParams(MethodBuilder m, AspectMethodInfo method) {
+    for (final tp in method.typeParams) {
+      m.types.add(TypeReference((t) {
+        t.symbol = tp.name;
+        final bound = tp.bound;
+        if (bound != null) t.bound = referenceOf(bound);
       }));
     }
-    return proxies;
+  }
+
+  /// Renders a [TypeRef] as source inside a `Code.scope`, allocating the
+  /// import prefix for it and its type arguments.
+  String _typeCode(TypeRef type, String Function(Reference) allocate) {
+    final baseName = type.libraryUri.isEmpty
+        ? type.name
+        : allocate(refer(type.name, type.libraryUri));
+    final args = type.typeArgs.isEmpty
+        ? ''
+        : '<${type.typeArgs.map((t) => _typeCode(t, allocate)).join(', ')}>';
+    return '$baseName$args${type.nullable ? '?' : ''}';
   }
 
   /// A `const SecuredGuard()` / `const RolesGuard([...])` from diana_auth
@@ -1100,7 +1375,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
     final generated = Library((b) => b
       ..body.addAll([
         ...emission.specs,
-        ..._transactionalProxies(graph),
+        ..._aspectProxies(graph),
         appClass,
         buildContextFn,
         if (mapExceptionFn != null) mapExceptionFn,

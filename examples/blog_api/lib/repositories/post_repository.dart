@@ -22,6 +22,11 @@ class PostRepository {
     return rows.isEmpty ? null : _toPost(rows.single);
   }
 
+  Future<int> count() async {
+    final rows = await db.raw('SELECT COUNT(*) AS n FROM posts');
+    return rows.single['n'] as int;
+  }
+
   Future<Article> create(String title, String body) async {
     await db.insert(db.table('posts').insert({'title': title, 'body': body}));
     final rows = await db.raw(

@@ -14,8 +14,8 @@ and supply the connection through a small connector.
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.9.0
-  diana_data: ^0.9.0
+  diana: ^0.11.0
+  diana_data: ^0.11.0
   knex_dart_sqlite: ^0.4.0   # your driver of choice
 ```
 
@@ -115,6 +115,10 @@ detached `Future`) still carries the transaction after the method returns —
 by then it has committed or rolled back, and a late query against it throws.
 This fails loudly rather than corrupting data, but the fix is structural:
 `await` every database call before the transactional method returns.
+
+`@Transactional` composes with the [aspects](aspects.md)
+(`@Retryable` retries each attempt in a fresh transaction; `@Cacheable`
+misses populate through the transaction).
 
 ## Migrations
 

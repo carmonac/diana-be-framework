@@ -8,6 +8,7 @@ library;
 
 export 'package:diana_annotation/diana_annotation.dart';
 
+export 'src/aspects.dart';
 export 'src/binding.dart';
 export 'src/codec.dart';
 export 'src/config.dart';

@@ -15,8 +15,8 @@ scheduler, event bus and database (no per-route code):
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.9.0
-  diana_observability: ^0.9.0
+  diana: ^0.11.0
+  diana_observability: ^0.11.0
 ```
 
 ```dart
@@ -71,7 +71,11 @@ class OrderService {
 }
 ```
 
-### Tracing
+#`@Timed` service methods (see [aspects](aspects.md)) add
+`diana_method_duration_seconds{method}` and
+`diana_method_calls_total{method,result}` automatically.
+
+## Tracing
 
 When `observability.tracing.endpoint` is set, every request opens a
 server span (continuing an inbound W3C `traceparent`) and each database

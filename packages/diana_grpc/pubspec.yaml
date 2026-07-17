@@ -2,7 +2,7 @@ name: diana_grpc
 description: >-
   gRPC support for the Diana backend framework: dependency-injected
   protoc-generated services with Diana lifecycle integration.
-version: 0.9.0
+version: 0.11.0
 publish_to: none
 
 environment:
@@ -11,7 +11,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  diana: ^0.9.0
+  diana: ^0.11.0
   grpc: ^4.0.0
 
 dev_dependencies:

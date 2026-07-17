@@ -103,6 +103,10 @@ class TodoController {
   event series, labelled by route template), OpenTelemetry tracing, an
   injectable `MeterRegistry`, and Kubernetes-style liveness/readiness
   probes.
+- **Aspects** — `@Timed`, `@Cacheable` (in-memory TTL+LRU by default, or a
+  pluggable `DianaCacheStore` for shared backends), `@Retryable` and
+  `@CircuitBreaker` on service methods, composed with `@Transactional` at
+  compile time through generated proxies — Spring AOP without reflection.
 - **Persistence** — the optional [`diana_data`](packages/diana_data) package:
   an injectable `Database` query executor over
   [knex_dart](https://pub.dev/packages/knex_dart), Spring-style
@@ -127,11 +131,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.9.0
+  diana: ^0.11.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.9.0
+  diana_generator: ^0.11.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -233,12 +237,13 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.8: the Spring-parity feature set above — including content negotiation
+v0.11: the Spring-parity feature set above — including content negotiation
 (XML), Server-Sent Events, gRPC, application events with a cross-isolate
 bridge, authentication/authorization (`diana_auth`), persistence with
-`@Transactional` (`diana_data`) and observability (`diana_observability`:
-Prometheus metrics + OpenTelemetry tracing) — fully tested. Planned next:
-`@Timed`/`@Cacheable` and resilience (`@Retryable`, circuit breaker) on the
-generated-proxy machinery, Spring-Data style query-method generation,
-STOMP-style messaging over WebSockets, cron expressions for `@Scheduled`,
-RS256/JWKS token verification.
+`@Transactional` (`diana_data`), observability (`diana_observability`:
+Prometheus metrics + OpenTelemetry tracing) and compile-time aspects
+(`@Timed`/`@Cacheable`/`@Retryable`/`@CircuitBreaker`, with a pluggable
+`DianaCacheStore` for shared cache backends) — fully tested. Planned next:
+Spring-Data style query-method generation, STOMP-style messaging over
+WebSockets, cron expressions for `@Scheduled`, RS256/JWKS token
+verification.

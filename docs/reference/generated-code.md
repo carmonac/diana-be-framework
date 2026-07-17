@@ -65,6 +65,20 @@ a `$Tx$<Provider>` proxy subclass (in the app library) overriding each such
 method to wrap `super.method(...)` in `Database.runTransactional`; the graph
 injects the proxy in place of the raw class.
 
+Providers with `@Timed`/`@Cacheable`/`@Retryable`/`@CircuitBreaker` methods
+get a `$Aspect$<Provider>` proxy instead (its `@Transactional` methods fold
+in as the innermost layer): the constructor prepends a `DianaObserver?`
+(when `@Timed` is present — the observability provider, or `null` without
+one), a `DianaCacheStore` (when `@Cacheable` is present **and** the app
+declares a store provider), and the `Database` (when `@Transactional` is
+present), in that order. Each retried/guarded method carries a
+`_retry$m`/`_breaker$m` state field; each cached method carries either a
+`_cache$m` `MethodCache` field (built-in cache) or a `static const _spec$m`
+`CacheSpec` routed through `_cacheStore.run(...)` (pluggable store). Every
+override nests the aspect runtimes in the fixed order Timed → Cacheable →
+CircuitBreaker → Retryable → Transactional. Generic methods re-declare
+their type parameters on the override.
+
 ### Validators
 
 One public class per constrained DTO:
@@ -211,7 +225,7 @@ one `build_runner` invocation drives all builders.
   by type, global middleware by `(order, type)`, summaries by path).
 - No timestamps or random values are ever emitted.
 - Optional features (`eventBus`, `grpcServer`, `scheduler`, `bodyCodecs`,
-  auth guards, the gRPC auth interceptor, the `database` field and `$Tx$`
+  auth guards, the gRPC auth interceptor, the `database` field, `$Tx$`/`$Aspect$`
   proxies, and the observability wiring / `/actuator/metrics`) are emitted
   only when used — an app without them produces
   byte-identical output before and after a generator upgrade that adds the

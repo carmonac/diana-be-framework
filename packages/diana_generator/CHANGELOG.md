@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.0
+
+- `@Cacheable` methods route through a discovered `DianaCacheStore`
+  provider when present: the `$Aspect$X` proxy gains a `DianaCacheStore`
+  field and a `static const CacheSpec` per cached method (vs the built-in
+  `MethodCache` field otherwise — byte-identical for store-less apps).
+  New diagnostics for duplicate/non-singleton stores.
+
+## 0.10.0
+
+- Generalized proxy pipeline: `$Aspect$X` subclasses compose
+  `@Timed`/`@Cacheable`/`@Retryable`/`@CircuitBreaker`/`@Transactional`
+  in a fixed order with per-method state fields; transactional-only
+  classes keep the byte-identical `$Tx$X` shape. Generic methods
+  re-declare their type parameters on overrides. New exact diagnostics
+  for aspect placement, signatures and value ranges.
+
 ## 0.9.0
 
 - Version bump only (kept in lockstep with the workspace).

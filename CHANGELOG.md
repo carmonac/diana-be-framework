@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.11.0 — 2026-07-17
+
+### Pluggable @Cacheable store
+- New `DianaCacheStore` contract in `package:diana`: declare exactly one
+  singleton provider extending it and every `@Cacheable` method routes
+  through it instead of the built-in per-isolate cache — the seam for
+  Redis/memcached/shared backends, driver-agnostic (no new dependency).
+- Wrap-style contract (`Future<V> run<V>(CacheSpec spec, List<Object?> key,
+  Future<V> Function() miss)`): the store owns lookup, populate,
+  single-flight, TTL, eviction and value serialization; `CacheSpec` carries
+  the method name (for key namespacing) plus the annotation's ttl/maxEntries.
+- `InMemoryCacheStore` exposed as the default backend, so custom stores can
+  delegate to it (logging, metrics, local-then-remote tiers).
+- Discovered by supertype and wired into the `$Aspect$X` proxy only when
+  present (a `DianaCacheStore` field + a `static const CacheSpec` per cached
+  method); apps without a store keep the built-in `MethodCache` emission
+  byte-for-byte. Build diagnostics for duplicate or non-singleton stores.
+- `examples/blog_api` dogfoods a custom store that delegates to the
+  in-memory default.
+
+
+## 0.10.0 — 2026-07-17
+
+### Compile-time aspects (Spring AOP without reflection)
+- Four new method-level annotations on `@Service`/`@Component`/
+  `@Repository` providers — **`@Timed`**, **`@Cacheable`**,
+  **`@Retryable`**, **`@CircuitBreaker`** — composed with `@Transactional`
+  through a generalized generated-proxy pipeline (`$Aspect$X`), always in
+  the fixed order Timed → Cacheable → CircuitBreaker → Retryable →
+  Transactional (cache hits skip everything below; each retry runs in a
+  fresh transaction; the breaker guards a whole retry budget).
+- Runtime semantics live in tested `package:diana` helpers: `runTimed`,
+  `MethodCache` (per-isolate TTL+LRU, single-flight, errors never cached),
+  `RetryPolicy` (fixed backoff, exception-type filter) and
+  `CircuitBreakerPolicy` (open/half-open/closed, `CircuitOpenException`).
+- `@Timed` reports through the neutral `DianaObserver.observeTimedMethod`
+  hook: with `diana_observability` present it feeds
+  `diana_method_duration_seconds{method}`,
+  `diana_method_calls_total{method,result}` and a `method.<name>` trace
+  span — without it, a silent no-op.
+- Exact build diagnostics for placement, signatures (Future-returning,
+  public instance, non-generic/non-void for `@Cacheable`) and value ranges.
+- Transactional-only classes keep emitting the `$Tx$X` proxy byte-for-byte;
+  apps using no aspects are byte-identical. Generic aspect methods now
+  re-declare their type parameters on the generated override (previously a
+  generic `@Transactional` method produced non-compiling code).
+- `examples/blog_api` dogfoods the pipeline: a cached+timed stats endpoint,
+  a flaky retry+transaction write committing exactly once, and a
+  circuit-broken endpoint.
+
+
 ## 0.9.0 — 2026-07-17
 
 ### Request body size limit (security hardening)

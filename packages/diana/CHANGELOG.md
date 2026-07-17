@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.0
+
+- New pluggable `@Cacheable` backend contract in `aspects.dart`:
+  `DianaCacheStore` (wrap-style `run<V>(spec, key, miss)`), `CacheSpec`,
+  and `InMemoryCacheStore` (the exposed per-isolate default).
+
+## 0.10.0
+
+- New aspect runtime (`aspects.dart`): `runTimed`, `MethodCache`
+  (TTL+LRU, single-flight, errors never cached), `RetryPolicy`,
+  `CircuitBreakerPolicy` and `CircuitOpenException` — the helpers behind
+  the generated `$Aspect$X` proxies. `DianaObserver` gains the
+  `observeTimedMethod` no-op hook.
+
 ## 0.9.0
 
 - Request body size limit: `server.maxBodyBytes` (default 10 MiB) caps

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+- Version bump only (kept in lockstep with the workspace).
+
+## 0.10.0
+
+- Version bump only (kept in lockstep; `@Transactional` folds into the new
+  aspect pipeline with unchanged semantics and output).
+
 ## 0.9.0
 
 - The migration runner splits SQL files on top-level `;` only: quoted
