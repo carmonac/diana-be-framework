@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0
+
+- New `DianaRepository<E>` base for Spring-Data-style query repositories:
+  holds the injected `Database`, declares the CRUD quartet the generator
+  implements, and exposes protected `runCount`/`runExists` helpers for
+  generated `countBy*`/`existsBy*` methods.
+
 ## 0.12.0
 
 - Version bump only (kept in lockstep with the workspace).

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.13.0 — 2026-07-17
+
+### Spring-Data-style query methods
+- Declare an **abstract** `@Repository` class extending the new
+  `DianaRepository<E>` (in `diana_data`) and Diana generates its
+  implementation: `findAll`/`findById`/`save`/`deleteById` plus every
+  abstract method derived from its **name** — `findByTitle`,
+  `findFirstByPostIdAndAuthor`, `countByPostId`, `existsByAuthor`,
+  `deleteByPostId`, `findByBodyContainsOrderByIdDesc`, ...
+- Full derived-query grammar: equality, `Not`, `GreaterThan(Equal)`,
+  `LessThan(Equal)`, `Like`, `Contains`/`StartsWith`/`EndsWith`,
+  `In`/`NotIn`, `Between`, `IsNull`/`IsNotNull`; `And` **or** `Or`
+  connectors (one per method); chainable trailing
+  `OrderBy<Property>Asc|Desc`. Everything is parsed and type-checked at
+  build time with exact diagnostics (unknown properties, arity/type
+  mismatches, wrong return shapes).
+- Entities are `@Json` classes annotated with the new `@Table('name')`;
+  columns are the fields' JSON keys (`@JsonField(name:)` doubles as the
+  column override) and rows map through the generated `$EFromJson`.
+  `save()` inserts `toJson` minus null entries, so a nullable `id` field
+  autoincrements.
+- Generated `$Repo$X` implementations run through the existing `Database`
+  facade — repository calls join the ambient `@Transactional` transaction.
+  Apps without query repositories emit byte-identical output.
+- `examples/blog_api` dogfoods the whole grammar against sqlite (a new
+  `comments` table + migration).
+
 ## 0.12.0 — 2026-07-17
 
 ### Cron expressions for @Scheduled
@@ -16,7 +43,6 @@
 - The expression's shape is validated at build time (exact diagnostic for a
   wrong field count / unknown macro); per-field range errors surface at
   startup. Apps without cron emit byte-identical output.
-
 
 ## 0.11.0 — 2026-07-17
 
@@ -37,7 +63,6 @@
   byte-for-byte. Build diagnostics for duplicate or non-singleton stores.
 - `examples/blog_api` dogfoods a custom store that delegates to the
   in-memory default.
-
 
 ## 0.10.0 — 2026-07-17
 
@@ -67,7 +92,6 @@
 - `examples/blog_api` dogfoods the pipeline: a cached+timed stats endpoint,
   a flaky retry+transaction write committing exactly once, and a
   circuit-broken endpoint.
-
 
 ## 0.9.0 — 2026-07-17
 

@@ -202,7 +202,13 @@ ContextEmission emitContext(DiGraph graph) {
       final info = provider.info;
       final observability = observabilityProvider;
       final cacheStore = cacheStoreProvider;
-      if (info.hasNewAspects) {
+      if (info.isQueryRepo) {
+        // Abstract query repositories are constructed as their generated
+        // implementation; deps (the Database among them) flow through the
+        // user-declared constructor unchanged.
+        construction = refer('\$Repo\$${info.type.name}')
+            .newInstance(positional, named);
+      } else if (info.hasNewAspects) {
         construction = refer('\$Aspect\$${info.type.name}').newInstance(
           [
             if (info.hasTimed)

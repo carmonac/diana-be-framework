@@ -157,6 +157,10 @@ class InjectableInfo {
   /// generator.
   final List<AspectMethodInfo> aspectMethods;
 
+  /// Present when this provider is an abstract query repository
+  /// (`extends DianaRepository<E>`); the generator implements it.
+  final QueryRepoInfo? queryRepo;
+
   const InjectableInfo({
     required this.type,
     required this.scope,
@@ -173,6 +177,7 @@ class InjectableInfo {
     this.scheduled = const [],
     this.eventListeners = const [],
     this.aspectMethods = const [],
+    this.queryRepo,
   });
 
   /// Unique key of this provider in the graph.
@@ -199,6 +204,7 @@ class InjectableInfo {
           'eventListeners': [for (final l in eventListeners) l.toJson()],
         if (aspectMethods.isNotEmpty)
           'aspectMethods': [for (final t in aspectMethods) t.toJson()],
+        if (queryRepo != null) 'queryRepo': queryRepo!.toJson(),
       };
 
   factory InjectableInfo.fromJson(Map<String, Object?> json) => InjectableInfo(
@@ -236,7 +242,15 @@ class InjectableInfo {
               in (json['aspectMethods'] as List<Object?>? ?? const []))
             AspectMethodInfo.fromJson((t as Map).cast<String, Object?>()),
         ],
+        queryRepo: json['queryRepo'] == null
+            ? null
+            : QueryRepoInfo.fromJson(
+                (json['queryRepo'] as Map).cast<String, Object?>()),
       );
+
+  /// Whether the generator must implement this provider as a query
+  /// repository (`\$Repo\$X`).
+  bool get isQueryRepo => queryRepo != null;
 
   /// Whether any aspect method is transactional (gates diana_data wiring).
   bool get hasTx => aspectMethods.any((m) => m.transactional);
@@ -473,6 +487,164 @@ class AspectParamInfo {
         kind: json['kind'] as String,
         required: json['required'] as bool? ?? false,
         defaultCode: json['default'] as String?,
+      );
+}
+
+/// An abstract query repository: everything the generator needs to emit
+/// its implementation, snapshotted from the entity at read time (the
+/// entity may live in another library).
+class QueryRepoInfo {
+  /// The entity type; its `libraryUri` also locates the generated
+  /// `\$EFromJson`/`\$EToJson` codecs (part-file members of that library).
+  final TypeRef entity;
+
+  /// Table name from `@Table`.
+  final String table;
+
+  /// Column of the entity's `id` field (used by findById/deleteById).
+  final String idColumn;
+
+  final List<QueryMethodInfo> methods;
+
+  const QueryRepoInfo({
+    required this.entity,
+    required this.table,
+    required this.idColumn,
+    this.methods = const [],
+  });
+
+  Map<String, Object?> toJson() => {
+        'entity': entity.toJson(),
+        'table': table,
+        'idColumn': idColumn,
+        if (methods.isNotEmpty)
+          'methods': [for (final m in methods) m.toJson()],
+      };
+
+  factory QueryRepoInfo.fromJson(Map<String, Object?> json) => QueryRepoInfo(
+        entity:
+            TypeRef.fromJson((json['entity'] as Map).cast<String, Object?>()),
+        table: json['table'] as String,
+        idColumn: json['idColumn'] as String,
+        methods: [
+          for (final m in (json['methods'] as List<Object?>? ?? const []))
+            QueryMethodInfo.fromJson((m as Map).cast<String, Object?>()),
+        ],
+      );
+}
+
+/// One parsed query method. Conditions consume [params] positionally
+/// (isNull/isNotNull take 0, between takes 2, everything else 1).
+class QueryMethodInfo {
+  /// The declared method name (diagnostics/emission).
+  final String name;
+
+  /// `find`, `findFirst`, `count`, `exists` or `delete`.
+  final String subject;
+
+  /// `and` (default) or `or` — a method uses exactly one connector.
+  final String connector;
+
+  final List<QueryConditionInfo> conditions;
+  final List<QueryOrderInfo> orderBy;
+  final List<QueryParamInfo> params;
+
+  const QueryMethodInfo({
+    required this.name,
+    required this.subject,
+    this.connector = 'and',
+    this.conditions = const [],
+    this.orderBy = const [],
+    this.params = const [],
+  });
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        'subject': subject,
+        if (connector != 'and') 'connector': connector,
+        if (conditions.isNotEmpty)
+          'conditions': [for (final c in conditions) c.toJson()],
+        if (orderBy.isNotEmpty)
+          'orderBy': [for (final o in orderBy) o.toJson()],
+        if (params.isNotEmpty)
+          'params': [for (final p in params) p.toJson()],
+      };
+
+  factory QueryMethodInfo.fromJson(Map<String, Object?> json) =>
+      QueryMethodInfo(
+        name: json['name'] as String,
+        subject: json['subject'] as String,
+        connector: json['connector'] as String? ?? 'and',
+        conditions: [
+          for (final c in (json['conditions'] as List<Object?>? ?? const []))
+            QueryConditionInfo.fromJson((c as Map).cast<String, Object?>()),
+        ],
+        orderBy: [
+          for (final o in (json['orderBy'] as List<Object?>? ?? const []))
+            QueryOrderInfo.fromJson((o as Map).cast<String, Object?>()),
+        ],
+        params: [
+          for (final p in (json['params'] as List<Object?>? ?? const []))
+            QueryParamInfo.fromJson((p as Map).cast<String, Object?>()),
+        ],
+      );
+}
+
+/// One condition: a resolved column and an operator.
+class QueryConditionInfo {
+  final String column;
+
+  /// `eq` (default) | `not` | `gt` | `gte` | `lt` | `lte` | `like` |
+  /// `contains` | `startsWith` | `endsWith` | `inList` | `notIn` |
+  /// `between` | `isNull` | `isNotNull`.
+  final String op;
+
+  const QueryConditionInfo({required this.column, this.op = 'eq'});
+
+  Map<String, Object?> toJson() => {
+        'column': column,
+        if (op != 'eq') 'op': op,
+      };
+
+  factory QueryConditionInfo.fromJson(Map<String, Object?> json) =>
+      QueryConditionInfo(
+        column: json['column'] as String,
+        op: json['op'] as String? ?? 'eq',
+      );
+}
+
+/// One OrderBy clause entry.
+class QueryOrderInfo {
+  final String column;
+  final bool desc;
+
+  const QueryOrderInfo({required this.column, this.desc = false});
+
+  Map<String, Object?> toJson() => {
+        'column': column,
+        if (desc) 'desc': true,
+      };
+
+  factory QueryOrderInfo.fromJson(Map<String, Object?> json) =>
+      QueryOrderInfo(
+        column: json['column'] as String,
+        desc: json['desc'] as bool? ?? false,
+      );
+}
+
+/// One required positional parameter of a query method.
+class QueryParamInfo {
+  final String name;
+  final TypeRef type;
+
+  const QueryParamInfo({required this.name, required this.type});
+
+  Map<String, Object?> toJson() =>
+      {'name': name, 'type': type.toJson()};
+
+  factory QueryParamInfo.fromJson(Map<String, Object?> json) => QueryParamInfo(
+        name: json['name'] as String,
+        type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
       );
 }
 

@@ -75,8 +75,10 @@ class DiGraph {
   /// Whether the app injects `Database` or declares `@Transactional`
   /// methods — gates all diana_data emission (database field, lifecycle,
   /// transactional proxies).
-  bool get usesData => ordered.any(
-      (p) => p.info.hasTx || p.deps.any((d) => d.isDbExecutor));
+  bool get usesData => ordered.any((p) =>
+      p.info.hasTx ||
+      p.info.isQueryRepo ||
+      p.deps.any((d) => d.isDbExecutor));
 }
 
 class DiGraphResult {

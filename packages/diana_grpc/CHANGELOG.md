@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.0
+
+- Version bump only (kept in lockstep with the workspace).
+
 ## 0.12.0
 
 - Version bump only (kept in lockstep with the workspace).

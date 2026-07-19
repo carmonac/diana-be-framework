@@ -58,13 +58,48 @@ class AuthenticationMiddleware implements Middleware {
 }
 ''',
   'diana_data|lib/diana_data.dart': '''
+class QueryBuilder {
+  QueryBuilder table(String table) => this;
+  QueryBuilder where(dynamic column, [dynamic op, dynamic value]) => this;
+  QueryBuilder orWhere(dynamic column, [dynamic op, dynamic value]) => this;
+  QueryBuilder whereIn(String column, dynamic values) => this;
+  QueryBuilder whereNotIn(String column, dynamic values) => this;
+  QueryBuilder orWhereNotIn(String column, List<dynamic> values) => this;
+  QueryBuilder whereNull(String column) => this;
+  QueryBuilder whereNotNull(String column) => this;
+  QueryBuilder orWhereNull(String column) => this;
+  QueryBuilder orWhereNotNull(String column) => this;
+  QueryBuilder whereBetween(String column, List<dynamic> values) => this;
+  QueryBuilder orWhereBetween(String column, List<dynamic> values) => this;
+  QueryBuilder orderBy(String column, [String direction = 'asc']) => this;
+  QueryBuilder limit(int value) => this;
+  QueryBuilder insert(dynamic values) => this;
+  QueryBuilder delete() => this;
+  QueryBuilder count([dynamic column = '*']) => this;
+}
+
 class Database {
+  QueryBuilder table(String table) => QueryBuilder();
+  Future<List<Map<String, dynamic>>> select(QueryBuilder query) async => [];
+  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) async => [];
+  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) async => [];
   Future<T> runTransactional<T>(Future<T> Function() body) => body();
 }
 
 abstract class DatabaseConnector {
   Future<Object> connect(Object config);
   Future<void> close(Object connection);
+}
+
+abstract class DianaRepository<T> {
+  final Database db;
+  DianaRepository(this.db);
+  Future<List<T>> findAll();
+  Future<T?> findById(Object id);
+  Future<void> save(T entity);
+  Future<void> deleteById(Object id);
+  Future<int> runCount(QueryBuilder query) async => 0;
+  Future<bool> runExists(QueryBuilder query) async => false;
 }
 ''',
   'diana_observability|lib/diana_observability.dart': '''

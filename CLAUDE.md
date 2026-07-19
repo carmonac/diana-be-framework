@@ -104,6 +104,19 @@ dart run build_runner build   # regenerate an example (generated files are commi
 - **Discovery by supertype** (BodyCodec/HealthIndicator/AuthenticationMiddleware):
   scan `provider.info.supertypes` for name + library-prefix; singleton-scope
   check with the `'X implements Y but is <scope>-scoped'` message pattern.
+- **Query repositories** (Spring Data style): abstract `@Repository extends
+  DianaRepository<E>` → reader lifts the abstract-class guard
+  (`_checkProviderClass(allowAbstract:)`), snapshots ALL entity facts
+  (@Table name, columns=jsonNames, id, field types) into
+  `InjectableInfo.queryRepo` at read time (entity may be cross-library — no
+  cross-summary lookups), and parses method names with a deterministic
+  longest-match grammar (`_parseQueryMethod`). Emission: `$Repo$X` in
+  bootstrap (`_queryRepoImpls`) — one fluent knex chain per method, rows via
+  `refer('$EFromJson', entity.libraryUri)` (part-file symbols are library
+  members). knex 1.3 has NO `orWhereIn` → In+Or is a build error; `'in'` as
+  where-operator is rejected upstream → whereIn/whereNotIn. `runCount` reads
+  `rows.single.values.single` (AggregateOptions is NOT exported from the
+  knex barrel — don't import src/).
 - **Test harness**: generator tests run in-memory via
   `test/util/package_assets.dart` — REAL diana_annotation sources + same-URI
   FAKE stubs of diana/grpc/diana_auth. New runtime symbols used by emitted

@@ -17,3 +17,16 @@ import 'package:meta/meta_meta.dart';
 class Transactional {
   const Transactional();
 }
+
+/// Maps a `@Json` entity class to a database table for Diana query
+/// repositories (`DianaRepository` in the `diana_data` package).
+///
+/// Column names are the fields' JSON keys — `@JsonField(name: ...)` doubles
+/// as the column-name override.
+@Target({TargetKind.classType})
+class Table {
+  /// The table name (used verbatim; no case conversion).
+  final String name;
+
+  const Table(this.name);
+}

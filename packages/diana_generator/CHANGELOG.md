@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.0
+
+- Query-method generation: abstract `@Repository` classes extending
+  `DianaRepository<E>` are implemented as `$Repo$X` (CRUD + every
+  name-derived query compiled to a fluent knex chain). Deterministic
+  longest-match name parser with ~20 exact build diagnostics; the
+  database-connector message now mentions DianaRepository.
+
 ## 0.12.0
 
 - `@Scheduled(cron:)` support: cron carried on the summary and emitted as

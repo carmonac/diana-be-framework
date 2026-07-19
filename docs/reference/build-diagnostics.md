@@ -228,6 +228,34 @@ one binding annotation" / "combines multiple binding annotations" errors.
 | `Multiple DianaCacheStore providers: A (lib), B (lib). Declare exactly one.` | Keep a single pluggable cache store |
 | `X extends DianaCacheStore but is <scope>-scoped; cache stores must be singletons.` | Make the store a singleton provider |
 
+## Query repositories
+
+| Message | Fix |
+|---|---|
+| `Query repository X must extend DianaRepository<E> with a concrete class type argument.` | Give the supertype a concrete entity type |
+| `Query repository X targets E, which is not a @Json class. Annotate E with @Json() so rows can be mapped to instances.` | Make the entity `@Json` |
+| `Query repository X targets E, which is missing @Table. Annotate E with @Table('table_name').` | Add the table mapping |
+| `Query repository X targets E, which has no 'id' field; DianaRepository.findById/deleteById need one.` | Add an `id` field to the entity |
+| `Query repository X declares aspect-annotated methods; ... Move them to a service that injects X.` | Aspects on query repos are future work |
+| `Query repository X declares abstract member "g" which is not a method; only query methods can be abstract.` | Implement the getter/setter or remove it |
+| `Query repository X re-declares "findAll", which is implemented by the generated repository; remove the declaration.` | The CRUD quartet comes from the base |
+| `Query method X.m must start with findBy, findFirstBy, countBy, existsBy or deleteBy.` | Use a grammar subject prefix |
+| `Cannot parse query method X.m at "Rest": expected a property of E followed by an optional condition. Known properties: ...` | Fix the property/condition segment |
+| `Query method X.m mixes And and Or; a method may use only one connector.` | Split into two methods or pick one connector |
+| `Cannot parse the OrderBy clause of query method X.m at "Rest": expected <Property>Asc or <Property>Desc. Known properties: ...` | Direction is mandatory per order property |
+| `Query method X.m declares no conditions; add at least one property after the prefix.` | `findBy` alone is not a query |
+| `OrderBy is not supported on countBy/existsBy/deleteBy (query method X.m).` | Ordering only applies to finders |
+| `Query method X.m must declare only required positional parameters.` | No named/optional parameters |
+| `Query method X.m declares N parameter(s) but its conditions take M.` | Match the condition arities (Between=2, IsNull=0, rest=1) |
+| `Parameter "p" of query method X.m must be T for condition "PropOp"; got U.` | Match the property type (`List<T>` for In/NotIn) |
+| `Condition "PropOp" of query method X.m needs a String-typed property; 'p' of E is T.` | Like/Contains/StartsWith/EndsWith need String columns |
+| `Query method X.m must return Future<List<E>> (findBy); got T.` | Per-subject contract (variants for findFirstBy/countBy/existsBy/deleteBy) |
+| `Query method X.m must not declare type parameters.` | Query methods are monomorphic |
+| `Query method X.m combines In with the Or connector, which the query builder cannot express; use And.` | knex 1.3 has no orWhereIn |
+
+The database-connector message now reads
+`@Transactional/Database/DianaRepository usage found but no DatabaseConnector provider was declared. ...`.
+
 ## Observability
 
 **`Multiple DianaObservability providers: A (lib), B (lib). Declare exactly one.`**

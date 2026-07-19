@@ -15,7 +15,7 @@ import '../model/adapter_model.dart' show routeApiOf;
 import '../model/summary.dart';
 import 'adapter_reader.dart' show readControllerAdapters;
 import 'checkers.dart';
-import 'json_reader.dart' show isJsonClass;
+import 'json_reader.dart' show isJsonClass, readJsonClass;
 
 /// Error tied to a source element, formatted with a source span by builders.
 class DianaSourceError implements Exception {
@@ -92,12 +92,22 @@ LibrarySummary readLibrary(LibraryElement library) {
       continue;
     }
 
-    _checkProviderClass(cls);
+    // An abstract class directly extending DianaRepository is a query
+    // repository: the generator implements it, so the abstract guard is
+    // lifted for it (and only for it).
+    final repoSuper = injectableAnn != null ? _queryRepoSuper(cls) : null;
+    final isQueryRepo = cls.isAbstract && repoSuper != null;
+
+    _checkProviderClass(cls, allowAbstract: isQueryRepo);
     final selfType = _selfTypeRef(cls);
 
     if (injectableAnn != null) {
       injectables.add(
-        _injectableFrom(cls, selfType, injectableAnn),
+        _injectableFrom(cls, selfType, injectableAnn,
+            queryRepo:
+                cls.isAbstract && repoSuper != null
+                    ? _queryRepoOf(cls, repoSuper)
+                    : null),
       );
     } else if (controllerAnn != null) {
       final scope = _scopeName(controllerAnn.getField('scope'));
@@ -184,7 +194,7 @@ LibrarySummary readLibrary(LibraryElement library) {
   );
 }
 
-void _checkProviderClass(ClassElement cls) {
+void _checkProviderClass(ClassElement cls, {bool allowAbstract = false}) {
   final name = cls.name;
   if (name == null || name.startsWith('_')) {
     throw DianaSourceError(
@@ -200,7 +210,7 @@ void _checkProviderClass(ClassElement cls) {
       'supported; provide a concrete subclass instead.',
     );
   }
-  if (cls.isAbstract) {
+  if (cls.isAbstract && !allowAbstract) {
     throw DianaSourceError(
       cls,
       'Class $name is abstract and cannot be instantiated. Annotate a '
@@ -212,8 +222,9 @@ void _checkProviderClass(ClassElement cls) {
 InjectableInfo _injectableFrom(
   ClassElement cls,
   TypeRef selfType,
-  DartObject ann,
-) {
+  DartObject ann, {
+  QueryRepoInfo? queryRepo,
+}) {
   final asType = _constField(ann, 'as')?.toTypeValue();
   TypeRef? explicitAs;
   if (asType != null) {
@@ -245,6 +256,443 @@ InjectableInfo _injectableFrom(
     scheduled: _scheduledOf(cls, scope),
     eventListeners: _eventListenersOf(cls, scope),
     aspectMethods: _aspectMethodsOf(cls),
+    queryRepo: queryRepo,
+  );
+}
+
+/// The direct `DianaRepository<E>` supertype from `package:diana_data`, or
+/// null when [cls] does not directly extend it.
+InterfaceType? _queryRepoSuper(ClassElement cls) {
+  final superType = cls.supertype;
+  if (superType == null) return null;
+  final element = superType.element;
+  if (element.name != 'DianaRepository') return null;
+  if (!element.library.uri.toString().startsWith('package:diana_data/')) {
+    return null;
+  }
+  return superType;
+}
+
+/// Everything a query repository needs, snapshotted from the entity at
+/// read time (the entity may live in another library): table, id column,
+/// per-property columns and types, and every parsed query method.
+QueryRepoInfo _queryRepoOf(ClassElement cls, InterfaceType superType) {
+  final name = cls.name!;
+
+  // Entity resolution and validation.
+  final typeArgs = superType.typeArguments;
+  final entityType = typeArgs.length == 1 ? typeArgs.single : null;
+  final entityElement =
+      entityType is InterfaceType ? entityType.element : null;
+  if (entityElement is! ClassElement || entityElement.name == null) {
+    throw DianaSourceError(
+      cls,
+      'Query repository $name must extend DianaRepository<E> with a '
+      'concrete class type argument.',
+    );
+  }
+  final entityName = entityElement.name!;
+  if (!isJsonClass(entityElement)) {
+    throw DianaSourceError(
+      cls,
+      'Query repository $name targets $entityName, which is not a @Json '
+      'class. Annotate $entityName with @Json() so rows can be mapped to '
+      'instances.',
+    );
+  }
+  final tableAnn = tableChecker.firstAnnotationOf(entityElement);
+  final table = tableAnn?.getField('name')?.toStringValue();
+  if (table == null) {
+    throw DianaSourceError(
+      cls,
+      'Query repository $name targets $entityName, which is missing @Table. '
+      "Annotate $entityName with @Table('table_name').",
+    );
+  }
+
+  // Property catalog: field name → column (jsonName) and field type.
+  final jsonModel = readJsonClass(entityElement);
+  final columns = <String, String>{
+    for (final field in jsonModel.fields) field.fieldName: field.jsonName,
+  };
+  final fieldTypes = <String, TypeRef>{
+    for (final field in entityElement.fields)
+      if (!field.isStatic && !field.name!.startsWith('_'))
+        field.name!: _typeRefLenient(field.type, field),
+  };
+  final idColumn = columns['id'];
+  if (idColumn == null) {
+    throw DianaSourceError(
+      cls,
+      "Query repository $name targets $entityName, which has no 'id' "
+      'field; DianaRepository.findById/deleteById need one.',
+    );
+  }
+
+  // Aspects cannot proxy generated implementations (yet).
+  if (_aspectMethodsOf(cls).isNotEmpty) {
+    throw DianaSourceError(
+      cls,
+      'Query repository $name declares aspect-annotated methods; '
+      '@Transactional/@Timed/@Cacheable/@Retryable/@CircuitBreaker are not '
+      'supported on query repositories in this version. Move them to a '
+      'service that injects $name.',
+    );
+  }
+
+  // Abstract non-method members cannot be implemented by the generator.
+  for (final getter in cls.getters) {
+    if (getter.isAbstract) {
+      throw DianaSourceError(
+        getter,
+        'Query repository $name declares abstract member '
+        '"${getter.name}" which is not a method; only query methods can '
+        'be abstract.',
+      );
+    }
+  }
+  for (final setter in cls.setters) {
+    if (setter.isAbstract) {
+      throw DianaSourceError(
+        setter,
+        'Query repository $name declares abstract member '
+        '"${setter.name}" which is not a method; only query methods can '
+        'be abstract.',
+      );
+    }
+  }
+
+  const crudNames = {'findAll', 'findById', 'save', 'deleteById'};
+  final entityRef = _typeRefOf(entityType!, cls);
+  final methods = <QueryMethodInfo>[];
+  for (final method in cls.methods) {
+    final methodName = method.name!;
+    if (crudNames.contains(methodName)) {
+      throw DianaSourceError(
+        method,
+        'Query repository $name re-declares "$methodName", which is '
+        'implemented by the generated repository; remove the declaration.',
+      );
+    }
+    if (!method.isAbstract) continue; // concrete helpers are inherited
+    methods.add(_parseQueryMethod(
+      method,
+      className: name,
+      entity: entityRef,
+      entityName: entityName,
+      columns: columns,
+      fieldTypes: fieldTypes,
+    ));
+  }
+
+  return QueryRepoInfo(
+    entity: entityRef,
+    table: table,
+    idColumn: idColumn,
+    methods: methods,
+  );
+}
+
+/// Operator suffixes by descending length (longest-match), with their
+/// condition op, parameter arity, and whether they need a String property.
+const List<({String suffix, String op, int arity, bool stringOnly})>
+    _queryOps = [
+  (suffix: 'GreaterThanEqual', op: 'gte', arity: 1, stringOnly: false),
+  (suffix: 'LessThanEqual', op: 'lte', arity: 1, stringOnly: false),
+  (suffix: 'GreaterThan', op: 'gt', arity: 1, stringOnly: false),
+  (suffix: 'StartsWith', op: 'startsWith', arity: 1, stringOnly: true),
+  (suffix: 'IsNotNull', op: 'isNotNull', arity: 0, stringOnly: false),
+  (suffix: 'LessThan', op: 'lt', arity: 1, stringOnly: false),
+  (suffix: 'EndsWith', op: 'endsWith', arity: 1, stringOnly: true),
+  (suffix: 'Contains', op: 'contains', arity: 1, stringOnly: true),
+  (suffix: 'Between', op: 'between', arity: 2, stringOnly: false),
+  (suffix: 'IsNull', op: 'isNull', arity: 0, stringOnly: false),
+  (suffix: 'NotIn', op: 'notIn', arity: 1, stringOnly: false),
+  (suffix: 'Like', op: 'like', arity: 1, stringOnly: true),
+  (suffix: 'Not', op: 'not', arity: 1, stringOnly: false),
+  (suffix: 'In', op: 'inList', arity: 1, stringOnly: false),
+];
+
+QueryMethodInfo _parseQueryMethod(
+  MethodElement method, {
+  required String className,
+  required TypeRef entity,
+  required String entityName,
+  required Map<String, String> columns,
+  required Map<String, TypeRef> fieldTypes,
+}) {
+  final methodName = method.name!;
+  final id = '$className.$methodName';
+  final knownProps = columns.keys.join(', ');
+
+  if (method.typeParameters.isNotEmpty) {
+    throw DianaSourceError(
+      method,
+      'Query method $id must not declare type parameters.',
+    );
+  }
+
+  // Subject prefix (longest first: findFirstBy before findBy).
+  const subjects = [
+    (prefix: 'findFirstBy', subject: 'findFirst'),
+    (prefix: 'findBy', subject: 'find'),
+    (prefix: 'countBy', subject: 'count'),
+    (prefix: 'existsBy', subject: 'exists'),
+    (prefix: 'deleteBy', subject: 'delete'),
+  ];
+  final match =
+      subjects.where((s) => methodName.startsWith(s.prefix)).firstOrNull;
+  if (match == null) {
+    throw DianaSourceError(
+      method,
+      'Query method $id must start with findBy, findFirstBy, countBy, '
+      'existsBy or deleteBy.',
+    );
+  }
+  final subject = match.subject;
+  var rest = methodName.substring(match.prefix.length);
+
+  // OrderBy split (first occurrence).
+  String? orderRest;
+  final orderIdx = rest.indexOf('OrderBy');
+  if (orderIdx != -1) {
+    orderRest = rest.substring(orderIdx + 'OrderBy'.length);
+    rest = rest.substring(0, orderIdx);
+    if (subject == 'count' || subject == 'exists' || subject == 'delete') {
+      throw DianaSourceError(
+        method,
+        'OrderBy is not supported on countBy/existsBy/deleteBy '
+        '(query method $id).',
+      );
+    }
+  }
+  if (rest.isEmpty) {
+    throw DianaSourceError(
+      method,
+      'Query method $id declares no conditions; add at least one property '
+      'after the prefix.',
+    );
+  }
+
+  String upper(String s) => s[0].toUpperCase() + s.substring(1);
+
+  // Longest-match property lookup at [pos]; null when nothing matches.
+  String? matchProp(String source, int pos) {
+    String? best;
+    for (final prop in columns.keys) {
+      final segment = upper(prop);
+      if (source.startsWith(segment, pos)) {
+        if (best == null || prop.length > best.length) best = prop;
+      }
+    }
+    return best;
+  }
+
+  // Predicate loop.
+  final conditions = <QueryConditionInfo>[];
+  final conditionMeta =
+      <({String prop, String op, int arity, bool stringOnly, String label})>[];
+  String? connector;
+  var pos = 0;
+  while (true) {
+    final prop = matchProp(rest, pos);
+    if (prop == null) {
+      throw DianaSourceError(
+        method,
+        'Cannot parse query method $id at "${rest.substring(pos)}": '
+        'expected a property of $entityName followed by an optional '
+        'condition. Known properties: $knownProps.',
+      );
+    }
+    pos += prop.length;
+    var op = 'eq';
+    var arity = 1;
+    var stringOnly = false;
+    var label = upper(prop);
+    for (final candidate in _queryOps) {
+      if (rest.startsWith(candidate.suffix, pos)) {
+        op = candidate.op;
+        arity = candidate.arity;
+        stringOnly = candidate.stringOnly;
+        label = '${upper(prop)}${candidate.suffix}';
+        pos += candidate.suffix.length;
+        break;
+      }
+    }
+    conditions.add(QueryConditionInfo(column: columns[prop]!, op: op));
+    conditionMeta.add(
+        (prop: prop, op: op, arity: arity, stringOnly: stringOnly, label: label));
+    if (pos == rest.length) break;
+    String next;
+    if (rest.startsWith('And', pos)) {
+      next = 'and';
+      pos += 3;
+    } else if (rest.startsWith('Or', pos)) {
+      next = 'or';
+      pos += 2;
+    } else {
+      throw DianaSourceError(
+        method,
+        'Cannot parse query method $id at "${rest.substring(pos)}": '
+        'expected a property of $entityName followed by an optional '
+        'condition. Known properties: $knownProps.',
+      );
+    }
+    if (connector != null && next != connector) {
+      throw DianaSourceError(
+        method,
+        'Query method $id mixes And and Or; a method may use only one '
+        'connector.',
+      );
+    }
+    connector = next;
+  }
+
+  // The query builder has no orWhereIn (knex_dart 1.3); forbid the combo.
+  if (connector == 'or' && conditions.any((c) => c.op == 'inList')) {
+    throw DianaSourceError(
+      method,
+      'Query method $id combines In with the Or connector, which the query '
+      'builder cannot express; use And.',
+    );
+  }
+
+  // Order clause.
+  final orderBy = <QueryOrderInfo>[];
+  if (orderRest != null) {
+    var opos = 0;
+    while (opos < orderRest.length) {
+      final prop = matchProp(orderRest, opos);
+      if (prop == null) {
+        throw DianaSourceError(
+          method,
+          'Cannot parse the OrderBy clause of query method $id at '
+          '"${orderRest.substring(opos)}": expected <Property>Asc or '
+          '<Property>Desc. Known properties: $knownProps.',
+        );
+      }
+      opos += prop.length;
+      bool desc;
+      if (orderRest.startsWith('Asc', opos)) {
+        desc = false;
+        opos += 3;
+      } else if (orderRest.startsWith('Desc', opos)) {
+        desc = true;
+        opos += 4;
+      } else {
+        throw DianaSourceError(
+          method,
+          'Cannot parse the OrderBy clause of query method $id at '
+          '"${orderRest.substring(opos)}": expected <Property>Asc or '
+          '<Property>Desc. Known properties: $knownProps.',
+        );
+      }
+      orderBy.add(QueryOrderInfo(column: columns[prop]!, desc: desc));
+    }
+  }
+
+  // Parameters: required positional only, count == sum of arities.
+  for (final param in method.formalParameters) {
+    if (param.isNamed || param.isOptional) {
+      throw DianaSourceError(
+        method,
+        'Query method $id must declare only required positional parameters.',
+      );
+    }
+  }
+  final expected =
+      conditionMeta.fold<int>(0, (sum, c) => sum + c.arity);
+  final params = method.formalParameters;
+  if (params.length != expected) {
+    throw DianaSourceError(
+      method,
+      'Query method $id declares ${params.length} parameter(s) but its '
+      'conditions take $expected.',
+    );
+  }
+
+  // Per-slot type checks.
+  var slot = 0;
+  for (final meta in conditionMeta) {
+    final fieldType = fieldTypes[meta.prop]!;
+    if (meta.stringOnly && fieldType.name != 'String') {
+      throw DianaSourceError(
+        method,
+        'Condition "${meta.label}" of query method $id needs a '
+        "String-typed property; '${meta.prop}' of $entityName is "
+        '${fieldType.displayName}.',
+      );
+    }
+    for (var i = 0; i < meta.arity; i++) {
+      final param = params[slot++];
+      final paramType = _typeRefLenient(param.type, param);
+      final String expectedDisplay;
+      final bool ok;
+      if (meta.op == 'inList' || meta.op == 'notIn') {
+        expectedDisplay = 'List<${fieldType.displayName}>';
+        ok = paramType.name == 'List' &&
+            paramType.typeArgs.length == 1 &&
+            paramType.typeArgs.single.key == fieldType.key;
+      } else {
+        expectedDisplay = fieldType.displayName;
+        ok = paramType.key == fieldType.key;
+      }
+      if (!ok) {
+        throw DianaSourceError(
+          method,
+          'Parameter "${param.name}" of query method $id must be '
+          '$expectedDisplay for condition "${meta.label}"; got '
+          '${paramType.displayName}.',
+        );
+      }
+    }
+  }
+
+  // Return-type contract per subject.
+  final returnType = _typeRefLenient(method.returnType, method);
+  bool isFutureOf(bool Function(TypeRef inner) check) =>
+      returnType.name == 'Future' &&
+      returnType.typeArgs.length == 1 &&
+      check(returnType.typeArgs.single);
+  final ok = switch (subject) {
+    'find' => isFutureOf((t) =>
+        t.name == 'List' &&
+        t.typeArgs.length == 1 &&
+        t.typeArgs.single.key == entity.key),
+    'findFirst' =>
+      isFutureOf((t) => t.key == entity.key && t.nullable),
+    'count' => isFutureOf((t) => t.name == 'int'),
+    'exists' => isFutureOf((t) => t.name == 'bool'),
+    _ => isFutureOf((t) => t.name == 'void'),
+  };
+  if (!ok) {
+    final expectedReturn = switch (subject) {
+      'find' => 'Future<List<${entity.name}>> (findBy)',
+      'findFirst' => 'Future<${entity.name}?> (findFirstBy)',
+      'count' => 'Future<int> (countBy)',
+      'exists' => 'Future<bool> (existsBy)',
+      _ => 'Future<void> (deleteBy)',
+    };
+    throw DianaSourceError(
+      method,
+      'Query method $id must return $expectedReturn; got '
+      '${returnType.displayName}.',
+    );
+  }
+
+  return QueryMethodInfo(
+    name: methodName,
+    subject: subject,
+    connector: connector ?? 'and',
+    conditions: conditions,
+    orderBy: orderBy,
+    params: [
+      for (final param in params)
+        QueryParamInfo(
+          name: param.name!,
+          type: _typeRefLenient(param.type, param),
+        ),
+    ],
   );
 }
 

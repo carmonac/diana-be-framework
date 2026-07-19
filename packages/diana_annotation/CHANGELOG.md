@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.0
+
+- New annotation: `@Table(name)` — maps a `@Json` entity to a database
+  table for query repositories.
+
 ## 0.12.0
 
 - `@Scheduled` gains a `cron` parameter (6-field expression or a macro).

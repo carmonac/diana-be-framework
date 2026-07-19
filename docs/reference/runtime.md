@@ -668,3 +668,17 @@ The optional data package — the only one depending on `package:knex_dart`
   `/actuator/health`.
 
 See the [persistence guide](../guides/persistence.md).
+
+### `DianaRepository<T>` (`repository.dart`)
+
+The base for Spring-Data-style query repositories. `DianaRepository(this.db)`
+holds the injected `Database`; extend it with an **abstract** `@Repository`
+class and the generator implements the four CRUD methods —
+`Future<List<T>> findAll()`, `Future<T?> findById(Object id)`,
+`Future<void> save(T entity)` (inserts `toJson` minus null entries),
+`Future<void> deleteById(Object id)` — plus every abstract query method
+derived from its name. Protected helpers for generated code:
+`Future<int> runCount(QueryBuilder)` (`SELECT COUNT(*)`) and
+`Future<bool> runExists(QueryBuilder)`. A concrete subclass is an ordinary
+hand-written repository. See the
+[query-methods guide](../guides/persistence.md#query-methods-spring-data-style).

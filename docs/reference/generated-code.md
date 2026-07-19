@@ -79,6 +79,14 @@ override nests the aspect runtimes in the fixed order Timed → Cacheable →
 CircuitBreaker → Retryable → Transactional. Generic methods re-declare
 their type parameters on the override.
 
+Abstract query repositories (`extends DianaRepository<E>`) get a
+`$Repo$<Provider>` implementation: the constructor forwards the user's
+parameters (the `Database` among them), the four CRUD methods are emitted
+against the entity's `@Table`, and each parsed query method compiles to a
+single fluent chain (`db.table(...).where(...).orderBy(...)`) with rows
+mapped through the entity's `$EFromJson`. The graph constructs the
+implementation in place of the abstract class.
+
 ### Validators
 
 One public class per constrained DTO:

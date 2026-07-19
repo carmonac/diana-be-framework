@@ -8,7 +8,7 @@ final RegExp dianaAnnotationPattern = RegExp(
   r'WebSocketController|GlobalMiddleware|UseMiddleware|ControllerAdvice|'
   r'ConfigurationProperties|DianaApplication|NotNull|NotEmpty|NotBlank|Min|'
   r'Max|Size|Pattern|Email|Valid|CrossOrigin|Json|JsonField|Scheduled|Consumes|Produces|GrpcService|EventListener|Secured|RolesAllowed|Principal|Transactional|'
-  r'Timed|Cacheable|Retryable|CircuitBreaker)\b',
+  r'Timed|Cacheable|Retryable|CircuitBreaker|Table)\b',
 );
 
 /// Pre-check for the application entrypoint annotation only.

@@ -54,6 +54,7 @@ const principalChecker = TypeChecker.fromUrl('$_base/auth.dart#Principal');
 // Data
 const transactionalChecker =
     TypeChecker.fromUrl('$_base/data.dart#Transactional');
+const tableChecker = TypeChecker.fromUrl('$_base/data.dart#Table');
 
 // Aspects
 const timedChecker = TypeChecker.fromUrl('$_base/aspects.dart#Timed');

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:blog_api/app.diana_app.dart';
 import 'package:blog_api/caching/app_cache_store.dart';
+import 'package:blog_api/dto/comment.dart';
+import 'package:blog_api/repositories/comment_repository.dart';
 import 'package:diana/diana.dart';
 import 'package:test/test.dart';
 
@@ -214,5 +216,101 @@ void main() {
     expect(store.runs, greaterThan(runsAfterFirst),
         reason: 'every cached call still consults the store (which decides '
             'hit vs miss)');
+  });
+
+  group('query repository (Spring-Data style)', () {
+    CommentRepository repo() => appInstance.context.commentRepository;
+
+    Future<void> seed() async {
+      await repo().save(
+          const Comment(postId: 1, author: 'ada', body: 'first comment'));
+      await repo().save(
+          const Comment(postId: 1, author: 'bob', body: 'nice post'));
+      await repo().save(
+          const Comment(postId: 2, author: 'ada', body: 'another thread'));
+    }
+
+    test('CRUD: save autoincrements, findAll/findById/deleteById', () async {
+      await seed();
+      final all = await repo().findAll();
+      expect(all, hasLength(3));
+      expect(all.first.id, isNotNull, reason: 'sqlite assigned the id');
+
+      final one = await repo().findById(all.first.id!);
+      expect(one!.author, 'ada');
+      expect(await repo().findById(999), isNull);
+
+      await repo().deleteById(all.first.id!);
+      expect(await repo().findAll(), hasLength(2));
+    });
+
+    test('finders, count, exists and delete derived from names', () async {
+      await seed();
+      expect(await repo().findByPostId(1), hasLength(2));
+      final first = await repo().findFirstByPostIdAndAuthor(1, 'bob');
+      expect(first!.body, 'nice post');
+      expect(await repo().countByPostId(1), 2);
+      expect(await repo().existsByAuthor('ada'), isTrue);
+      expect(await repo().existsByAuthor('eve'), isFalse);
+
+      await repo().deleteByPostId(1);
+      expect(await repo().countByPostId(1), 0);
+      expect(await repo().findByPostId(2), hasLength(1));
+    });
+
+    test('operators: contains, between, in, or, not, startsWith, gte, '
+        'isNull and ordering', () async {
+      await seed();
+      final containing = await repo().findByBodyContainsOrderByIdDesc('post');
+      expect(containing, hasLength(1));
+      expect(containing.single.author, 'bob');
+
+      final all = await repo().findAll();
+      final ids = all.map((c) => c.id!).toList()..sort();
+      expect(await repo().findByIdBetween(ids.first, ids.last),
+          hasLength(3));
+      expect(await repo().findByAuthorIn(['ada', 'eve']), hasLength(2));
+      expect(await repo().findByAuthorOrBody('bob', 'another thread'),
+          hasLength(2));
+      expect(await repo().findByPostIdNot(1), hasLength(1));
+      expect(await repo().findByIdGreaterThanEqual(ids[1]), hasLength(2));
+      expect(await repo().findByBodyIsNull(), isEmpty);
+
+      final ordered = await repo()
+          .findByAuthorStartsWithOrderByAuthorAscIdDesc('a');
+      expect(ordered, hasLength(2));
+      expect(ordered.first.author, 'ada');
+      expect(ordered.first.id! > ordered.last.id!, isTrue,
+          reason: 'same author ordered by id desc');
+    });
+
+    test('repository calls join an ambient transaction', () async {
+      try {
+        await appInstance.context.database.runTransactional(() async {
+          await repo().save(
+              const Comment(postId: 9, author: 'tx', body: 'inside'));
+          expect(await repo().countByPostId(9), 1,
+              reason: 'visible inside the transaction');
+          throw StateError('roll it back');
+        });
+      } on StateError {
+        // expected: forces the rollback
+      }
+      expect(await repo().countByPostId(9), 0,
+          reason: 'the rollback undid the save');
+    });
+
+    test('HTTP surface serves the generated repository', () async {
+      final (status, _) = await call('POST', '/comments', body: {
+        'post_id': 5,
+        'author': 'web',
+        'body': 'from http',
+      });
+      expect(status, 201);
+      final (s2, list) = await call('GET', '/comments');
+      expect(s2, 200);
+      expect(list, hasLength(1));
+      expect(list.single['author'], 'web');
+    });
   });
 }

@@ -365,9 +365,9 @@ class DianaBootstrapBuilder implements Builder {
     if (!graph.usesData && connectors.isEmpty) return const [];
     if (connectors.isEmpty) {
       return [
-        '@Transactional/Database injection found but no DatabaseConnector '
-        'provider was declared. Add a @Component extending diana_data\'s '
-        'DatabaseConnector.',
+        '@Transactional/Database/DianaRepository usage found but no '
+        'DatabaseConnector provider was declared. Add a @Component '
+        'extending diana_data\'s DatabaseConnector.',
       ];
     }
     if (connectors.length > 1) {
@@ -773,6 +773,230 @@ class DianaBootstrapBuilder implements Builder {
         ? ''
         : '<${type.typeArgs.map((t) => _typeCode(t, allocate)).join(', ')}>';
     return '$baseName$args${type.nullable ? '?' : ''}';
+  }
+
+  /// Generates `$Repo$X` implementations for every abstract query
+  /// repository: the four CRUD methods plus one override per parsed query
+  /// method, each a single fluent chain on the injected `Database`.
+  List<Spec> _queryRepoImpls(DiGraph graph) => [
+        for (final provider in graph.ordered)
+          if (provider.info.queryRepo != null)
+            _queryRepoImpl(provider, provider.info.queryRepo!),
+      ];
+
+  Spec _queryRepoImpl(ResolvedProvider provider, QueryRepoInfo repo) {
+    final base = provider.info.type;
+    final entity = repo.entity;
+    final entityRef = referenceOf(entity);
+    final entityNullableRef = referenceOf(TypeRef(
+      libraryUri: entity.libraryUri,
+      name: entity.name,
+      nullable: true,
+    ));
+    final fromJson = refer('\$${entity.name}FromJson', entity.libraryUri);
+    final toJson = refer('\$${entity.name}ToJson', entity.libraryUri);
+
+    Reference futureOf(Reference inner) => TypeReference((t) => t
+      ..symbol = 'Future'
+      ..types.add(inner));
+    Reference listOf(Reference inner) => TypeReference((t) => t
+      ..symbol = 'List'
+      ..types.add(inner));
+
+    /// The WHERE/ORDER chain for [method], starting from `db.table(...)`.
+    String chainOf(QueryMethodInfo method) {
+      final buffer = StringBuffer("db.table('${repo.table}')");
+      final or = method.connector == 'or';
+      var slot = 0;
+      var first = true;
+      for (final condition in method.conditions) {
+        final useOr = or && !first;
+        first = false;
+        final col = condition.column;
+        String arg() => method.params[slot++].name;
+        switch (condition.op) {
+          case 'eq':
+            buffer.write(
+                ".${useOr ? 'orWhere' : 'where'}('$col', '=', ${arg()})");
+          case 'not':
+            buffer.write(
+                ".${useOr ? 'orWhere' : 'where'}('$col', '<>', ${arg()})");
+          case 'gt':
+            buffer.write(
+                ".${useOr ? 'orWhere' : 'where'}('$col', '>', ${arg()})");
+          case 'gte':
+            buffer.write(
+                ".${useOr ? 'orWhere' : 'where'}('$col', '>=', ${arg()})");
+          case 'lt':
+            buffer.write(
+                ".${useOr ? 'orWhere' : 'where'}('$col', '<', ${arg()})");
+          case 'lte':
+            buffer.write(
+                ".${useOr ? 'orWhere' : 'where'}('$col', '<=', ${arg()})");
+          case 'like':
+            buffer.write(
+                ".${useOr ? 'orWhere' : 'where'}('$col', 'like', ${arg()})");
+          case 'contains':
+            buffer.write(".${useOr ? 'orWhere' : 'where'}"
+                "('$col', 'like', '%\$${arg()}%')");
+          case 'startsWith':
+            buffer.write(".${useOr ? 'orWhere' : 'where'}"
+                "('$col', 'like', '\$${arg()}%')");
+          case 'endsWith':
+            buffer.write(".${useOr ? 'orWhere' : 'where'}"
+                "('$col', 'like', '%\$${arg()}')");
+          case 'inList':
+            buffer.write(".whereIn('$col', ${arg()})");
+          case 'notIn':
+            buffer.write(
+                ".${useOr ? 'orWhereNotIn' : 'whereNotIn'}('$col', ${arg()})");
+          case 'between':
+            final a = arg();
+            final b = arg();
+            buffer.write(".${useOr ? 'orWhereBetween' : 'whereBetween'}"
+                "('$col', [$a, $b])");
+          case 'isNull':
+            buffer
+                .write(".${useOr ? 'orWhereNull' : 'whereNull'}('$col')");
+          case 'isNotNull':
+            buffer.write(
+                ".${useOr ? 'orWhereNotNull' : 'whereNotNull'}('$col')");
+        }
+      }
+      for (final order in method.orderBy) {
+        buffer.write(
+            ".orderBy('${order.column}', '${order.desc ? 'desc' : 'asc'}')");
+      }
+      return buffer.toString();
+    }
+
+    return Class((c) {
+      c
+        ..name = '\$Repo\$${base.name}'
+        ..extend = referenceOf(base);
+
+      // Constructor: forward the user's ctor params (the Database among
+      // them) to super.
+      final forwardPositional = <String>[];
+      final forwardNamed = <String>[];
+      c.constructors.add(Constructor((ctor) {
+        for (final param in provider.info.ctorParams) {
+          if (param.isNamed) {
+            ctor.optionalParameters.add(Parameter((p) => p
+              ..name = param.name
+              ..named = true
+              ..required = true
+              ..type = referenceOf(param.type)));
+            forwardNamed.add('${param.name}: ${param.name}');
+          } else {
+            ctor.requiredParameters.add(Parameter((p) => p
+              ..name = param.name
+              ..type = referenceOf(param.type)));
+            forwardPositional.add(param.name);
+          }
+        }
+        final superArgs =
+            [...forwardPositional, ...forwardNamed].join(', ');
+        ctor.initializers.add(Code('super($superArgs)'));
+      }));
+
+      // CRUD: findAll / findById / save / deleteById.
+      c.methods.add(Method((m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'findAll'
+        ..returns = futureOf(listOf(entityRef))
+        ..modifier = MethodModifier.async
+        ..lambda = true
+        ..body = Code.scope((allocate) => '[\n'
+            "    for (final row in await db.select(db.table('${repo.table}')))\n"
+            '      ${allocate(fromJson)}(row),\n'
+            '  ]')));
+      c.methods.add(Method((m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'findById'
+        ..requiredParameters.add(Parameter((p) => p
+          ..name = 'id'
+          ..type = refer('Object')))
+        ..returns = futureOf(entityNullableRef)
+        ..modifier = MethodModifier.async
+        ..body = Code.scope((allocate) =>
+            'final rows = await db.select('
+            "db.table('${repo.table}').where('${repo.idColumn}', '=', id)"
+            '.limit(1));\n'
+            'return rows.isEmpty ? null : ${allocate(fromJson)}(rows.first);')));
+      c.methods.add(Method((m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'save'
+        ..requiredParameters.add(Parameter((p) => p
+          ..name = 'entity'
+          ..type = entityRef))
+        ..returns = futureOf(refer('void'))
+        ..lambda = true
+        ..body = Code.scope((allocate) =>
+            "db.insert(db.table('${repo.table}').insert("
+            '${allocate(toJson)}(entity)'
+            '..removeWhere((k, v) => v == null)))')));
+      c.methods.add(Method((m) => m
+        ..annotations.add(refer('override'))
+        ..name = 'deleteById'
+        ..requiredParameters.add(Parameter((p) => p
+          ..name = 'id'
+          ..type = refer('Object')))
+        ..returns = futureOf(refer('void'))
+        ..lambda = true
+        ..body = Code(
+            "db.delete(db.table('${repo.table}')"
+            ".where('${repo.idColumn}', '=', id).delete())")));
+
+      // Parsed query methods.
+      for (final method in repo.methods) {
+        c.methods.add(Method((m) {
+          m
+            ..annotations.add(refer('override'))
+            ..name = method.name;
+          for (final param in method.params) {
+            m.requiredParameters.add(Parameter((p) => p
+              ..name = param.name
+              ..type = referenceOf(param.type)));
+          }
+          final chain = chainOf(method);
+          switch (method.subject) {
+            case 'find':
+              m
+                ..returns = futureOf(listOf(entityRef))
+                ..modifier = MethodModifier.async
+                ..lambda = true
+                ..body = Code.scope((allocate) => '[\n'
+                    '    for (final row in await db.select($chain))\n'
+                    '      ${allocate(fromJson)}(row),\n'
+                    '  ]');
+            case 'findFirst':
+              m
+                ..returns = futureOf(entityNullableRef)
+                ..modifier = MethodModifier.async
+                ..body = Code.scope((allocate) =>
+                    'final rows = await db.select($chain.limit(1));\n'
+                    'return rows.isEmpty ? null : '
+                    '${allocate(fromJson)}(rows.first);');
+            case 'count':
+              m
+                ..returns = futureOf(refer('int'))
+                ..lambda = true
+                ..body = Code('runCount($chain)');
+            case 'exists':
+              m
+                ..returns = futureOf(refer('bool'))
+                ..lambda = true
+                ..body = Code('runExists($chain)');
+            default: // delete
+              m
+                ..returns = futureOf(refer('void'))
+                ..lambda = true
+                ..body = Code('db.delete($chain.delete())');
+          }
+        }));
+      }
+    });
   }
 
   /// A `const SecuredGuard()` / `const RolesGuard([...])` from diana_auth
@@ -1380,6 +1604,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
       ..body.addAll([
         ...emission.specs,
         ..._aspectProxies(graph),
+        ..._queryRepoImpls(graph),
         appClass,
         buildContextFn,
         if (mapExceptionFn != null) mapExceptionFn,

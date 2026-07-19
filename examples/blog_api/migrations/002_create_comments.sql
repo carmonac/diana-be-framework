@@ -1,0 +1,6 @@
+CREATE TABLE comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id INTEGER NOT NULL,
+  author TEXT NOT NULL,
+  body TEXT
+);

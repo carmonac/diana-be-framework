@@ -3,7 +3,7 @@ description: >-
   Persistence for the Diana backend framework: an injectable query executor
   over knex_dart, ambient transactions with @Transactional, a lightweight
   migration runner and a database health indicator.
-version: 0.12.0
+version: 0.13.0
 publish_to: none
 
 environment:
@@ -12,8 +12,9 @@ environment:
 resolution: workspace
 
 dependencies:
-  diana: ^0.12.0
+  diana: ^0.13.0
   knex_dart: ^1.3.0
+  meta: ^1.16.0
 
 dev_dependencies:
   knex_dart_sqlite: ^0.4.0

@@ -3,7 +3,8 @@
 Diana's data story lives in the optional **`diana_data`** package: an
 injectable query executor over the
 [knex_dart](https://pub.dev/packages/knex_dart) query builder, Spring-style
-`@Transactional` methods, opt-in migrations and a database health check.
+`@Transactional` methods, Spring-Data-style query methods, opt-in
+migrations and a database health check.
 
 It is **driver-agnostic** — `diana_data` depends only on `knex_dart` core;
 you pick the driver package (`knex_dart_postgres`, `knex_dart_sqlite`, …)
@@ -14,8 +15,8 @@ and supply the connection through a small connector.
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.12.0
-  diana_data: ^0.12.0
+  diana: ^0.13.0
+  diana_data: ^0.13.0
   knex_dart_sqlite: ^0.4.0   # your driver of choice
 ```
 
@@ -119,6 +120,75 @@ This fails loudly rather than corrupting data, but the fix is structural:
 `@Transactional` composes with the [aspects](aspects.md)
 (`@Retryable` retries each attempt in a fresh transaction; `@Cacheable`
 misses populate through the transaction).
+
+## Query methods (Spring Data style)
+
+Declare an **abstract** `@Repository` class extending `DianaRepository<E>`
+and Diana generates the implementation — the CRUD quartet plus every
+abstract method derived from its **name**:
+
+```dart
+@Json()
+@Table('comments')
+class Comment {
+  final int? id;                       // nullable: save() omits it (autoincrement)
+  @JsonField(name: 'post_id')          // JSON key AND column name
+  final int postId;
+  final String author;
+  final String body;
+  const Comment({this.id, required this.postId,
+      required this.author, required this.body});
+}
+
+@Repository()
+abstract class CommentRepository extends DianaRepository<Comment> {
+  CommentRepository(super.db);
+
+  Future<List<Comment>> findByPostId(int postId);
+  Future<Comment?> findFirstByPostIdAndAuthor(int postId, String author);
+  Future<int> countByPostId(int postId);
+  Future<bool> existsByAuthor(String author);
+  Future<void> deleteByPostId(int postId);
+  Future<List<Comment>> findByBodyContainsOrderByIdDesc(String fragment);
+}
+```
+
+The entity must be a `@Json` class annotated `@Table('name')`; **columns
+are the fields' JSON keys** (`@JsonField(name:)` doubles as the column
+override) and rows map through the generated `$EFromJson`. The entity
+needs an `id` field (used by `findById`/`deleteById`).
+
+**CRUD** (from `DianaRepository<E>`): `findAll()`, `findById(id)`,
+`save(entity)` — inserts `toJson` minus null entries, so a nullable `id`
+lets the database autoincrement — and `deleteById(id)`.
+
+**Grammar** — `<subject>By<Property><Op>(And|Or)<Property><Op>...[OrderBy<Property>Asc|Desc...]`:
+
+| Piece | Options |
+|---|---|
+| Subject | `findBy` → `Future<List<E>>` · `findFirstBy` → `Future<E?>` · `countBy` → `Future<int>` · `existsBy` → `Future<bool>` · `deleteBy` → `Future<void>` |
+| Condition | *(none)* `=` · `Not` · `GreaterThan(Equal)` · `LessThan(Equal)` · `Like` · `Contains`/`StartsWith`/`EndsWith` (LIKE + `%`) · `In`/`NotIn` (`List<T>` param) · `Between` (2 params) · `IsNull`/`IsNotNull` (0 params) |
+| Connector | `And` **or** `Or` — one per method; mixing both is a build error, and `In` cannot combine with `Or` |
+| Order | trailing `OrderBy<Property>Asc\|Desc`, chainable; not allowed on count/exists/delete |
+
+Parameters are required-positional, consumed left-to-right by the
+conditions, and type-checked at build time; unknown properties, arity or
+type mismatches and wrong return types are exact build errors.
+
+Caveats:
+
+- Repository calls **join the ambient transaction** when made inside a
+  `@Transactional` method.
+- `Contains`/`StartsWith`/`EndsWith` wrap the argument with `%` — a `%` or
+  `_` inside user input widens the LIKE match (same behavior as Spring).
+- Property matching is greedy (longest name wins): with fields `status`
+  and `statusIn`, `findByStatusIn` targets `statusIn` equality — rename
+  the field to express the other reading.
+- `save()` drops null entries, so null non-id columns fall back to their
+  SQL defaults.
+- A **concrete** subclass of `DianaRepository` is an ordinary provider —
+  the classic hand-written repository. Aspect annotations on query
+  repositories are not supported yet.
 
 ## Migrations
 

@@ -111,8 +111,10 @@ class TodoController {
   an injectable `Database` query executor over
   [knex_dart](https://pub.dev/packages/knex_dart), Spring-style
   `@Transactional` methods with ambient (savepoint-nesting) transactions,
-  opt-in SQL migrations and a database health check — driver-agnostic
-  (you pick Postgres/SQLite/…).
+  **Spring-Data-style query methods** (abstract repositories whose
+  `findByTitleContainsOrderByIdDesc(...)` methods are generated from their
+  names), opt-in SQL migrations and a database health check —
+  driver-agnostic (you pick Postgres/SQLite/…).
 
 ## Documentation
 
@@ -131,11 +133,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.12.0
+  diana: ^0.13.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.12.0
+  diana_generator: ^0.13.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -237,7 +239,7 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.12: the Spring-parity feature set above — including content negotiation
+v0.13: the Spring-parity feature set above — including content negotiation
 (XML), Server-Sent Events, gRPC, application events with a cross-isolate
 bridge, authentication/authorization (`diana_auth`), persistence with
 `@Transactional` (`diana_data`), observability (`diana_observability`:

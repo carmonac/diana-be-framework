@@ -1200,7 +1200,8 @@ class Ledger {
       },
       output: '',
       expectedErrors: [
-        '@Transactional/Database injection found but no DatabaseConnector '
+        '@Transactional/Database/DianaRepository usage found but no '
+            'DatabaseConnector '
             "provider was declared. Add a @Component extending diana_data's "
             'DatabaseConnector.',
       ],
@@ -1457,6 +1458,466 @@ class Picker {
           contains(r'_retry$first.run(() => super.first(items))'),
         ]),
       );
+    });
+  });
+
+  group('query repositories', () {
+    /// dart_style splits long fluent chains across lines; make every
+    /// chain-dot whitespace-tolerant (and allocator prefixes optional).
+    Matcher chainMatch(String chain) {
+      var pattern = RegExp.escape(chain).replaceAll(r'\.', r'\s*\.\s*');
+      pattern = pattern.replaceAll(r'\$PREFIX', r'(_i\d+\.)?');
+      return matches(RegExp(pattern, multiLine: true));
+    }
+
+    const commentLib = '''
+import 'package:diana/diana.dart';
+
+@Json()
+@Table('comments')
+class Comment {
+  final int? id;
+
+  @JsonField(name: 'post_id')
+  final int postId;
+
+  final String title;
+  final String body;
+
+  const Comment(
+      {this.id, required this.postId, required this.title, required this.body});
+}
+''';
+
+    const connectorLib = '''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+@Component()
+class AppDb extends DatabaseConnector {
+  @override
+  Future<Object> connect(Object config) async => Object();
+  @override
+  Future<void> close(Object connection) async {}
+}
+''';
+
+    Future<void> expectRepo(String repoLib, Object output,
+        {List<String> expectedErrors = const []}) {
+      return expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/comment.dart': commentLib,
+          'lib/db.dart': connectorLib,
+          'lib/repo.dart': repoLib,
+        },
+        output: output,
+        expectedErrors: expectedErrors,
+      );
+    }
+
+    test('emits the CRUD + query implementations and swaps construction',
+        () async {
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class CommentRepository extends DianaRepository<Comment> {
+  CommentRepository(super.db);
+
+  Future<List<Comment>> findByTitle(String title);
+  Future<Comment?> findFirstByIdAndTitle(int id, String title);
+  Future<int> countByTitle(String title);
+  Future<bool> existsByBodyLike(String body);
+  Future<void> deleteByTitle(String title);
+  Future<List<Comment>> findByBodyContainsOrderByIdDesc(String body);
+  Future<List<Comment>> findByIdBetween(int low, int high);
+  Future<List<Comment>> findByTitleIn(List<String> titles);
+  Future<List<Comment>> findByTitleOrBody(String title, String body);
+  Future<List<Comment>> findByBodyIsNull();
+  Future<List<Comment>> findByIdNot(int id);
+  Future<List<Comment>> findByTitleStartsWithOrderByTitleAscIdDesc(
+      String prefix);
+  Future<List<Comment>> findByPostId(int postId);
+}
+''', allOf([
+        matches(RegExp(
+            r'class \$Repo\$CommentRepository extends (_i\d+\.)?CommentRepository')),
+        // Construction swapped to the generated impl, db forwarded.
+        matches(RegExp(r'\$Repo\$CommentRepository\(database\)')),
+        // CRUD.
+        chainMatch("for (final row in await db.select(db.table('comments')))"),
+        chainMatch("db.table('comments').where('id', '=', id).limit(1)"),
+        chainMatch(
+            r'.insert($PREFIX$CommentToJson(entity)'
+            '..removeWhere((k, v) => v == null))'),
+        chainMatch("db.table('comments').where('id', '=', id).delete()"),
+        // Query methods.
+        chainMatch("db.table('comments').where('title', '=', title)"),
+        chainMatch(
+            "db.table('comments').where('id', '=', id)"
+            ".where('title', '=', title).limit(1)"),
+        chainMatch("runCount(db.table('comments')"),
+        chainMatch(
+            "runExists(db.table('comments').where('body', 'like', body))"),
+        chainMatch(
+            "db.delete(db.table('comments')"
+            ".where('title', '=', title).delete())"),
+        chainMatch(r"where('body', 'like', '%$body%').orderBy('id', 'desc')"),
+        chainMatch("whereBetween('id', [low, high])"),
+        chainMatch("whereIn('title', titles)"),
+        chainMatch(
+            "where('title', '=', title).orWhere('body', '=', body)"),
+        chainMatch("whereNull('body')"),
+        chainMatch("where('id', '<>', id)"),
+        chainMatch(r"where('title', 'like', '$prefix%')"
+            ".orderBy('title', 'asc').orderBy('id', 'desc')"),
+        // @JsonField(name:) doubles as the column override.
+        chainMatch("where('post_id', '=', postId)"),
+        matches(RegExp(r'(_i\d+\.)?\$CommentFromJson\(row\)')),
+      ]));
+    });
+
+    test('apps without query repos emit no repo machinery', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/comment.dart': commentLib,
+          'lib/db.dart': connectorLib,
+        },
+        output: isNot(contains(r'$Repo$')),
+      );
+    });
+
+    test('rejects a raw DianaRepository supertype', () async {
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+@Repository()
+abstract class BadRepo extends DianaRepository {
+  BadRepo(super.db);
+}
+''', '', expectedErrors: [
+        'Query repository BadRepo must extend DianaRepository<E> with a '
+            'concrete class type argument.',
+      ]);
+    });
+
+    test('rejects a non-@Json entity', () async {
+      await expectBootstrap({
+        'lib/app.dart': app,
+        'lib/db.dart': connectorLib,
+        'lib/repo.dart': '''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+class Plain {
+  final int id;
+  const Plain(this.id);
+}
+
+@Repository()
+abstract class PlainRepo extends DianaRepository<Plain> {
+  PlainRepo(super.db);
+}
+''',
+      }, output: '', expectedErrors: [
+        'Query repository PlainRepo targets Plain, which is not a @Json '
+            'class. Annotate Plain with @Json() so rows can be mapped to '
+            'instances.',
+      ]);
+    });
+
+    test('rejects a missing @Table and a missing id field', () async {
+      await expectBootstrap({
+        'lib/app.dart': app,
+        'lib/db.dart': connectorLib,
+        'lib/repo.dart': '''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+@Json()
+class NoTable {
+  final int id;
+  const NoTable(this.id);
+}
+
+@Repository()
+abstract class NoTableRepo extends DianaRepository<NoTable> {
+  NoTableRepo(super.db);
+}
+''',
+      }, output: '', expectedErrors: [
+        'Query repository NoTableRepo targets NoTable, which is missing '
+            "@Table. Annotate NoTable with @Table('table_name').",
+      ]);
+      await expectBootstrap({
+        'lib/app.dart': app,
+        'lib/db.dart': connectorLib,
+        'lib/repo.dart': '''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+@Json()
+@Table('things')
+class NoId {
+  final String name;
+  const NoId(this.name);
+}
+
+@Repository()
+abstract class NoIdRepo extends DianaRepository<NoId> {
+  NoIdRepo(super.db);
+}
+''',
+      }, output: '', expectedErrors: [
+        "Query repository NoIdRepo targets NoId, which has no 'id' field; "
+            'DianaRepository.findById/deleteById need one.',
+      ]);
+    });
+
+    test('rejects aspects, abstract getters and CRUD re-declarations',
+        () async {
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R1 extends DianaRepository<Comment> {
+  R1(super.db);
+
+  @Transactional()
+  Future<List<Comment>> findByTitle(String title);
+}
+''', '', expectedErrors: [
+        'Query repository R1 declares aspect-annotated methods; '
+            '@Transactional/@Timed/@Cacheable/@Retryable/@CircuitBreaker are '
+            'not supported on query repositories in this version. Move them '
+            'to a service that injects R1.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R2 extends DianaRepository<Comment> {
+  R2(super.db);
+
+  int get total;
+}
+''', '', expectedErrors: [
+        'Query repository R2 declares abstract member "total" which is not '
+            'a method; only query methods can be abstract.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R3 extends DianaRepository<Comment> {
+  R3(super.db);
+
+  @override
+  Future<List<Comment>> findAll();
+}
+''', '', expectedErrors: [
+        'Query repository R3 re-declares "findAll", which is implemented by '
+            'the generated repository; remove the declaration.',
+      ]);
+    });
+
+    test('rejects unparseable names with helpful positions', () async {
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> byTitle(String title);
+}
+''', '', expectedErrors: [
+        'Query method R.byTitle must start with findBy, findFirstBy, '
+            'countBy, existsBy or deleteBy.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByAuthor(String author);
+}
+''', '', expectedErrors: [
+        'Cannot parse query method R.findByAuthor at "Author": expected a '
+            'property of Comment followed by an optional condition. Known '
+            'properties: id, postId, title, body.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByTitleAndBodyOrId(String t, String b, int id);
+}
+''', '', expectedErrors: [
+        'Query method R.findByTitleAndBodyOrId mixes And and Or; a method '
+            'may use only one connector.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByTitleOrderByTitle(String title);
+}
+''', '', expectedErrors: [
+        'Cannot parse the OrderBy clause of query method '
+            'R.findByTitleOrderByTitle at "": expected <Property>Asc or '
+            '<Property>Desc. Known properties: id, postId, title, body.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<int> countByTitleOrderByIdAsc(String title);
+}
+''', '', expectedErrors: [
+        'OrderBy is not supported on countBy/existsBy/deleteBy (query '
+            'method R.countByTitleOrderByIdAsc).',
+      ]);
+    });
+
+    test('rejects parameter and return-type mismatches', () async {
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByTitle({required String title});
+}
+''', '', expectedErrors: [
+        'Query method R.findByTitle must declare only required positional '
+            'parameters.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByIdBetween(int low);
+}
+''', '', expectedErrors: [
+        'Query method R.findByIdBetween declares 1 parameter(s) but its '
+            'conditions take 2.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByTitleIn(String titles);
+}
+''', '', expectedErrors: [
+        'Parameter "titles" of query method R.findByTitleIn must be '
+            'List<String> for condition "TitleIn"; got String.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByIdContains(int id);
+}
+''', '', expectedErrors: [
+        'Condition "IdContains" of query method R.findByIdContains needs a '
+            "String-typed property; 'id' of Comment is int?.",
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<Comment> findByTitle(String title);
+}
+''', '', expectedErrors: [
+        'Query method R.findByTitle must return Future<List<Comment>> '
+            '(findBy); got Future<Comment>.',
+      ]);
+      await expectRepo('''
+import 'package:diana/diana.dart';
+import 'package:diana_data/diana_data.dart';
+
+import 'comment.dart';
+
+@Repository()
+abstract class R extends DianaRepository<Comment> {
+  R(super.db);
+
+  Future<List<Comment>> findByTitleInOrBody(List<String> t, String b);
+}
+''', '', expectedErrors: [
+        'Query method R.findByTitleInOrBody combines In with the Or '
+            'connector, which the query builder cannot express; use And.',
+      ]);
     });
   });
 

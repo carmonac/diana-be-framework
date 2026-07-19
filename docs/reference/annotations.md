@@ -281,6 +281,14 @@ subclass. Nesting joins the enclosing transaction as a savepoint
 
 ---
 
+### `@Table(String name)`
+
+**Target:** class (a `@Json` entity). Maps the entity to a database table
+for [query repositories](../guides/persistence.md#query-methods-spring-data-style);
+column names are the fields' JSON keys (`@JsonField(name:)` doubles as the
+column override).
+
+
 ## Aspects
 
 Method-level, on `@Service`/`@Component`/`@Repository` providers; the
