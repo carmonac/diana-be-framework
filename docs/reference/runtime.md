@@ -234,6 +234,25 @@ returns the next matching instant in **local time** (`null` for an
 impossible expression). Day-of-month and day-of-week combine like Vixie
 cron: when both are restricted a day matches if either does.
 
+### STOMP (`stomp/`)
+
+- `abstract class StompEndpoint implements WebSocketHandler` —
+  `StompEndpoint(this.broker)`; a singleton `@WebSocketController`
+  subclass delegates every callback to the injected broker.
+- `abstract interface class StompPublisher` — `Future<void> publish(String
+  destination, String body, {Map<String, String> headers, String
+  contentType})`. Inject it to push to subscribers from server code.
+- `StompBroker implements StompPublisher` — the framework-owned in-memory
+  broker (a context field); `registerMapping(...)` is called by generated
+  code.
+- `StompMessage { String destination; Map<String, String> headers; String
+  body; String sessionId; Object? principal; }` — the optional
+  `@MessageMapping` context parameter.
+- `StompFrame`, `parseStompText`/`parseStompChunk`/`serializeStompFrame`,
+  `stompJsonMap`/`stompJsonBody` — the STOMP 1.2 codec (`stomp/frame.dart`).
+
+See the [STOMP guide](../guides/stomp.md).
+
 ### Events (`events.dart`)
 
 - `abstract interface class DianaEventPublisher { Future<void>

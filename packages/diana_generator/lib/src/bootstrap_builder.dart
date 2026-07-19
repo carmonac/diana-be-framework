@@ -91,6 +91,7 @@ class DianaBootstrapBuilder implements Builder {
       errors.addAll(_checkDatabase(result.graph!));
       errors.addAll(_checkObservability(result.graph!));
       errors.addAll(_checkCacheStore(result.graph!));
+      errors.addAll(_checkStomp(result.graph!, summaries));
     }
     if (errors.isNotEmpty) {
       log.severe(
@@ -332,6 +333,69 @@ class DianaBootstrapBuilder implements Builder {
       }
     }
     return const [];
+  }
+
+  /// STOMP validation: every `StompEndpoint` must be a singleton
+  /// `@WebSocketController`, `@MessageMapping` destinations must be unique
+  /// across the app, and mappings need at least one endpoint to reach them.
+  List<String> _checkStomp(DiGraph graph, List<LibrarySummary> summaries) {
+    final errors = <String>[];
+    final wsTypeKeys = {
+      for (final s in summaries)
+        for (final ws in s.webSockets) ws.type.key,
+    };
+    final endpoints = [
+      for (final p in graph.ordered)
+        if (p.info.supertypes.any((s) =>
+            s.name == 'StompEndpoint' &&
+            s.libraryUri.startsWith('package:diana/')))
+          p,
+    ];
+    for (final endpoint in endpoints) {
+      if (!wsTypeKeys.contains(endpoint.info.type.key)) {
+        errors.add(
+          'Class ${endpoint.info.type.displayName} '
+          '(${endpoint.declaredIn}) extends StompEndpoint but is not '
+          'annotated with @WebSocketController. Annotate it with '
+          "@WebSocketController('/path') to expose the STOMP endpoint.",
+        );
+      } else if (endpoint.scope != 'singleton') {
+        errors.add(
+          '${endpoint.info.type.displayName} extends StompEndpoint but is '
+          '${endpoint.scope}-scoped; STOMP endpoints must be singletons '
+          '(one shared broker serves every connection).',
+        );
+      }
+    }
+
+    final seen = <String, (String, String, String)>{}; // dest -> (class, method, lib)
+    for (final p in graph.ordered) {
+      for (final mapping in p.info.messageMappings) {
+        final prior = seen[mapping.destination];
+        if (prior != null) {
+          errors.add(
+            '@MessageMapping destination "${mapping.destination}" is handled '
+            'by both ${prior.$1}.${prior.$2} (${prior.$3}) and '
+            '${p.info.type.displayName}.${mapping.methodName} '
+            '(${p.declaredIn}). Destinations must be unique across the '
+            'application.',
+          );
+        } else {
+          seen[mapping.destination] =
+              (p.info.type.displayName, mapping.methodName, p.declaredIn);
+        }
+      }
+    }
+
+    final hasMappings = graph.ordered.any((p) => p.info.messageMappings.isNotEmpty);
+    if (hasMappings && endpoints.isEmpty) {
+      errors.add(
+        '@MessageMapping methods were found but no @WebSocketController '
+        'extends StompEndpoint. Declare a singleton endpoint class extending '
+        'StompEndpoint to accept STOMP connections.',
+      );
+    }
+    return errors;
   }
 
   /// At most one `DianaObservability` provider, and it must be a singleton
@@ -1580,7 +1644,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
                   'server': refer('app').property('server'),
                   'initialize': refer('app').property('initialize'),
                   'dispose': refer('app').property('dispose'),
-                  if (graph.usesEvents)
+                  if (graph.usesEvents || graph.usesStomp)
                     'eventBus':
                         refer('app').property('context').property('eventBus'),
                 })

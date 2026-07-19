@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.0
+
+- New STOMP annotations: `@MessageMapping(destination)` and
+  `@SendTo(destination)`.
+
 ## 0.13.0
 
 - New annotation: `@Table(name)` — maps a `@Json` entity to a database

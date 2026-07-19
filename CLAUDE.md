@@ -104,6 +104,21 @@ dart run build_runner build   # regenerate an example (generated files are commi
 - **Discovery by supertype** (BodyCodec/HealthIndicator/AuthenticationMiddleware):
   scan `provider.info.supertypes` for name + library-prefix; singleton-scope
   check with the `'X implements Y but is <scope>-scoped'` message pattern.
+- **STOMP over WebSockets** (STOMP 1.2, core): endpoint = singleton
+  `@WebSocketController extends StompEndpoint` (delega al broker inyectado,
+  reutiliza handshake/auth). `StompBroker`/`StompPublisher`/`StompMessage`/
+  `StompFrame` en `diana/lib/src/stomp/`. `@MessageMapping`/`@SendTo`
+  (method-level, patrón _eventListenersOf en AMBOS _injectableFrom Y
+  _withLifecycle). Framework-owned via `isStompBroker` short-circuit (gemelo
+  de isEventPublisher); `usesStomp` reusa el eventBus para relay
+  cross-isolate (los 4 gates del eventBus → `usesEvents || usesStomp`,
+  incluido `DianaRunnable(eventBus:)` en bootstrap). El broker se construye
+  EAGER (registra su `bus.on<StompRelayEvent>` en el ctor) — emitir
+  `stompBroker;` si no hay mappings. Handler void → bloque async
+  `(m) async { await ...; return null; }` (void no es asignable a
+  FutureOr<Object?>). Fan-out único vía `bus.broadcast`. Gotcha stub del
+  harness: StompEndpoint DEBE `implements WebSocketHandler` o _checkWebSockets
+  rechaza el gateway.
 - **Query repositories** (Spring Data style): abstract `@Repository extends
   DianaRepository<E>` → reader lifts the abstract-class guard
   (`_checkProviderClass(allowAbstract:)`), snapshots ALL entity facts

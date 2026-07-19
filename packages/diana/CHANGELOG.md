@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0
+
+- STOMP 1.2 over WebSockets (`stomp/frame.dart`, `stomp/broker.dart`): a
+  `StompFrame` codec, an in-memory `StompBroker`, the `StompEndpoint` base,
+  `StompPublisher`, `StompMessage` and `StompRelayEvent`. Topic publishes
+  relay across isolates through the event bus.
+
 ## 0.13.0
 
 - Version bump only (kept in lockstep with the workspace).

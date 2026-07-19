@@ -121,6 +121,7 @@ export 'src/http/response.dart';
 export 'src/middleware.dart';
 export 'src/observer.dart';
 export 'src/sse.dart';
+export 'src/stomp.dart';
 export 'src/websocket.dart';
 ''',
   'diana|lib/src/aspects.dart': '''
@@ -170,6 +171,58 @@ abstract class DianaCacheStore {
 }
 
 class InMemoryCacheStore extends DianaCacheStore {}
+''',
+  'diana|lib/src/stomp.dart': '''
+import 'dart:async';
+
+import 'events.dart';
+import 'websocket.dart';
+
+class StompMessage {
+  final String destination;
+  final Map<String, String> headers;
+  final String body;
+  final String sessionId;
+  final Object? principal;
+  const StompMessage(
+      {required this.destination,
+      required this.headers,
+      required this.body,
+      required this.sessionId,
+      required this.principal});
+}
+
+abstract interface class StompPublisher {
+  Future<void> publish(String destination, String body,
+      {Map<String, String> headers, String contentType});
+}
+
+abstract class StompEndpoint implements WebSocketHandler {
+  final StompBroker broker;
+  StompEndpoint(this.broker);
+  @override
+  void onOpen(WebSocketSession session) {}
+  @override
+  void onMessage(WebSocketSession session, WebSocketMessage message) {}
+  @override
+  void onError(WebSocketSession session, Object error, StackTrace stackTrace) {}
+  @override
+  void onClose(WebSocketSession session, int? code, String? reason) {}
+}
+
+class StompBroker implements StompPublisher {
+  StompBroker(DianaEventBus bus, Object config);
+  void registerMapping(
+      String destination, FutureOr<Object?> Function(StompMessage m) handler,
+      {String? sendTo, String Function(Object? result)? encode}) {}
+  @override
+  Future<void> publish(String destination, String body,
+          {Map<String, String> headers = const {},
+          String contentType = 'text/plain'}) async {}
+}
+
+Map<String, dynamic> stompJsonMap(String body) => {};
+String stompJsonBody(Map<String, dynamic> json) => '';
 ''',
   'diana|lib/src/observer.dart': '''
 import 'dart:async';

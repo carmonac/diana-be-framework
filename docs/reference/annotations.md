@@ -168,7 +168,28 @@ isolate. See [Observability](../guides/observability.md#scheduled-tasks).
 
 ---
 
+## Messaging (STOMP)
+
+STOMP handlers on singleton providers. See the [STOMP guide](../guides/stomp.md).
+
+### `@MessageMapping(String destination)`
+
+**Target:** method. Handles STOMP SENDs to `<appPrefix>/<destination>`
+(default prefix `/app`). Takes the payload (a `String` for the raw body, or
+an `@Json` class) and, optionally, a second `StompMessage` parameter; a
+non-void return (`String` or `@Json`, optionally `Future`) is published to
+the `@SendTo` destination. `destination` must start with `/`.
+
+### `@SendTo(String destination)`
+
+**Target:** method (with `@MessageMapping`). Publishes the method's return
+value to `destination` (must start with `/`). Required when the method
+returns a value.
+
+---
+
 ## Events
+
 
 ### `@EventListener()`
 

@@ -35,6 +35,8 @@ Task-oriented explanations of each feature:
   hierarchy, `@ControllerAdvice`, the exception pipeline
 - [WebSockets](guides/websockets.md) — `@WebSocketController`, the
   handler lifecycle, sessions, broadcast patterns, handshake interceptors
+- [STOMP messaging](guides/stomp.md) — STOMP 1.2 over WebSockets:
+  `@MessageMapping`/`@SendTo`, an in-memory topic broker, `StompPublisher`
 - [Application lifecycle](guides/lifecycle.md) — `@PostConstruct`/
   `@PreDestroy`, graceful shutdown, `DianaApp`, test overrides
 - [Application events](guides/events.md) — `@EventListener`, the
@@ -88,5 +90,5 @@ Complete API documentation — every public symbol and every diagnostic:
 
 ## Versioning and stability
 
-Diana is currently `0.13.0`. APIs may change before `1.0.0`. The
+Diana is currently `0.14.0`. APIs may change before `1.0.0`. The
 [roadmap](../README.md#status--roadmap) lists what's planned.

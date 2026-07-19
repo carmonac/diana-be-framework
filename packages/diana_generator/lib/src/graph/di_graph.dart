@@ -24,11 +24,16 @@ class ResolvedDep {
   /// context's database facade rather than a graph provider.
   final bool isDbExecutor;
 
+  /// True when the parameter is Diana's `StompPublisher`/`StompBroker`,
+  /// satisfied by the context's STOMP broker rather than a graph provider.
+  final bool isStompBroker;
+
   const ResolvedDep({
     required this.param,
     this.providerKey,
     this.isEventPublisher = false,
     this.isDbExecutor = false,
+    this.isStompBroker = false,
   });
 
   bool get isConfigValue => param.valueKey != null;
@@ -79,6 +84,14 @@ class DiGraph {
       p.info.hasTx ||
       p.info.isQueryRepo ||
       p.deps.any((d) => d.isDbExecutor));
+
+  /// Whether the app uses STOMP — gates the broker field and its bus.
+  bool get usesStomp => ordered.any((p) =>
+      p.info.messageMappings.isNotEmpty ||
+      p.deps.any((d) => d.isStompBroker) ||
+      p.info.supertypes.any((s) =>
+          s.name == 'StompEndpoint' &&
+          s.libraryUri.startsWith('package:diana/')));
 }
 
 class DiGraphResult {
@@ -164,6 +177,12 @@ DiGraphResult resolveGraph(List<LibrarySummary> summaries) {
       if (param.type.name == 'Database' &&
           param.type.libraryUri.startsWith('package:diana_data/')) {
         provider.deps.add(ResolvedDep(param: param, isDbExecutor: true));
+        continue;
+      }
+      if ((param.type.name == 'StompPublisher' ||
+              param.type.name == 'StompBroker') &&
+          param.type.libraryUri.startsWith('package:diana/')) {
+        provider.deps.add(ResolvedDep(param: param, isStompBroker: true));
         continue;
       }
       final key = bindKey(param.type, param.qualifier);

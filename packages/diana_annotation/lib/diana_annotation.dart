@@ -18,6 +18,7 @@ export 'src/json.dart';
 export 'src/lifecycle.dart';
 export 'src/middleware.dart';
 export 'src/scheduling.dart';
+export 'src/stomp.dart';
 export 'src/validation.dart';
 export 'src/web.dart';
 export 'src/websocket.dart';

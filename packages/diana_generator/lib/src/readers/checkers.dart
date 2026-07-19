@@ -56,6 +56,11 @@ const transactionalChecker =
     TypeChecker.fromUrl('$_base/data.dart#Transactional');
 const tableChecker = TypeChecker.fromUrl('$_base/data.dart#Table');
 
+// STOMP
+const messageMappingChecker =
+    TypeChecker.fromUrl('$_base/stomp.dart#MessageMapping');
+const sendToChecker = TypeChecker.fromUrl('$_base/stomp.dart#SendTo');
+
 // Aspects
 const timedChecker = TypeChecker.fromUrl('$_base/aspects.dart#Timed');
 const cacheableChecker = TypeChecker.fromUrl('$_base/aspects.dart#Cacheable');

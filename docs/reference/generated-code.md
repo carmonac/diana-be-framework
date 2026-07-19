@@ -87,6 +87,14 @@ single fluent chain (`db.table(...).where(...).orderBy(...)`) with rows
 mapped through the entity's `$EFromJson`. The graph constructs the
 implementation in place of the abstract class.
 
+When the app uses STOMP, the context gains a `late final stompBroker =
+StompBroker(eventBus, config);` field (STOMP reuses the event bus for
+cross-isolate relay, so `eventBus` is emitted too), and the constructor body
+registers one `stompBroker.registerMapping(...)` per `@MessageMapping`
+method (decoding the payload and encoding the `@SendTo` reply inline).
+`StompEndpoint` subclasses and `StompPublisher` injections receive the
+broker; the endpoint is registered like any WebSocket controller.
+
 ### Validators
 
 One public class per constrained DTO:

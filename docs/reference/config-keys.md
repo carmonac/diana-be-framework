@@ -57,6 +57,13 @@ underscores). Your application adds its own keys freely (`@Value`,
 |---|---|---|
 | `server.sse.heartbeatSeconds` | `15` | Keep-alive comment interval on SSE streams; `0` disables |
 
+## STOMP (`stomp.*`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `stomp.appPrefix` | `/app` | Destinations under this prefix route to `@MessageMapping` handlers |
+| `stomp.heartbeatMs` | `10000` | Server heartbeat interval offered at CONNECT (both directions; `0` disables) |
+
 ## gRPC (`grpc.*`, with `package:diana_grpc`)
 
 | Key | Default | Meaning |

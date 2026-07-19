@@ -1461,6 +1461,291 @@ class Picker {
     });
   });
 
+  group('STOMP', () {
+    const dtoLib = '''
+import 'package:diana/diana.dart';
+
+@Json()
+class ChatIn { final String text; const ChatIn(this.text); }
+
+@Json()
+class ChatOut { final String msg; const ChatOut(this.msg); }
+''';
+    const gatewayLib = '''
+import 'package:diana/diana.dart';
+
+@WebSocketController('/stomp')
+class Gw extends StompEndpoint { Gw(super.broker); }
+''';
+
+    test('wires the broker, endpoint and mapping registrations', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/dto.dart': dtoLib,
+          'lib/gateway.dart': gatewayLib,
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+import 'dto.dart';
+
+@Service()
+class ChatService {
+  @MessageMapping('/chat')
+  @SendTo('/topic/chat')
+  Future<ChatOut> handle(ChatIn payload, StompMessage m) async =>
+      const ChatOut('hi');
+
+  @MessageMapping('/echo')
+  @SendTo('/topic/echo')
+  String echo(String body) => body;
+
+  @MessageMapping('/log')
+  Future<void> log(String body) async {}
+}
+
+@Service()
+class Notifier {
+  final StompPublisher stomp;
+  Notifier(this.stomp);
+}
+''',
+        },
+        output: allOf([
+          // Broker field, built from the event bus + config.
+          matches(RegExp(
+              r'late final stompBroker = (_i\d+\.)?StompBroker\(eventBus, config\)')),
+          // STOMP forces the event bus to exist.
+          matches(RegExp(r'(_i\d+\.)?DianaEventBus eventBus =')),
+          // json payload + reply encode.
+          matches(RegExp(
+              r"registerMapping\(\s*'/chat',\s*\(m\) =>\s*"
+              r'chatService\.handle\(\s*(_i\d+\.)?\$ChatInFromJson\(\s*'
+              r'(_i\d+\.)?stompJsonMap\(m\.body\)\),\s*m\),\s*'
+              r"sendTo: '/topic/chat',\s*encode: \(r\) =>\s*"
+              r'(_i\d+\.)?stompJsonBody\(\s*(_i\d+\.)?\$ChatOutToJson\(r as (_i\d+\.)?ChatOut\)\)',
+              multiLine: true)),
+          // text payload + text reply, no encode.
+          matches(RegExp(
+              r"registerMapping\(\s*'/echo',\s*\(m\) => chatService\.echo\(m\.body\),\s*"
+              r"sendTo: '/topic/echo',\s*\)",
+              multiLine: true)),
+          // void handler wrapped in an awaiting async block.
+          matches(RegExp(
+              r"registerMapping\('/log', \(m\) async \{\s*"
+              r'await chatService\.log\(m\.body\);\s*return null;\s*\}\)',
+              multiLine: true)),
+          // Endpoint + publisher get the broker.
+          contains(r'Gw(stompBroker)'),
+          contains(r'Notifier(stompBroker)'),
+          // The endpoint is registered as a WebSocket.
+          matches(RegExp(r"registerWebSocket\(\s*'/stomp'")),
+          // DianaRunnable receives the bus for cross-isolate relay.
+          contains('eventBus: app.context.eventBus'),
+        ]),
+      );
+    });
+
+    test('an endpoint with no mappings still constructs the broker eagerly',
+        () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/gateway.dart': gatewayLib,
+        },
+        output: allOf([
+          matches(RegExp(r'late final stompBroker =')),
+          contains('stompBroker;'), // eager relay-listener registration
+        ]),
+      );
+    });
+
+    test('apps without STOMP emit no broker', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/svc.dart': '''
+import 'package:diana_annotation/diana_annotation.dart';
+
+@Service()
+class Plain {}
+''',
+        },
+        output: isNot(contains('stompBroker')),
+      );
+    });
+
+    test('rejects a StompEndpoint without @WebSocketController', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/gw.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class Gw extends StompEndpoint { Gw(super.broker); }
+''',
+        },
+        output: '',
+        expectedErrors: [
+          'Class Gw (package:a/gw.dart) extends StompEndpoint but is not '
+              'annotated with @WebSocketController. Annotate it with '
+              "@WebSocketController('/path') to expose the STOMP endpoint.",
+        ],
+      );
+    });
+
+    test('rejects @MessageMapping with no endpoint', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class Svc {
+  @MessageMapping('/x')
+  void handle(String body) {}
+}
+''',
+        },
+        output: '',
+        expectedErrors: [
+          '@MessageMapping methods were found but no @WebSocketController '
+              'extends StompEndpoint. Declare a singleton endpoint class '
+              'extending StompEndpoint to accept STOMP connections.',
+        ],
+      );
+    });
+
+    test('rejects duplicate mapping destinations', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/gateway.dart': gatewayLib,
+          'lib/svc.dart': '''
+import 'package:diana/diana.dart';
+
+@Service()
+class A {
+  @MessageMapping('/x')
+  void a(String body) {}
+}
+
+@Service()
+class B {
+  @MessageMapping('/x')
+  void b(String body) {}
+}
+''',
+        },
+        output: '',
+        expectedErrors: [
+          '@MessageMapping destination "/x" is handled by both A.a '
+              '(package:a/svc.dart) and B.b (package:a/svc.dart). '
+              'Destinations must be unique across the application.',
+        ],
+      );
+    });
+
+    group('reader diagnostics', () {
+      Future<void> expectMappingError(String svc, String message) =>
+          expectBootstrap(
+            {'lib/app.dart': app, 'lib/svc.dart': svc},
+            output: '',
+            expectedErrors: [message],
+          );
+
+      test('bad signature', () async {
+        await expectMappingError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Svc {
+  @MessageMapping('/x')
+  void handle(String a, String b, String c) {}
+}
+''', '@MessageMapping method Svc.handle must be a public instance method '
+            'with one or two positional parameters: the payload (String or '
+            'an @Json class), optionally followed by a StompMessage.');
+      });
+
+      test('bad payload type', () async {
+        await expectMappingError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Svc {
+  @MessageMapping('/x')
+  void handle(int payload) {}
+}
+''', '@MessageMapping payload parameter "payload" of Svc.handle must be '
+            'String or a class annotated with @Json; found int.');
+      });
+
+      test('non-void return without @SendTo', () async {
+        await expectMappingError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Svc {
+  @MessageMapping('/x')
+  String handle(String body) => body;
+}
+''', '@MessageMapping method Svc.handle returns a value but has no @SendTo '
+            "destination. Add @SendTo('/topic/...') or return void.");
+      });
+
+      test('@SendTo on a void method', () async {
+        await expectMappingError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Svc {
+  @MessageMapping('/x')
+  @SendTo('/topic/y')
+  void handle(String body) {}
+}
+''', '@SendTo on Svc.handle requires a non-void return value to publish.');
+      });
+
+      test('@SendTo without @MessageMapping', () async {
+        await expectMappingError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Svc {
+  @SendTo('/topic/y')
+  String handle(String body) => body;
+}
+''', '@SendTo on Svc.handle requires @MessageMapping on the same method.');
+      });
+
+      test('destination without a leading slash', () async {
+        await expectMappingError('''
+import 'package:diana/diana.dart';
+
+@Service()
+class Svc {
+  @MessageMapping('x')
+  void handle(String body) {}
+}
+''', '@MessageMapping destination "x" on Svc.handle must start with "/".');
+      });
+
+      test('non-singleton provider', () async {
+        await expectMappingError('''
+import 'package:diana/diana.dart';
+
+@Service(scope: Scope.transient)
+class Svc {
+  @MessageMapping('/x')
+  void handle(String body) {}
+}
+''', '@MessageMapping on Svc requires singleton scope; found transient.');
+      });
+    });
+  });
+
   group('query repositories', () {
     /// dart_style splits long fluent chains across lines; make every
     /// chain-dot whitespace-tolerant (and allocator prefixes optional).

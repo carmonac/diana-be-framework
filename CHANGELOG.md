@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.14.0 — 2026-07-17
+
+### STOMP 1.2 over WebSockets
+- Declare a singleton `@WebSocketController` extending `StompEndpoint` and
+  Diana speaks STOMP 1.2 on it — an in-memory topic broker built into
+  `package:diana` (no extra dependency), reusing the existing WebSocket
+  handshake (so `@UseMiddleware`/`@Secured` authenticate STOMP too).
+- `@MessageMapping('/dest')` methods handle client SENDs to
+  `<stomp.appPrefix>/dest` (default `/app`); the payload is a `String` or an
+  `@Json` DTO, with an optional `StompMessage` context parameter (headers,
+  session, principal). A non-void return is published to the `@SendTo`
+  destination. Inject `StompPublisher` to publish from server code.
+- Full protocol: CONNECT/CONNECTED with version + heartbeat negotiation,
+  SUBSCRIBE/UNSUBSCRIBE (ack modes auto/client/client-individual), SEND,
+  MESSAGE, ACK/NACK (cumulative or individual; NACK drops + logs — no
+  redelivery), BEGIN/COMMIT/ABORT transactions, RECEIPT, ERROR + close on
+  protocol violations, and negotiated heartbeats.
+- Topic publishes fan out across isolates exactly once through the event-bus
+  broadcast machinery. Every mapping rule is validated at build time with
+  exact diagnostics. Apps without STOMP emit byte-identical output.
+- `examples/todo_api` dogfoods a secured STOMP chat gateway with an
+  end-to-end test over a raw WebSocket client.
+
 ## 0.13.0 — 2026-07-17
 
 ### Spring-Data-style query methods

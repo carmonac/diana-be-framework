@@ -256,6 +256,28 @@ one binding annotation" / "combines multiple binding annotations" errors.
 The database-connector message now reads
 `@Transactional/Database/DianaRepository usage found but no DatabaseConnector provider was declared. ...`.
 
+## STOMP messaging
+
+| Message | Fix |
+|---|---|
+| `@MessageMapping method X.m must be a public instance method with one or two positional parameters: the payload (String or an @Json class), optionally followed by a StompMessage.` | Fix the signature |
+| `@MessageMapping payload parameter "p" of X.m must be String or a class annotated with @Json; found T.` | Use a String or @Json payload |
+| `@MessageMapping second parameter of X.m must be StompMessage from package:diana; found T.` | The context parameter is `StompMessage` |
+| `@MessageMapping method X.m returns T; return values must be String or an @Json class (wrapped in Future if async).` | Return String/@Json/void |
+| `@MessageMapping method X.m returns a value but has no @SendTo destination. Add @SendTo('/topic/...') or return void.` | Pair a returning handler with @SendTo |
+| `@SendTo on X.m requires a non-void return value to publish.` | Remove @SendTo or return a value |
+| `@SendTo on X.m requires @MessageMapping on the same method.` | @SendTo only pairs with @MessageMapping |
+| `@MessageMapping destination "d" on X.m must start with "/".` | Destinations are absolute (same for @SendTo) |
+| `@MessageMapping on X requires singleton scope; found s.` | Handlers live on singletons |
+| `Class X (lib) extends StompEndpoint but is not annotated with @WebSocketController. ...` | Annotate the endpoint |
+| `X extends StompEndpoint but is <scope>-scoped; STOMP endpoints must be singletons ...` | Make it a singleton |
+| `@MessageMapping destination "d" is handled by both A.m1 (lib) and B.m2 (lib). Destinations must be unique across the application.` | One handler per destination |
+| `@MessageMapping methods were found but no @WebSocketController extends StompEndpoint. ...` | Declare an endpoint |
+
+Malformed inbound frames do not surface as build errors — at runtime the
+broker replies with an ERROR frame (`malformed frame: ...`) and closes the
+connection.
+
 ## Observability
 
 **`Multiple DianaObservability providers: A (lib), B (lib). Declare exactly one.`**

@@ -109,12 +109,15 @@ ContextEmission emitContext(DiGraph graph) {
     }
   }
 
-  // 'eventBus'/'database' are reserved only when used, so apps without those
-  // features keep byte-identical output.
+  // 'eventBus'/'database'/'stompBroker' are reserved only when used, so apps
+  // without those features keep byte-identical output. STOMP reuses the
+  // event bus for cross-isolate relay, so it also needs 'eventBus'.
+  final usesStomp = graph.usesStomp;
   final used = <String>{
     'config',
-    if (graph.usesEvents) 'eventBus',
+    if (graph.usesEvents || usesStomp) 'eventBus',
     if (usesData) 'database',
+    if (usesStomp) 'stompBroker',
   };
   if (usesData) names.database = 'database';
 
@@ -168,6 +171,7 @@ ContextEmission emitContext(DiGraph graph) {
       }
       if (dep.isEventPublisher) return ctxProp('eventBus');
       if (dep.isDbExecutor) return ctxProp(names.database!);
+      if (dep.isStompBroker) return ctxProp('stompBroker');
       final key = dep.providerKey!;
       final method = names.methods[key];
       final onScopeDep = names.onRequestScope.contains(key);
@@ -346,22 +350,36 @@ ContextEmission emitContext(DiGraph graph) {
         // during initialize() (@PostConstruct) are already delivered. The
         // closures dereference the late provider fields only when an event
         // fires — no eager construction.
-        if (graph.usesEvents) {
-          ctor.body = Block.of([
-            for (final provider in graph.ordered)
-              for (final listener in provider.info.eventListeners)
-                Code.scope((allocate) =>
-                    'eventBus.on<${allocate(referenceOf(listener.eventType))}>'
-                    '((e) => ${names.fields[provider.key]!}'
-                    '.${listener.methodName}(e));'),
-          ]);
+        final ctorStatements = <Code>[
+          for (final provider in graph.ordered)
+            for (final listener in provider.info.eventListeners)
+              Code.scope((allocate) =>
+                  'eventBus.on<${allocate(referenceOf(listener.eventType))}>'
+                  '((e) => ${names.fields[provider.key]!}'
+                  '.${listener.methodName}(e));'),
+          for (final provider in graph.ordered)
+            for (final mapping in provider.info.messageMappings)
+              _mappingRegistration(provider, mapping, names),
+        ];
+        // The broker registers its cross-isolate relay listener in its ctor,
+        // so it must be constructed before any remote broadcast — touch it
+        // even when there are no mappings.
+        if (usesStomp && ctorStatements.isEmpty) {
+          ctorStatements.add(const Code('stompBroker;'));
+        } else if (usesStomp &&
+            !graph.ordered
+                .any((p) => p.info.messageMappings.isNotEmpty)) {
+          ctorStatements.add(const Code('stompBroker;'));
+        }
+        if (ctorStatements.isNotEmpty) {
+          ctor.body = Block.of(ctorStatements);
         }
       }));
     // Observability is a regular provider; its field carries the observer.
     final observerArgs = observabilityProvider == null
         ? const <String, Expression>{}
         : {'observer': refer(names.fields[observabilityProvider.key]!)};
-    if (graph.usesEvents) {
+    if (graph.usesEvents || usesStomp) {
       c.fields.add(Field((f) => f
         ..name = 'eventBus'
         // `late` only when the initializer references another field (the
@@ -372,6 +390,16 @@ ContextEmission emitContext(DiGraph graph) {
         ..assignment = refer('DianaEventBus', dianaLib)
             .newInstance(const [], observerArgs)
             .code));
+    }
+    if (usesStomp) {
+      // The broker relays topic publishes across isolates through the event
+      // bus; `late` because its initializer references the eventBus field.
+      c.fields.add(Field((f) => f
+        ..name = 'stompBroker'
+        ..late = true
+        ..modifier = FieldModifier.final$
+        ..assignment = refer('StompBroker', dianaLib)
+            .newInstance([refer('eventBus'), refer('config')]).code));
     }
     if (usesData) {
       // Opened at the start of initialize() and closed at the end of
@@ -425,4 +453,43 @@ ContextEmission emitContext(DiGraph graph) {
     [contextClass, overridesClass, if (scopeClass != null) scopeClass],
     names,
   );
+}
+
+/// One `stompBroker.registerMapping(...)` statement for a `@MessageMapping`
+/// method — a thin one-liner: decode the payload, call the handler, and
+/// (for a `@SendTo` method) encode the reply.
+Code _mappingRegistration(
+  ResolvedProvider provider,
+  MessageMappingInfo mapping,
+  ContextNames names,
+) {
+  final field = names.fields[provider.key]!;
+  return Code.scope((allocate) {
+    final payload = mapping.payloadKind == 'json'
+        ? '${allocate(refer('\$${mapping.payloadType!.name}FromJson', mapping.payloadType!.libraryUri))}'
+            '(${allocate(refer('stompJsonMap', dianaLib))}(m.body))'
+        : 'm.body';
+    final args = mapping.wantsMessage ? '$payload, m' : payload;
+    // A void handler is wrapped in an async block that awaits and returns
+    // null, so it satisfies `FutureOr<Object?>` and is still awaited in
+    // arrival order; a value-returning handler flows straight through.
+    final handler = mapping.returnKind == 'void'
+        ? '(m) async { await $field.${mapping.methodName}($args); return null; }'
+        : '(m) => $field.${mapping.methodName}($args)';
+    final buffer = StringBuffer(
+        "stompBroker.registerMapping('${mapping.destination}', $handler");
+    if (mapping.sendTo != null) {
+      buffer.write(", sendTo: '${mapping.sendTo}'");
+      if (mapping.returnKind == 'json') {
+        final toJson = allocate(refer(
+            '\$${mapping.returnType!.name}ToJson', mapping.returnType!.libraryUri));
+        final typeCode = allocate(referenceOf(mapping.returnType!));
+        buffer.write(', encode: (r) => '
+            '${allocate(refer('stompJsonBody', dianaLib))}'
+            '($toJson(r as $typeCode))');
+      }
+    }
+    buffer.write(');');
+    return buffer.toString();
+  });
 }

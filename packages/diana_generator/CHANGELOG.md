@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0
+
+- STOMP support: reads `@MessageMapping`/`@SendTo` (with exact
+  diagnostics), discovers `StompEndpoint`/`StompPublisher`, and emits the
+  broker field + one `registerMapping` per handler in the context
+  constructor. Apps without STOMP are byte-identical.
+
 ## 0.13.0
 
 - Query-method generation: abstract `@Repository` classes extending

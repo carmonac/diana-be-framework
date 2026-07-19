@@ -161,6 +161,9 @@ class InjectableInfo {
   /// (`extends DianaRepository<E>`); the generator implements it.
   final QueryRepoInfo? queryRepo;
 
+  /// `@MessageMapping` methods of this provider (STOMP).
+  final List<MessageMappingInfo> messageMappings;
+
   const InjectableInfo({
     required this.type,
     required this.scope,
@@ -178,6 +181,7 @@ class InjectableInfo {
     this.eventListeners = const [],
     this.aspectMethods = const [],
     this.queryRepo,
+    this.messageMappings = const [],
   });
 
   /// Unique key of this provider in the graph.
@@ -205,6 +209,8 @@ class InjectableInfo {
         if (aspectMethods.isNotEmpty)
           'aspectMethods': [for (final t in aspectMethods) t.toJson()],
         if (queryRepo != null) 'queryRepo': queryRepo!.toJson(),
+        if (messageMappings.isNotEmpty)
+          'messageMappings': [for (final m in messageMappings) m.toJson()],
       };
 
   factory InjectableInfo.fromJson(Map<String, Object?> json) => InjectableInfo(
@@ -246,6 +252,11 @@ class InjectableInfo {
             ? null
             : QueryRepoInfo.fromJson(
                 (json['queryRepo'] as Map).cast<String, Object?>()),
+        messageMappings: [
+          for (final m
+              in (json['messageMappings'] as List<Object?>? ?? const []))
+            MessageMappingInfo.fromJson((m as Map).cast<String, Object?>()),
+        ],
       );
 
   /// Whether the generator must implement this provider as a query
@@ -645,6 +656,73 @@ class QueryParamInfo {
   factory QueryParamInfo.fromJson(Map<String, Object?> json) => QueryParamInfo(
         name: json['name'] as String,
         type: TypeRef.fromJson((json['type'] as Map).cast<String, Object?>()),
+      );
+}
+
+/// One `@MessageMapping` method: how the generator emits its broker
+/// registration.
+class MessageMappingInfo {
+  final String methodName;
+
+  /// Destination without the app prefix (e.g. `/chat`).
+  final String destination;
+
+  /// `text` (raw String payload) or `json` (@Json DTO).
+  final String payloadKind;
+
+  /// The DTO type when [payloadKind] is `json`.
+  final TypeRef? payloadType;
+
+  /// Whether a second `StompMessage` parameter is declared.
+  final bool wantsMessage;
+
+  /// `void` (default), `text` or `json`.
+  final String returnKind;
+
+  /// The DTO type when [returnKind] is `json`.
+  final TypeRef? returnType;
+
+  /// `@SendTo` destination, when the method returns a value.
+  final String? sendTo;
+
+  const MessageMappingInfo({
+    required this.methodName,
+    required this.destination,
+    required this.payloadKind,
+    this.payloadType,
+    this.wantsMessage = false,
+    this.returnKind = 'void',
+    this.returnType,
+    this.sendTo,
+  });
+
+  Map<String, Object?> toJson() => {
+        'method': methodName,
+        'destination': destination,
+        'payloadKind': payloadKind,
+        if (payloadType != null) 'payloadType': payloadType!.toJson(),
+        if (wantsMessage) 'wantsMessage': true,
+        if (returnKind != 'void') 'returnKind': returnKind,
+        if (returnType != null) 'returnType': returnType!.toJson(),
+        if (sendTo != null) 'sendTo': sendTo,
+      };
+
+  factory MessageMappingInfo.fromJson(Map<String, Object?> json) =>
+      MessageMappingInfo(
+        methodName: json['method'] as String,
+        destination: json['destination'] as String,
+        payloadKind: json['payloadKind'] as String,
+        payloadType: json['payloadType'] == null
+            ? null
+            : TypeRef.fromJson(
+                (json['payloadType'] as Map).cast<String, Object?>()),
+        wantsMessage: json['wantsMessage'] as bool? ?? false,
+        returnKind: json['returnKind'] as String? ?? 'void',
+        returnType: json['returnType'] == null
+            ? null
+            : TypeRef.fromJson(
+                (json['returnType'] as Map).cast<String, Object?>()),
+        sendTo: json['sendTo'] as String?,
       );
 }
 

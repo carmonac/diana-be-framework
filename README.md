@@ -88,6 +88,10 @@ class TodoController {
 - **gRPC** — `@GrpcService()` on your protoc-generated service: it joins
   the DI graph and is served next to HTTP (own port, shared lifecycle) via
   the optional [`diana_grpc`](packages/diana_grpc) package.
+- **STOMP messaging** — STOMP 1.2 over WebSockets: `@MessageMapping`/
+  `@SendTo` handlers, an in-memory topic broker, an injectable
+  `StompPublisher`, ack/transaction/heartbeat support, and cross-isolate
+  topic delivery — all in `package:diana`, no extra dependency.
 - **Application events** — Spring-style `@EventListener` methods and an
   injectable `DianaEventPublisher`: awaited local dispatch with subtype
   matching, plus `broadcast()` to deliver an event to every isolate when
@@ -133,11 +137,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.13.0
+  diana: ^0.14.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.13.0
+  diana_generator: ^0.14.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -239,7 +243,7 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.13: the Spring-parity feature set above — including content negotiation
+v0.14: the Spring-parity feature set above — including content negotiation
 (XML), Server-Sent Events, gRPC, application events with a cross-isolate
 bridge, authentication/authorization (`diana_auth`), persistence with
 `@Transactional` (`diana_data`), observability (`diana_observability`:

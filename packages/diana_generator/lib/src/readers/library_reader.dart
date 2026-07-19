@@ -257,6 +257,7 @@ InjectableInfo _injectableFrom(
     eventListeners: _eventListenersOf(cls, scope),
     aspectMethods: _aspectMethodsOf(cls),
     queryRepo: queryRepo,
+    messageMappings: _messageMappingsOf(cls, scope),
   );
 }
 
@@ -1099,10 +1100,12 @@ InjectableInfo _withLifecycle(ClassElement cls, InjectableInfo info) {
   final lifecycle = _lifecycleOf(cls, info.scope);
   final scheduled = _scheduledOf(cls, info.scope);
   final eventListeners = _eventListenersOf(cls, info.scope);
+  final messageMappings = _messageMappingsOf(cls, info.scope);
   if (lifecycle.postConstruct == null &&
       lifecycle.preDestroy == null &&
       scheduled.isEmpty &&
-      eventListeners.isEmpty) {
+      eventListeners.isEmpty &&
+      messageMappings.isEmpty) {
     return info;
   }
   return InjectableInfo(
@@ -1120,7 +1123,157 @@ InjectableInfo _withLifecycle(ClassElement cls, InjectableInfo info) {
     preDestroyAwaited: lifecycle.preDestroyAwaited,
     scheduled: scheduled,
     eventListeners: eventListeners,
+    messageMappings: messageMappings,
   );
+}
+
+/// Reads `@MessageMapping` methods (STOMP), validating the signature,
+/// payload/return types, `@SendTo` pairing, destination syntax and scope.
+List<MessageMappingInfo> _messageMappingsOf(ClassElement cls, String scope) {
+  final result = <MessageMappingInfo>[];
+  for (final method in cls.methods) {
+    final mappingAnn = messageMappingChecker.firstAnnotationOf(method);
+    final sendToAnn = sendToChecker.firstAnnotationOf(method);
+    if (mappingAnn == null) {
+      if (sendToAnn != null) {
+        throw DianaSourceError(
+          method,
+          '@SendTo on ${cls.name}.${method.name} requires @MessageMapping '
+          'on the same method.',
+        );
+      }
+      continue;
+    }
+    final id = '${cls.name}.${method.name}';
+
+    if (scope != 'singleton') {
+      throw DianaSourceError(
+        method,
+        '@MessageMapping on ${cls.name} requires singleton scope; found '
+        '$scope.',
+      );
+    }
+
+    final params = method.formalParameters;
+    final validArity = params.isNotEmpty &&
+        params.length <= 2 &&
+        params.every((p) => p.isRequiredPositional);
+    if (method.isStatic || method.name!.startsWith('_') || !validArity) {
+      throw DianaSourceError(
+        method,
+        '@MessageMapping method $id must be a public instance method with '
+        'one or two positional parameters: the payload (String or an @Json '
+        'class), optionally followed by a StompMessage.',
+      );
+    }
+
+    // Payload parameter.
+    final payloadParam = params.first;
+    final payloadType = payloadParam.type;
+    String payloadKind;
+    TypeRef? payloadRef;
+    if (payloadType is InterfaceType && payloadType.isDartCoreString) {
+      payloadKind = 'text';
+    } else if (payloadType is InterfaceType &&
+        payloadType.element is ClassElement &&
+        isJsonClass(payloadType.element as ClassElement)) {
+      payloadKind = 'json';
+      payloadRef = _typeRefOf(payloadType, payloadParam);
+    } else {
+      throw DianaSourceError(
+        method,
+        '@MessageMapping payload parameter "${payloadParam.name}" of $id '
+        'must be String or a class annotated with @Json; found '
+        '${payloadType.getDisplayString()}.',
+      );
+    }
+
+    // Optional StompMessage parameter.
+    final wantsMessage = params.length == 2;
+    if (wantsMessage) {
+      final second = params[1].type;
+      final ok = second is InterfaceType &&
+          second.element.name == 'StompMessage' &&
+          second.element.library.uri.toString().startsWith('package:diana/');
+      if (!ok) {
+        throw DianaSourceError(
+          method,
+          '@MessageMapping second parameter of $id must be StompMessage '
+          'from package:diana; found ${second.getDisplayString()}.',
+        );
+      }
+    }
+
+    // Return type.
+    final returnType = method.returnType;
+    DartType inner = returnType;
+    if (returnType is InterfaceType && returnType.isDartAsyncFuture) {
+      inner = returnType.typeArguments.single;
+    }
+    String returnKind;
+    TypeRef? returnRef;
+    if (inner is VoidType) {
+      returnKind = 'void';
+    } else if (inner is InterfaceType && inner.isDartCoreString) {
+      returnKind = 'text';
+    } else if (inner is InterfaceType &&
+        inner.element is ClassElement &&
+        isJsonClass(inner.element as ClassElement)) {
+      returnKind = 'json';
+      returnRef = _typeRefOf(inner, method);
+    } else {
+      throw DianaSourceError(
+        method,
+        '@MessageMapping method $id returns ${returnType.getDisplayString()}; '
+        'return values must be String or an @Json class (wrapped in Future '
+        'if async).',
+      );
+    }
+
+    // @SendTo pairing.
+    final sendTo = sendToAnn?.getField('destination')?.toStringValue();
+    if (returnKind == 'void' && sendTo != null) {
+      throw DianaSourceError(
+        method,
+        '@SendTo on $id requires a non-void return value to publish.',
+      );
+    }
+    if (returnKind != 'void' && sendTo == null) {
+      throw DianaSourceError(
+        method,
+        '@MessageMapping method $id returns a value but has no @SendTo '
+        "destination. Add @SendTo('/topic/...') or return void.",
+      );
+    }
+
+    // Destination syntax.
+    final destination = mappingAnn.getField('destination')!.toStringValue()!;
+    if (!destination.startsWith('/')) {
+      throw DianaSourceError(
+        method,
+        '@MessageMapping destination "$destination" on $id must start with '
+        '"/".',
+      );
+    }
+    if (sendTo != null && !sendTo.startsWith('/')) {
+      throw DianaSourceError(
+        method,
+        '@SendTo destination "$sendTo" on $id must start with "/".',
+      );
+    }
+
+    result.add(MessageMappingInfo(
+      methodName: method.name!,
+      destination: destination,
+      payloadKind: payloadKind,
+      payloadType: payloadRef,
+      wantsMessage: wantsMessage,
+      returnKind: returnKind,
+      returnType: returnRef,
+      sendTo: sendTo,
+    ));
+  }
+  return result;
 }
 
 /// Reads `@Scheduled` methods, validating signatures, timing arguments and

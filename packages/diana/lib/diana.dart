@@ -30,6 +30,8 @@ export 'src/runtime.dart';
 export 'src/scheduler.dart';
 export 'src/server.dart';
 export 'src/sse.dart';
+export 'src/stomp/broker.dart';
+export 'src/stomp/frame.dart';
 export 'src/validation.dart';
 export 'src/websocket.dart';
 export 'src/xml_codec.dart';
