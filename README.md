@@ -97,7 +97,8 @@ class TodoController {
   matching, plus `broadcast()` to deliver an event to every isolate when
   serving multi-isolate.
 - **Security** — the optional [`diana_auth`](packages/diana_auth) package:
-  pluggable authenticator strategies (JWT Bearer with in-package HS256,
+  pluggable authenticator strategies (JWT Bearer with in-package HS256 and
+  RS256/JWKS — pure-Dart RSA verification, IdP key rotation handled,
   HTTP Basic, API key), `@Secured`/`@RolesAllowed` guards (401/403) and
   `@Principal` binding, enforced across HTTP, WebSocket handshakes and
   gRPC.
@@ -137,11 +138,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.14.0
+  diana: ^0.15.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.14.0
+  diana_generator: ^0.15.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -243,13 +244,12 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.14: the Spring-parity feature set above — including content negotiation
+v0.15: the Spring-parity feature set above — including content negotiation
 (XML), Server-Sent Events, gRPC, application events with a cross-isolate
-bridge, authentication/authorization (`diana_auth`), persistence with
-`@Transactional` (`diana_data`), observability (`diana_observability`:
-Prometheus metrics + OpenTelemetry tracing) and compile-time aspects
-(`@Timed`/`@Cacheable`/`@Retryable`/`@CircuitBreaker`, with a pluggable
-`DianaCacheStore` for shared cache backends) — fully tested. Planned next:
-Spring-Data style query-method generation, STOMP-style messaging over
-WebSockets, cron expressions for `@Scheduled`, RS256/JWKS token
-verification.
+bridge, authentication/authorization (`diana_auth`, HS256 + RS256/JWKS),
+persistence with `@Transactional` and Spring-Data-style query methods
+(`diana_data`), observability (`diana_observability`: Prometheus metrics +
+OpenTelemetry tracing), compile-time aspects (`@Timed`/`@Cacheable`/
+`@Retryable`/`@CircuitBreaker`, with a pluggable `DianaCacheStore`), cron
+scheduling, and STOMP messaging over WebSockets — fully tested. The
+original roadmap is complete; next steps are driven by real-world usage.

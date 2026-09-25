@@ -20,7 +20,7 @@ class JwtAuthenticator implements Authenticator {
   String? get challenge => 'Bearer';
 
   @override
-  FutureOr<AuthPrincipal?> authenticate(AuthRequest request) {
+  FutureOr<AuthPrincipal?> authenticate(AuthRequest request) async {
     final authorization = request.header('authorization');
     if (authorization == null) return null;
     final scheme = authorization.split(' ').first;
@@ -30,7 +30,7 @@ class JwtAuthenticator implements Authenticator {
       throw const InvalidCredentialsException('Empty bearer token');
     }
 
-    final claims = verifier.verify(token);
+    final claims = await verifier.verify(token);
     // `sub` is StringOrURI per RFC 7519, but many issuers emit numeric ids;
     // anything else is malformed and must reject as 401, never crash (500).
     final sub = switch (claims['sub']) {

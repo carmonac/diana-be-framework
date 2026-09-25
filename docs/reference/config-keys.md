@@ -98,6 +98,9 @@ them via `@Value`. Conventional keys:
 | Key | Default | Meaning |
 |---|---|---|
 | `auth.jwt.secret` | — | HS256 signing/verification secret (env `AUTH_JWT_SECRET`) |
+| `auth.jwt.jwksUri` | — | JWKS endpoint for RS256 verification (env `AUTH_JWT_JWKSURI`) |
+| `auth.jwt.issuer` | — | Expected `iss` claim |
+| `auth.jwt.audience` | — | Expected `aud` claim |
 
 See the [auth guide](../guides/auth.md).
 

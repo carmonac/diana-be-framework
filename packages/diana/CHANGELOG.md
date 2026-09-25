@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.0
+
+- Version bump only (kept in lockstep with the workspace).
+
 ## 0.14.0
 
 - STOMP 1.2 over WebSockets (`stomp/frame.dart`, `stomp/broker.dart`): a

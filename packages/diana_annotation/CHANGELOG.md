@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.0
+
+- Version bump only (kept in lockstep with the workspace).
+
 ## 0.14.0
 
 - New STOMP annotations: `@MessageMapping(destination)` and

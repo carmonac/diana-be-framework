@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.15.0 — 2026-07-19
+
+### RS256 / JWKS token verification (diana_auth)
+- `Rs256TokenVerifier` verifies RS256 (RSASSA-PKCS1-v1_5 + SHA-256) tokens
+  **in pure Dart** — `BigInt.modPow` plus an exact encode-then-compare of
+  the PKCS#1 v1.5 padding; no new dependency, verification-only. Same
+  hardening as HS256: exact `alg` match (the RS→HS downgrade dies before
+  any key is used), `exp`/`nbf` with clock skew, optional `iss`/`aud`.
+- `RsaPublicKey` loads keys from a JWK (`fromJwk`) or a PEM block
+  (`fromPem`, both SubjectPublicKeyInfo and PKCS#1, via a minimal DER
+  parser).
+- `JwksTokenVerifier` verifies against an IdP's JWKS endpoint (Auth0,
+  Keycloak, Cognito, Firebase, Entra ID): lazy fetch, TTL cache, `kid`
+  selection, one rate-limited re-fetch on unknown `kid` (key rotation),
+  stale-while-error, and no I/O for malformed tokens.
+- **Breaking**: `TokenVerifier.verify` now returns
+  `FutureOr<Map<String, Object?>>` so verifiers may resolve keys
+  asynchronously. Existing synchronous implementations keep working
+  unchanged; only custom *callers* of `verify` need an `await`.
+
+
 ## 0.14.0 — 2026-07-17
 
 ### STOMP 1.2 over WebSockets

@@ -640,9 +640,20 @@ The optional security package. Its only allowed crypto dependency is
 - Built-ins: `JwtAuthenticator(TokenVerifier, {rolesClaim})`,
   `BasicAuthenticator(UserStore, {realm})`,
   `ApiKeyAuthenticator(ApiKeyValidator, {headerName})`.
-- JWT: `TokenVerifier` (interface), `Hs256TokenVerifier(secret, {clockSkew,
-  issuer, audience})` (hardened HS256), `Hs256TokenSigner(secret)` with
+- JWT: `TokenVerifier` (interface; `FutureOr<Map<String, Object?>>
+  verify(token)`), `Hs256TokenVerifier(secret, {clockSkew, issuer,
+  audience})` (hardened HS256), `Hs256TokenSigner(secret)` with
   `sign(claims)` and `claimsFor(sub, {roles, ttl, rolesClaim})`.
+- RS256: `RsaPublicKey(modulus, exponent, {keyId})` with
+  `RsaPublicKey.fromJwk(jwk)` and `RsaPublicKey.fromPem(pem, {keyId})`
+  (SubjectPublicKeyInfo or PKCS#1); `Rs256TokenVerifier(keys, {clockSkew,
+  issuer, audience})` / `Rs256TokenVerifier.single(key, …)` over static
+  keys (`kid`-selected when the token carries one);
+  `JwksTokenVerifier(jwksUri, {cacheTtl = 10min, refreshCooldown = 30s,
+  requestTimeout = 5s, clockSkew, issuer, audience})` — lazy fetch, TTL
+  cache, one rate-limited re-fetch on unknown `kid`, stale-while-error;
+  `close()` releases its HTTP client. `rsaVerifyPkcs1Sha256(key, message,
+  signature)` is the underlying pure-Dart primitive.
 
 ### Middleware & guards
 

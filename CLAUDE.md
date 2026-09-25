@@ -172,6 +172,6 @@ dart run build_runner build   # regenerate an example (generated files are commi
 - relic as HTTP engine; 100% compile-time DI; pub-workspaces monorepo.
 - Add-ons live in separate packages (grpc/auth/data), never in core.
 - knex_dart for persistence (NOT drift); driver-agnostic connector pattern.
-- Auth: strategy chain, HS256 in-package, @Secured/@RolesAllowed guards.
+- Auth: strategy chain, HS256 + RS256/JWKS in-package (RSA verify en Dart puro, seam TokenVerifier FutureOr), @Secured/@RolesAllowed guards.
 - Events: sync/awaited local dispatch + cross-isolate broadcast.
 - The user asks explicitly for commits — don't commit unprompted.

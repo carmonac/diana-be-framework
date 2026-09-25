@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0
+
+- RS256/JWKS verification in pure Dart: `RsaPublicKey` (JWK + PEM),
+  `Rs256TokenVerifier` (static keys) and `JwksTokenVerifier` (IdP endpoint
+  with caching, `kid` rotation and stale-while-error). Same hardening as
+  HS256.
+- **Breaking**: `TokenVerifier.verify` returns
+  `FutureOr<Map<String, Object?>>` (sync implementations unaffected).
+
 ## 0.14.0
 
 - Version bump only (kept in lockstep with the workspace).

@@ -18,8 +18,8 @@ The design splits **authentication** (who are you?) from **authorization**
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.14.0
-  diana_auth: ^0.14.0
+  diana: ^0.15.0
+  diana_auth: ^0.15.0
 ```
 
 ## Assembling the authentication filter
@@ -70,14 +70,49 @@ plus optional `iss`/`aud` checks. `sub` becomes the principal name; the
 roles claim accepts a JSON list or a space-delimited string (covering
 OAuth `scope`).
 
-`TokenVerifier` is an interface — plug RS256/JWKS from any external library
-by implementing it. To mint tokens (login endpoints, tests) use
-`Hs256TokenSigner`:
+To mint tokens (login endpoints, tests) use `Hs256TokenSigner`:
 
 ```dart
 final token = Hs256TokenSigner(secret)
     .sign(Hs256TokenSigner.claimsFor('ada', roles: {'admin'}));
 ```
+
+### RS256 and JWKS (external identity providers)
+
+For tokens minted by an IdP (Auth0, Keycloak, Cognito, Firebase, Entra ID)
+verify RS256 **in-package** — RSA signature verification is pure Dart
+(`BigInt.modPow` + an exact encode-then-compare of the PKCS#1 v1.5
+padding), no new dependency:
+
+```dart
+// Keys rotate behind the IdP's JWKS endpoint (the common case):
+JwtAuthenticator(JwksTokenVerifier(
+  Uri.parse('https://idp.example.com/.well-known/jwks.json'),
+  issuer: 'https://idp.example.com/',
+  audience: 'my-api',
+))
+
+// Or a static public key — from a JWK or a PEM file:
+JwtAuthenticator(Rs256TokenVerifier.single(
+  RsaPublicKey.fromPem(pemString),   // BEGIN (RSA) PUBLIC KEY
+))
+```
+
+`JwksTokenVerifier` fetches the key set lazily, caches it (`cacheTtl`,
+default 10 min) and handles **rotation** the standard way: a token with an
+unknown `kid` triggers one immediate re-fetch, rate-limited by
+`refreshCooldown` (default 30 s) so bogus `kid`s cannot hammer the IdP.
+When a refresh fails, previously cached keys keep serving
+(stale-while-error). Call `close()` from `@PreDestroy` to release the HTTP
+client.
+
+Both verifiers enforce the same hardening as HS256: exact `alg: RS256`
+(the RS→HS downgrade dies on the algorithm check before any key is used),
+`exp`/`nbf` with clock skew, and optional `issuer`/`audience`. Malformed
+tokens are rejected **before** any network fetch.
+
+`TokenVerifier.verify` returns `FutureOr`, so custom verifiers may be
+async; the built-in HS256/RS256 ones stay synchronous.
 
 ### HTTP Basic
 
@@ -183,11 +218,14 @@ By convention:
 | Key | Meaning |
 |---|---|
 | `auth.jwt.secret` | HS256 signing/verification secret (env `AUTH_JWT_SECRET`) |
+| `auth.jwt.jwksUri` | JWKS endpoint of the identity provider (env `AUTH_JWT_JWKSURI`) |
+| `auth.jwt.issuer` / `auth.jwt.audience` | Expected `iss`/`aud` claims |
 
 ## Extending
 
 - Implement `Authenticator` for a custom scheme and add it to the chain.
-- Implement `TokenVerifier` for RS256/ES256/JWKS.
+- Implement `TokenVerifier` for other algorithms (ES256, EdDSA) or an
+  external JWT library — `verify` may be async.
 - Subclass `AuthPrincipal` for a richer identity — `@Principal` binds any
   class type.
 
