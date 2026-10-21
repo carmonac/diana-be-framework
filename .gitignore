@@ -12,3 +12,4 @@ pubspec.lock
 # macOS
 .DS_Store
 /site/
+__pycache__/
