@@ -4,7 +4,15 @@ description: >-
   Compile-time dependency injection, declarative controllers, middleware,
   configuration and validation — no reflection.
 version: 0.15.0
-publish_to: none
+repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana
+issue_tracker: https://github.com/carmonac/diana-be-framework/issues
+documentation: https://carmonac.github.io/diana-be-framework/
+topics:
+  - server
+  - framework
+  - http
+  - dependency-injection
+  - backend
 
 environment:
   sdk: ^3.6.0

@@ -7,7 +7,7 @@ site_url: https://carmonac.github.io/diana-be-framework/
 repo_url: https://github.com/carmonac/diana-be-framework
 repo_name: carmonac/diana-be-framework
 edit_uri: edit/main/docs/
-copyright: Diana is open source — see the repository for license details.
+copyright: Copyright &copy; 2026 Carlos Merchán — MIT License
 
 docs_dir: docs
 strict: true

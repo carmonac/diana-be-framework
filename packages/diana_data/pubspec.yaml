@@ -4,7 +4,14 @@ description: >-
   over knex_dart, ambient transactions with @Transactional, a lightweight
   migration runner and a database health indicator.
 version: 0.15.0
-publish_to: none
+repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_data
+issue_tracker: https://github.com/carmonac/diana-be-framework/issues
+documentation: https://carmonac.github.io/diana-be-framework/
+topics:
+  - database
+  - sql
+  - persistence
+  - transactions
 
 environment:
   sdk: ^3.6.0

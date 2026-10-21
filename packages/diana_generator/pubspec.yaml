@@ -3,7 +3,13 @@ description: >-
   Code generator for the Diana backend framework. Resolves the dependency
   injection graph at build time and emits the application composition root.
 version: 0.15.0
-publish_to: none
+repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_generator
+issue_tracker: https://github.com/carmonac/diana-be-framework/issues
+documentation: https://carmonac.github.io/diana-be-framework/
+topics:
+  - codegen
+  - build-runner
+  - dependency-injection
 
 environment:
   sdk: ^3.6.0

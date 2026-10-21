@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Publishing to pub.dev
+- All packages are now publishable (MIT license, repository/documentation
+  metadata, READMEs for every add-on). Pushing a `vX.Y.Z` tag publishes
+  the seven packages in dependency order via
+  `.github/workflows/publish.yml` using pub.dev automated publishing
+  (OIDC); see `RELEASING.md`.
+
 ### Documentation site
 - The documentation in `docs/` is now published as a website at
   <https://carmonac.github.io/diana-be-framework/> (MkDocs Material, built

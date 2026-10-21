@@ -54,7 +54,9 @@ validators, JSON codecs) → `diana_bootstrap` (aggregates summaries →
    and CHANGELOGs (root + per-package).
 8. **Lockstep versioning**: all packages share one version; bump every
    pubspec + cross-package constraints + example constraints + doc
-   snippets together.
+   snippets (incl. the add-on READMEs) together. A `vX.Y.Z` tag publishes
+   all 7 packages to pub.dev (`.github/workflows/publish.yml`, see
+   `RELEASING.md`); the examples stay `publish_to: none`.
 
 ## Commands
 

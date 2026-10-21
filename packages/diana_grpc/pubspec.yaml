@@ -3,7 +3,13 @@ description: >-
   gRPC support for the Diana backend framework: dependency-injected
   protoc-generated services with Diana lifecycle integration.
 version: 0.15.0
-publish_to: none
+repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_grpc
+issue_tracker: https://github.com/carmonac/diana-be-framework/issues
+documentation: https://carmonac.github.io/diana-be-framework/
+topics:
+  - grpc
+  - rpc
+  - server
 
 environment:
   sdk: ^3.6.0

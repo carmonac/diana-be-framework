@@ -1,0 +1,76 @@
+name: Publish to pub.dev
+
+# Pushing a tag vX.Y.Z publishes every package at version X.Y.Z (lockstep
+# versioning). Authentication is pub.dev automated publishing (GitHub OIDC),
+# so no secret is stored here — see RELEASING.md for the one-time setup.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # pub.dev can be told to only accept publishes from this environment;
+    # add required reviewers to it in the repo settings for a manual gate.
+    environment: pub.dev
+    permissions:
+      contents: read
+      id-token: write # exchanged for a pub.dev token by setup-dart
+    env:
+      # Dependency order: each package is published after the ones it uses.
+      PACKAGES: >-
+        diana_annotation
+        diana
+        diana_generator
+        diana_auth
+        diana_data
+        diana_grpc
+        diana_observability
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+
+      - run: dart pub get
+
+      - name: Check the tag matches every package version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          status=0
+          for p in $PACKAGES; do
+            actual="$(sed -n 's/^version: *//p' "packages/$p/pubspec.yaml")"
+            if [ "$actual" != "$version" ]; then
+              echo "::error file=packages/$p/pubspec.yaml::$p is $actual, tag is $GITHUB_REF_NAME"
+              status=1
+            fi
+          done
+          exit $status
+
+      - run: dart analyze --fatal-infos
+
+      # Validate everything before uploading anything, so a broken package
+      # can't leave the release half-published.
+      - name: Dry-run every package
+        run: |
+          for p in $PACKAGES; do
+            echo "::group::$p"
+            # Errors fail; warnings don't (as with --force below) — e.g.
+            # diana_generator's lib/builder.dart naming is build_runner's
+            # convention.
+            (cd "packages/$p" && dart pub publish --dry-run --ignore-warnings)
+            echo "::endgroup::"
+          done
+
+      - name: Publish
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for p in $PACKAGES; do
+            # Re-running a partially failed release skips what already made it.
+            if curl -sf -o /dev/null "https://pub.dev/api/packages/$p/versions/$version"; then
+              echo "$p $version is already on pub.dev — skipping"
+              continue
+            fi
+            echo "::group::$p $version"
+            (cd "packages/$p" && dart pub publish --force)
+            echo "::endgroup::"
+          done

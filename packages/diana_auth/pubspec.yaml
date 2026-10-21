@@ -4,7 +4,14 @@ description: >-
   pluggable authenticator strategies (JWT, HTTP Basic, API key),
   Spring-style @Secured/@RolesAllowed guards and principal binding.
 version: 0.15.0
-publish_to: none
+repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_auth
+issue_tracker: https://github.com/carmonac/diana-be-framework/issues
+documentation: https://carmonac.github.io/diana-be-framework/
+topics:
+  - authentication
+  - authorization
+  - jwt
+  - security
 
 environment:
   sdk: ^3.6.0

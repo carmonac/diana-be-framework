@@ -257,3 +257,7 @@ OpenTelemetry tracing), compile-time aspects (`@Timed`/`@Cacheable`/
 `@Retryable`/`@CircuitBreaker`, with a pluggable `DianaCacheStore`), cron
 scheduling, and STOMP messaging over WebSockets — fully tested. The
 original roadmap is complete; next steps are driven by real-world usage.
+
+## License
+
+Diana is released under the [MIT License](LICENSE).

@@ -1,0 +1,3 @@
+# Self-signed TLS key used only by the HTTPS test. pub.dev rejects archives
+# containing private keys, so it ships only in the repository.
+test/fixtures/key.pem
