@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Documentation site
+- The documentation in `docs/` is now published as a website at
+  <https://carmonac.github.io/diana-be-framework/> (MkDocs Material, built
+  with `--strict` and deployed to GitHub Pages by
+  `.github/workflows/docs.yml` on every push to `main` that touches the docs).
+- Fixed two in-doc anchors that did not resolve (`testing.md` →
+  architecture testing strategy; site slugs now match GitHub's).
+
 ## 0.15.0 — 2026-07-19
 
 ### RS256 / JWKS token verification (diana_auth)

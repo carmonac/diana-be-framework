@@ -1,0 +1,115 @@
+# Official documentation site, built from docs/ and published to GitHub
+# Pages by .github/workflows/docs.yml. docs/ stays the single source of
+# truth — this file only adds navigation and theming.
+site_name: Diana
+site_description: Spring-inspired, annotation-driven backend framework for Dart — resolved at compile time.
+site_url: https://carmonac.github.io/diana-be-framework/
+repo_url: https://github.com/carmonac/diana-be-framework
+repo_name: carmonac/diana-be-framework
+edit_uri: edit/main/docs/
+copyright: Diana is open source — see the repository for license details.
+
+docs_dir: docs
+strict: true
+validation:
+  # A page left out of nav: below fails the strict build.
+  nav:
+    omitted_files: warn
+
+hooks:
+  - tool/docs/hooks.py
+
+theme:
+  name: material
+  language: en
+  icon:
+    logo: material/rhombus
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      # GitHub-compatible anchors, so in-doc links work on both.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: README.md
+  - Getting started:
+      - Getting started: getting-started.md
+      - "Tutorial: bookstore API": tutorial.md
+      - Architecture: architecture.md
+      - Troubleshooting & FAQ: troubleshooting.md
+  - Guides:
+      - Core:
+          - Dependency injection: guides/dependency-injection.md
+          - Controllers and routing: guides/controllers.md
+          - Middleware: guides/middleware.md
+          - Configuration: guides/configuration.md
+          - Validation: guides/validation.md
+          - Error handling: guides/error-handling.md
+          - Application lifecycle: guides/lifecycle.md
+          - Application events: guides/events.md
+          - Aspects: guides/aspects.md
+          - JSON serialization: guides/json.md
+      - Web:
+          - CORS and static files: guides/cors-and-static.md
+          - Content negotiation: guides/content-negotiation.md
+          - Server-Sent Events: guides/server-sent-events.md
+          - WebSockets: guides/websockets.md
+          - STOMP messaging: guides/stomp.md
+          - OpenAPI: guides/openapi.md
+      - Add-ons:
+          - gRPC: guides/grpc.md
+          - Authentication & authorization: guides/auth.md
+          - Persistence: guides/persistence.md
+          - Observability: guides/observability.md
+      - Production:
+          - Operations: guides/operations.md
+          - Testing: guides/testing.md
+  - Reference:
+      - Annotations: reference/annotations.md
+      - Runtime API: reference/runtime.md
+      - Generated code: reference/generated-code.md
+      - Build diagnostics: reference/build-diagnostics.md
+      - Configuration keys: reference/config-keys.md

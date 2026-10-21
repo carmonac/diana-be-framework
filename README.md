@@ -2,6 +2,8 @@
 
 A Spring-inspired, annotation-driven backend framework for Dart.
 
+**📖 Documentation: <https://carmonac.github.io/diana-be-framework/>**
+
 Diana brings the Spring Boot developer experience to Dart — declarative
 controllers, dependency injection, middleware, configuration and validation —
 with one key difference: **everything is resolved at compile time**. There is
@@ -123,7 +125,9 @@ class TodoController {
 
 ## Documentation
 
-Full documentation lives in [`docs/`](docs/README.md):
+Full documentation is published at
+<https://carmonac.github.io/diana-be-framework/> and its sources live in
+[`docs/`](docs/README.md):
 [getting started](docs/getting-started.md) ·
 [step-by-step tutorial](docs/tutorial.md) ·
 [feature guides](docs/README.md#guides) ·

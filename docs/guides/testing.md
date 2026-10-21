@@ -125,7 +125,7 @@ template):
 in-memory sources, exact-message assertions for every diagnostic, and pure
 table-driven tests for the graph resolver. See
 `packages/diana_generator/test/` and the
-[architecture page](../architecture.md#testing-strategy).
+[architecture page](../architecture.md#testing-strategy-the-frameworks-own).
 
 ## CI recipe
 

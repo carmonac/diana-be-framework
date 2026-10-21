@@ -63,7 +63,14 @@ tool/verify.sh          # THE gate: pub get, codegen, analyze --fatal-infos,
                         # all test suites, determinism (build×2, byte-diff)
 dart test               # per package/example (cd first)
 dart run build_runner build   # regenerate an example (generated files are committed)
+mkdocs build --strict         # docs site (pip install -r tool/docs/requirements.txt)
 ```
+
+The docs site (https://carmonac.github.io/diana-be-framework/) is built from
+`docs/` by `mkdocs.yml` and deployed by `.github/workflows/docs.yml`. A new
+guide/reference page must also get an entry in `mkdocs.yml` `nav:` (strict
+build fails otherwise). `tool/docs/hooks.py` rewrites links escaping `docs/`
+to GitHub URLs.
 
 `analyze --fatal-infos` covers the whole workspace including `tool/`.
 
