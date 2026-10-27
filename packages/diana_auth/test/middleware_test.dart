@@ -37,8 +37,7 @@ void main() {
   test('runs strategies in order; first principal wins', () async {
     final first = FakeAuthenticator();
     final second = FakeAuthenticator();
-    final auth =
-        AuthenticationMiddleware(authenticators: [first, second]);
+    final auth = AuthenticationMiddleware(authenticators: [first, second]);
     final principal = await auth.authenticate(
       MapAuthRequest({'x-fake': 'ada'}),
     );
@@ -47,8 +46,7 @@ void main() {
     expect(second.calls, isEmpty, reason: 'chain stops at the first match');
   });
 
-  test('stamps the principal under the package:diana contract key',
-      () async {
+  test('stamps the principal under the package:diana contract key', () async {
     final auth = AuthenticationMiddleware(
       authenticators: [FakeAuthenticator()],
     );

@@ -81,9 +81,7 @@ class DiGraph {
   /// methods — gates all diana_data emission (database field, lifecycle,
   /// transactional proxies).
   bool get usesData => ordered.any((p) =>
-      p.info.hasTx ||
-      p.info.isQueryRepo ||
-      p.deps.any((d) => d.isDbExecutor));
+      p.info.hasTx || p.info.isQueryRepo || p.deps.any((d) => d.isDbExecutor));
 
   /// Whether the app uses STOMP — gates the broker field and its bus.
   bool get usesStomp => ordered.any((p) =>
@@ -186,8 +184,7 @@ DiGraphResult resolveGraph(List<LibrarySummary> summaries) {
         continue;
       }
       final key = bindKey(param.type, param.qualifier);
-      final requiredBy =
-          'required by constructor parameter "${param.name}" of '
+      final requiredBy = 'required by constructor parameter "${param.name}" of '
           '${provider.info.type.displayName} (${provider.declaredIn})';
 
       final strongHits = strong[key] ?? const [];
@@ -325,8 +322,7 @@ void _computeRequestScope(
     // transient: inherits from dependencies.
     final result = provider.deps.any((d) {
       final target = d.providerKey == null ? null : byKey[d.providerKey!];
-      return target != null &&
-          needsRequest(target, {...path, provider.key});
+      return target != null && needsRequest(target, {...path, provider.key});
     });
     return memo[provider.key] = result;
   }

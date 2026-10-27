@@ -54,10 +54,9 @@ class DianaBootstrapBuilder implements Builder {
     final app = ownSummary.app;
     if (app == null) return;
 
-    final summaryIds = await buildStep
-        .findAssets(Glob('lib/**.diana.json'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    final summaryIds =
+        await buildStep.findAssets(Glob('lib/**.diana.json')).toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
     final summaries = <LibrarySummary>[
       for (final id in summaryIds)
         LibrarySummary.fromJson(
@@ -150,7 +149,9 @@ class DianaBootstrapBuilder implements Builder {
       }
       for (final ws in summary.webSockets) {
         for (final mw in ws.middleware) {
-          check(mw, '@UseMiddleware on @WebSocketController '
+          check(
+              mw,
+              '@UseMiddleware on @WebSocketController '
               '${ws.type.displayName}');
         }
       }
@@ -240,8 +241,7 @@ class DianaBootstrapBuilder implements Builder {
     for (final provider in graph.ordered) {
       final implementsCodec = provider.info.supertypes.any(
         (s) =>
-            s.name == 'BodyCodec' &&
-            s.libraryUri.startsWith('package:diana/'),
+            s.name == 'BodyCodec' && s.libraryUri.startsWith('package:diana/'),
       );
       if (implementsCodec &&
           (provider.scope != 'singleton' || provider.needsRequestScope)) {
@@ -258,7 +258,9 @@ class DianaBootstrapBuilder implements Builder {
   /// protoc-generated `XServiceBase`).
   /// True when [a] and [b] describe the same security requirement.
   bool _sameSecurity(SecurityInfo? a, SecurityInfo? b) {
-    if (a == null || b == null) return identical(a, b) || (a == null && b == null);
+    if (a == null || b == null) {
+      return identical(a, b) || (a == null && b == null);
+    }
     final ar = a.roles, br = b.roles;
     if (ar == null || br == null) return ar == null && br == null;
     return ar.toSet().containsAll(br) && br.toSet().containsAll(ar);
@@ -319,8 +321,8 @@ class DianaBootstrapBuilder implements Builder {
     if (providers.length > 1) {
       return [
         'Multiple DianaCacheStore providers: '
-        '${providers.map((p) => '${p.info.type.displayName} '
-            '(${p.declaredIn})').join(', ')}. Declare exactly one.',
+            '${providers.map((p) => '${p.info.type.displayName} '
+                '(${p.declaredIn})').join(', ')}. Declare exactly one.',
       ];
     }
     if (providers.isNotEmpty) {
@@ -328,7 +330,7 @@ class DianaBootstrapBuilder implements Builder {
       if (p.scope != 'singleton' || p.needsRequestScope) {
         return [
           '${p.info.type.displayName} extends DianaCacheStore but is '
-          '${p.scope}-scoped; cache stores must be singletons.',
+              '${p.scope}-scoped; cache stores must be singletons.',
         ];
       }
     }
@@ -368,7 +370,8 @@ class DianaBootstrapBuilder implements Builder {
       }
     }
 
-    final seen = <String, (String, String, String)>{}; // dest -> (class, method, lib)
+    final seen =
+        <String, (String, String, String)>{}; // dest -> (class, method, lib)
     for (final p in graph.ordered) {
       for (final mapping in p.info.messageMappings) {
         final prior = seen[mapping.destination];
@@ -387,7 +390,8 @@ class DianaBootstrapBuilder implements Builder {
       }
     }
 
-    final hasMappings = graph.ordered.any((p) => p.info.messageMappings.isNotEmpty);
+    final hasMappings =
+        graph.ordered.any((p) => p.info.messageMappings.isNotEmpty);
     if (hasMappings && endpoints.isEmpty) {
       errors.add(
         '@MessageMapping methods were found but no @WebSocketController '
@@ -405,8 +409,8 @@ class DianaBootstrapBuilder implements Builder {
     if (providers.length > 1) {
       return [
         'Multiple DianaObservability providers: '
-        '${providers.map((p) => '${p.info.type.displayName} '
-            '(${p.declaredIn})').join(', ')}. Declare exactly one.',
+            '${providers.map((p) => '${p.info.type.displayName} '
+                '(${p.declaredIn})').join(', ')}. Declare exactly one.',
       ];
     }
     if (providers.isNotEmpty) {
@@ -414,7 +418,7 @@ class DianaBootstrapBuilder implements Builder {
       if (p.scope != 'singleton' || p.needsRequestScope) {
         return [
           '${p.info.type.displayName} extends DianaObservability but is '
-          '${p.scope}-scoped; observability providers must be singletons.',
+              '${p.scope}-scoped; observability providers must be singletons.',
         ];
       }
     }
@@ -430,15 +434,15 @@ class DianaBootstrapBuilder implements Builder {
     if (connectors.isEmpty) {
       return [
         '@Transactional/Database/DianaRepository usage found but no '
-        'DatabaseConnector provider was declared. Add a @Component '
-        'extending diana_data\'s DatabaseConnector.',
+            'DatabaseConnector provider was declared. Add a @Component '
+            'extending diana_data\'s DatabaseConnector.',
       ];
     }
     if (connectors.length > 1) {
       return [
         'Multiple DatabaseConnector providers: '
-        '${connectors.map((p) => '${p.info.type.displayName} '
-            '(${p.declaredIn})').join(', ')}. Declare exactly one.',
+            '${connectors.map((p) => '${p.info.type.displayName} '
+                '(${p.declaredIn})').join(', ')}. Declare exactly one.',
       ];
     }
     return const [];
@@ -571,8 +575,7 @@ class DianaBootstrapBuilder implements Builder {
             forwardPositional.add(param.name);
           }
         }
-        final superArgs =
-            [...forwardPositional, ...forwardNamed].join(', ');
+        final superArgs = [...forwardPositional, ...forwardNamed].join(', ');
         ctor.initializers.add(Code('super($superArgs)'));
       }));
 
@@ -663,11 +666,11 @@ class DianaBootstrapBuilder implements Builder {
             ..name = '_spec\$$name'
             ..static = true
             ..modifier = FieldModifier.constant
-            ..assignment = Code.scope((allocate) =>
-                '${allocate(refer('CacheSpec', dianaLib))}('
-                "method: '${base.name}.$name', "
-                'ttl: Duration(seconds: ${cacheable.ttlSeconds}), '
-                'maxEntries: ${cacheable.maxEntries})')));
+            ..assignment = Code.scope(
+                (allocate) => '${allocate(refer('CacheSpec', dianaLib))}('
+                    "method: '${base.name}.$name', "
+                    'ttl: Duration(seconds: ${cacheable.ttlSeconds}), '
+                    'maxEntries: ${cacheable.maxEntries})')));
         } else if (cacheable != null) {
           final valueType = method.returnType.typeArgs.isEmpty
               ? const TypeRef(libraryUri: '', name: 'dynamic')
@@ -675,11 +678,11 @@ class DianaBootstrapBuilder implements Builder {
           c.fields.add(Field((f) => f
             ..name = '_cache\$$name'
             ..modifier = FieldModifier.final$
-            ..assignment = Code.scope((allocate) =>
-                '${allocate(refer('MethodCache', dianaLib))}'
-                '<${_typeCode(valueType, allocate)}>('
-                'ttl: const Duration(seconds: ${cacheable.ttlSeconds}), '
-                'maxEntries: ${cacheable.maxEntries})')));
+            ..assignment = Code.scope(
+                (allocate) => '${allocate(refer('MethodCache', dianaLib))}'
+                    '<${_typeCode(valueType, allocate)}>('
+                    'ttl: const Duration(seconds: ${cacheable.ttlSeconds}), '
+                    'maxEntries: ${cacheable.maxEntries})')));
         }
         final breaker = method.circuitBreaker;
         if (breaker != null) {
@@ -745,8 +748,7 @@ class DianaBootstrapBuilder implements Builder {
             forwardPositional.add(param.name);
           }
         }
-        final superArgs =
-            [...forwardPositional, ...forwardNamed].join(', ');
+        final superArgs = [...forwardPositional, ...forwardNamed].join(', ');
         ctor.initializers.add(Code('super($superArgs)'));
       }));
 
@@ -920,11 +922,10 @@ class DianaBootstrapBuilder implements Builder {
             buffer.write(".${useOr ? 'orWhereBetween' : 'whereBetween'}"
                 "('$col', [$a, $b])");
           case 'isNull':
-            buffer
-                .write(".${useOr ? 'orWhereNull' : 'whereNull'}('$col')");
+            buffer.write(".${useOr ? 'orWhereNull' : 'whereNull'}('$col')");
           case 'isNotNull':
-            buffer.write(
-                ".${useOr ? 'orWhereNotNull' : 'whereNotNull'}('$col')");
+            buffer
+                .write(".${useOr ? 'orWhereNotNull' : 'whereNotNull'}('$col')");
         }
       }
       for (final order in method.orderBy) {
@@ -959,8 +960,7 @@ class DianaBootstrapBuilder implements Builder {
             forwardPositional.add(param.name);
           }
         }
-        final superArgs =
-            [...forwardPositional, ...forwardNamed].join(', ');
+        final superArgs = [...forwardPositional, ...forwardNamed].join(', ');
         ctor.initializers.add(Code('super($superArgs)'));
       }));
 
@@ -983,8 +983,7 @@ class DianaBootstrapBuilder implements Builder {
           ..type = refer('Object')))
         ..returns = futureOf(entityNullableRef)
         ..modifier = MethodModifier.async
-        ..body = Code.scope((allocate) =>
-            'final rows = await db.select('
+        ..body = Code.scope((allocate) => 'final rows = await db.select('
             "db.table('${repo.table}').where('${repo.idColumn}', '=', id)"
             '.limit(1));\n'
             'return rows.isEmpty ? null : ${allocate(fromJson)}(rows.first);')));
@@ -996,10 +995,10 @@ class DianaBootstrapBuilder implements Builder {
           ..type = entityRef))
         ..returns = futureOf(refer('void'))
         ..lambda = true
-        ..body = Code.scope((allocate) =>
-            "db.insert(db.table('${repo.table}').insert("
-            '${allocate(toJson)}(entity)'
-            '..removeWhere((k, v) => v == null)))')));
+        ..body = Code.scope(
+            (allocate) => "db.insert(db.table('${repo.table}').insert("
+                '${allocate(toJson)}(entity)'
+                '..removeWhere((k, v) => v == null)))')));
       c.methods.add(Method((m) => m
         ..annotations.add(refer('override'))
         ..name = 'deleteById'
@@ -1008,8 +1007,7 @@ class DianaBootstrapBuilder implements Builder {
           ..type = refer('Object')))
         ..returns = futureOf(refer('void'))
         ..lambda = true
-        ..body = Code(
-            "db.delete(db.table('${repo.table}')"
+        ..body = Code("db.delete(db.table('${repo.table}')"
             ".where('${repo.idColumn}', '=', id).delete())")));
 
       // Parsed query methods.
@@ -1068,8 +1066,7 @@ class DianaBootstrapBuilder implements Builder {
   Expression _guardExpr(SecurityInfo security) => security.roles == null
       ? refer('SecuredGuard', _dianaAuthLib).constInstance(const [])
       : refer('RolesGuard', _dianaAuthLib).constInstance([
-          literalConstList(
-              [for (final r in security.roles!) literalString(r)]),
+          literalConstList([for (final r in security.roles!) literalString(r)]),
         ]);
 
   Expression _corsPolicyExpr(CorsInfo cors) =>
@@ -1140,8 +1137,7 @@ class DianaBootstrapBuilder implements Builder {
     final bodyCodecProviders = [
       for (final provider in graph.ordered)
         if (provider.info.supertypes.any((s) =>
-            s.name == 'BodyCodec' &&
-            s.libraryUri.startsWith('package:diana/')))
+            s.name == 'BodyCodec' && s.libraryUri.startsWith('package:diana/')))
           provider,
     ];
 
@@ -1150,7 +1146,8 @@ class DianaBootstrapBuilder implements Builder {
     final observabilityProviders = _observabilityProviders(graph);
     final Expression? observabilityField = observabilityProviders.isEmpty
         ? null
-        : refer('ctx').property(names.fields[observabilityProviders.single.key]!);
+        : refer('ctx')
+            .property(names.fields[observabilityProviders.single.key]!);
 
     // Exception handlers across all advices, most specific exception type
     // first (ties broken by advice type then declaration order).
@@ -1230,14 +1227,15 @@ class DianaBootstrapBuilder implements Builder {
             if (observabilityField != null) 'observer': observabilityField,
             if (mapExceptionFn != null)
               'exceptionMapper': Method((m) => m
-                ..requiredParameters.addAll([
-                  Parameter((p) => p..name = 'e'),
-                  Parameter((p) => p..name = 'st'),
-                  Parameter((p) => p..name = 'req'),
-                ])
-                ..lambda = true
-                ..body = refer('_mapException')
-                    .call([refer('ctx'), refer('e'), refer('req')]).code).closure,
+                    ..requiredParameters.addAll([
+                      Parameter((p) => p..name = 'e'),
+                      Parameter((p) => p..name = 'st'),
+                      Parameter((p) => p..name = 'req'),
+                    ])
+                    ..lambda = true
+                    ..body = refer('_mapException')
+                        .call([refer('ctx'), refer('e'), refer('req')]).code)
+                  .closure,
           }))
           .statement,
     ];
@@ -1246,8 +1244,7 @@ class DianaBootstrapBuilder implements Builder {
       final controllerKey = '${controller.type.key}|';
       final onRequestScope = names.onRequestScope.contains(controllerKey);
       for (final route in controller.routes) {
-        final adapterRef =
-            refer(route.adapterName, controller.type.libraryUri);
+        final adapterRef = refer(route.adapterName, controller.type.libraryUri);
         final handler = Method((m) {
           m.requiredParameters.add(Parameter((p) => p..name = 'req'));
           if (onRequestScope) {
@@ -1256,11 +1253,14 @@ class DianaBootstrapBuilder implements Builder {
                   .assign(
                       refer('DianaRequestScope').newInstance([refer('ctx')]))
                   .statement,
-              adapterRef.call([
-                names.access(controllerKey,
-                    ctx: refer('ctx'), scope: refer('scope')),
-                refer('req'),
-              ]).returned.statement,
+              adapterRef
+                  .call([
+                    names.access(controllerKey,
+                        ctx: refer('ctx'), scope: refer('scope')),
+                    refer('req'),
+                  ])
+                  .returned
+                  .statement,
             ]);
           } else {
             m.lambda = true;
@@ -1307,16 +1307,14 @@ class DianaBootstrapBuilder implements Builder {
     }
     serverStatements.add(Code.scope((allocate) {
       final httpMethod = allocate(refer('HttpMethod', dianaLib));
-      final healthHandler =
-          allocate(refer('healthEndpointHandler', dianaLib));
+      final healthHandler = allocate(refer('healthEndpointHandler', dianaLib));
       final infoHandler = allocate(refer('infoEndpointHandler', dianaLib));
       final livenessHandler =
           allocate(refer('livenessEndpointHandler', dianaLib));
       final readinessHandler =
           allocate(refer('readinessEndpointHandler', dianaLib));
-      final indicators = healthIndicators
-          .map((p) => 'ctx.${names.fields[p.key]!}')
-          .join(', ');
+      final indicators =
+          healthIndicators.map((p) => 'ctx.${names.fields[p.key]!}').join(', ');
       // /actuator/metrics is emitted only when an observability provider
       // exists (compile-time gate — apps without it stay byte-identical).
       String metricsLine = '';
@@ -1360,8 +1358,7 @@ $metricsLine}
 
     // OpenAPI: served at GET /openapi.json when server.openapi.enabled.
     serverStatements.add(Code.scope((allocate) {
-      final httpMethod =
-          allocate(refer('HttpMethod', dianaLib));
+      final httpMethod = allocate(refer('HttpMethod', dianaLib));
       final dianaResponse = allocate(refer('DianaResponse', dianaLib));
       final patch = allocate(refer('patchOpenApiInfo', dianaLib));
       return '''
@@ -1385,8 +1382,9 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
       ..sort((a, b) => a.path.compareTo(b.path));
     for (final ws in webSockets) {
       final factory = Method((m) => m
-        ..lambda = true
-        ..body = names.access('${ws.type.key}|', ctx: refer('ctx')).code).closure;
+            ..lambda = true
+            ..body = names.access('${ws.type.key}|', ctx: refer('ctx')).code)
+          .closure;
       // Guards run as handshake interceptors, after the (controller-level)
       // authentication middleware and last before the upgrade.
       final wsMiddleware = <Expression>[
@@ -1396,8 +1394,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
       serverStatements.add(refer('server').property('registerWebSocket').call(
         [literalString(ws.path), factory],
         {
-          if (wsMiddleware.isNotEmpty)
-            'middleware': literalList(wsMiddleware),
+          if (wsMiddleware.isNotEmpty) 'middleware': literalList(wsMiddleware),
         },
       ).statement);
     }
@@ -1409,15 +1406,15 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
       ..sort((a, b) => a.type.key.compareTo(b.type.key));
 
     if (grpcServices.isNotEmpty) {
-      final grpcSecurity =
-          grpcServices.firstWhere((s) => s.security != null,
-                  orElse: () => grpcServices.first)
-              .security;
+      final grpcSecurity = grpcServices
+          .firstWhere((s) => s.security != null,
+              orElse: () => grpcServices.first)
+          .security;
       Expression? interceptors;
       if (grpcSecurity != null) {
         // Validated by _checkGrpcSecurity: exactly one singleton provider.
-        final authField = names.fields[
-            _authMiddlewareProviders(graph).single.key]!;
+        final authField =
+            names.fields[_authMiddlewareProviders(graph).single.key]!;
         interceptors = literalList([
           refer('grpcAuthInterceptor', dianaGrpcLib).call([
             refer('ctx').property(authField).property('authorizeMetadata'),
@@ -1434,8 +1431,7 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
           ], {
             'services': literalList([
               for (final service in grpcServices)
-                refer('ctx').property(
-                    names.fields['${service.type.key}|']!),
+                refer('ctx').property(names.fields['${service.type.key}|']!),
             ]),
             if (interceptors != null) 'interceptors': interceptors,
           }))
@@ -1546,8 +1542,8 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
                 // The task name labels observability metrics; emitted only
                 // when observability is in use (byte-identical otherwise).
                 if (schedulerObserver.isNotEmpty) {
-                  buffer.write(
-                      ", name: '${entry.typeName}.${task.methodName}'");
+                  buffer
+                      .write(", name: '${entry.typeName}.${task.methodName}'");
                 }
                 buffer.write(')');
               }
@@ -1654,8 +1650,8 @@ if (cfg.get<bool>('server.openapi.enabled', defaultValue: false)) {
       ]).code
       ..lambda = true);
 
-    final openApiJson = _jsonStringLiteral(
-        jsonEncode(buildOpenApiDocument(summaries)));
+    final openApiJson =
+        _jsonStringLiteral(jsonEncode(buildOpenApiDocument(summaries)));
     final openApiConst = Field((f) => f
       ..name = 'dianaOpenApiJson'
       ..modifier = FieldModifier.constant

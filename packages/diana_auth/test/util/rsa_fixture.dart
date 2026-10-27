@@ -71,8 +71,8 @@ String signRs256(
   String? kid,
   Map<String, Object?>? header,
 }) {
-  final h = header ??
-      {'alg': 'RS256', 'typ': 'JWT', if (kid != null) 'kid': kid};
+  final h =
+      header ?? {'alg': 'RS256', 'typ': 'JWT', if (kid != null) 'kid': kid};
   final signingInput = '${_seg(h)}.${_seg(claims)}';
   final key = fixtureKey();
   final k = key.octetLength;

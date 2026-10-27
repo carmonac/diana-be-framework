@@ -8,8 +8,7 @@ Iterable<File> _dartFiles(String dir) => Directory(dir)
     .where((f) => f.path.endsWith('.dart'));
 
 void main() {
-  test('only diana_auth imports package:crypto (keeps crypto out of core)',
-      () {
+  test('only diana_auth imports package:crypto (keeps crypto out of core)', () {
     final offenders = <String>[];
     for (final package in [
       'diana',
@@ -29,8 +28,7 @@ void main() {
   test('diana_auth never imports package:grpc', () {
     final offenders = [
       for (final file in _dartFiles('lib'))
-        if (file.readAsStringSync().contains("import 'package:grpc"))
-          file.path,
+        if (file.readAsStringSync().contains("import 'package:grpc")) file.path,
     ];
     expect(offenders, isEmpty);
   });

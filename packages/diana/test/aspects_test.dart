@@ -62,8 +62,10 @@ void main() {
         return computed;
       }
 
-      final results = await Future.wait(
-          [cache.run([1], slowMiss), cache.run([1], slowMiss)]);
+      final results = await Future.wait([
+        cache.run([1], slowMiss),
+        cache.run([1], slowMiss)
+      ]);
       expect(results, [1, 1]);
       expect(computed, 1);
     });
@@ -95,10 +97,10 @@ void main() {
   });
 
   group('InMemoryCacheStore (pluggable default)', () {
-    const specA = CacheSpec(
-        method: 'Svc.a', ttl: Duration(seconds: 5), maxEntries: 8);
-    const specB = CacheSpec(
-        method: 'Svc.b', ttl: Duration(seconds: 5), maxEntries: 8);
+    const specA =
+        CacheSpec(method: 'Svc.a', ttl: Duration(seconds: 5), maxEntries: 8);
+    const specB =
+        CacheSpec(method: 'Svc.b', ttl: Duration(seconds: 5), maxEntries: 8);
 
     test('keeps MethodCache semantics: hit, error never cached', () async {
       final store = InMemoryCacheStore();
@@ -131,9 +133,7 @@ void main() {
 
     test('expires by the spec TTL', () async {
       const shortLived = CacheSpec(
-          method: 'Svc.short',
-          ttl: Duration(milliseconds: 60),
-          maxEntries: 8);
+          method: 'Svc.short', ttl: Duration(milliseconds: 60), maxEntries: 8);
       final store = InMemoryCacheStore();
       var computed = 0;
       Future<int> miss() async => ++computed;
@@ -184,8 +184,8 @@ void main() {
           calls++;
           throw StateError('always $calls');
         }),
-        throwsA(isA<StateError>()
-            .having((e) => e.message, 'message', 'always 2')),
+        throwsA(
+            isA<StateError>().having((e) => e.message, 'message', 'always 2')),
       );
       expect(calls, 2);
     });
@@ -211,8 +211,7 @@ void main() {
       const policy =
           RetryPolicy(maxAttempts: 3, backoff: Duration(milliseconds: 40));
       final sw = Stopwatch()..start();
-      await expectLater(
-          policy.run<void>(() async => throw StateError('x')),
+      await expectLater(policy.run<void>(() async => throw StateError('x')),
           throwsStateError);
       expect(sw.elapsedMilliseconds, greaterThanOrEqualTo(70),
           reason: 'two backoffs of 40ms must elapse');
@@ -221,12 +220,10 @@ void main() {
     test('maxAttempts: 1 never retries', () async {
       const policy = RetryPolicy(maxAttempts: 1, backoff: Duration.zero);
       var calls = 0;
-      await expectLater(
-          policy.run<void>(() async {
-            calls++;
-            throw StateError('x');
-          }),
-          throwsStateError);
+      await expectLater(policy.run<void>(() async {
+        calls++;
+        throw StateError('x');
+      }), throwsStateError);
       expect(calls, 1);
     });
   });
@@ -262,8 +259,7 @@ void main() {
 
     test('half-open trial success closes the circuit', () async {
       final breaker = CircuitBreakerPolicy(
-          failureThreshold: 1,
-          resetTimeout: const Duration(milliseconds: 50));
+          failureThreshold: 1, resetTimeout: const Duration(milliseconds: 50));
       await expectLater(
           breaker.run(() async => throw StateError('x')), throwsStateError);
       await expectLater(
@@ -276,13 +272,11 @@ void main() {
 
     test('half-open trial failure re-opens the circuit', () async {
       final breaker = CircuitBreakerPolicy(
-          failureThreshold: 1,
-          resetTimeout: const Duration(milliseconds: 50));
+          failureThreshold: 1, resetTimeout: const Duration(milliseconds: 50));
       await expectLater(
           breaker.run(() async => throw StateError('x')), throwsStateError);
       await Future<void>.delayed(const Duration(milliseconds: 80));
-      await expectLater(
-          breaker.run(() async => throw StateError('still down')),
+      await expectLater(breaker.run(() async => throw StateError('still down')),
           throwsStateError);
       await expectLater(
           breaker.run(() async {}), throwsA(isA<CircuitOpenException>()));

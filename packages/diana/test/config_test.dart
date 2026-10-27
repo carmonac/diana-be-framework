@@ -114,9 +114,8 @@ app:
 ''');
 
       // diana.profile from the base file activates 'dev'.
-      final fromFile =
-          await DianaConfig.load('${dir.path}/application.yaml',
-              environment: {});
+      final fromFile = await DianaConfig.load('${dir.path}/application.yaml',
+          environment: {});
       expect(fromFile.activeProfiles, ['dev']);
       expect(fromFile.get<String>('app.a'), 'dev');
       expect(fromFile.get<String>('app.c'), 'base');
@@ -141,12 +140,10 @@ app:
       expect(missing.get<String>('app.a'), 'base');
     });
 
-    test('load() flattens nested YAML and tolerates a missing file',
-        () async {
+    test('load() flattens nested YAML and tolerates a missing file', () async {
       final dir = Directory.systemTemp.createTempSync('diana_config');
       addTearDown(() => dir.deleteSync(recursive: true));
-      final file = File('${dir.path}/application.yaml')
-        ..writeAsStringSync('''
+      final file = File('${dir.path}/application.yaml')..writeAsStringSync('''
 server:
   port: 3000
 app:

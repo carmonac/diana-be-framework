@@ -13,7 +13,8 @@ String seg(Object value) =>
 /// produce (e.g. the `1e999` literal, which decodes to `double.infinity`).
 String signRaw(String payloadJson) {
   final head = seg({'alg': 'HS256', 'typ': 'JWT'});
-  final payload = base64Url.encode(utf8.encode(payloadJson)).replaceAll('=', '');
+  final payload =
+      base64Url.encode(utf8.encode(payloadJson)).replaceAll('=', '');
   final mac =
       Hmac(sha256, utf8.encode(secret)).convert(utf8.encode('$head.$payload'));
   return '$head.$payload.${base64Url.encode(mac.bytes).replaceAll('=', '')}';
@@ -58,8 +59,7 @@ void main() {
     final parts = token.split('.');
     final tampered =
         '${parts[0]}.${seg({'sub': 'eve', 'exp': 9999999999})}.${parts[2]}';
-    expect(() => auth(tampered),
-        throwsA(isA<InvalidCredentialsException>()));
+    expect(() => auth(tampered), throwsA(isA<InvalidCredentialsException>()));
   });
 
   test('tampered signature is rejected', () {
@@ -112,8 +112,7 @@ void main() {
         reason: 'an Infinity exp must be rejected, not crash');
   });
 
-  test('expired and not-yet-valid tokens are rejected; skew is tolerated',
-      () {
+  test('expired and not-yet-valid tokens are rejected; skew is tolerated', () {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     expect(
       () => auth(signer.sign({'sub': 'ada', 'exp': now - 300})),

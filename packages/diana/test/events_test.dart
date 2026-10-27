@@ -17,7 +17,8 @@ class OtherEvent {
 }
 
 void main() {
-  test('a listener registering another listener mid-dispatch is safe', () async {
+  test('a listener registering another listener mid-dispatch is safe',
+      () async {
     final bus = DianaEventBus();
     final seen = <String>[];
     bus.on<String>((e) {

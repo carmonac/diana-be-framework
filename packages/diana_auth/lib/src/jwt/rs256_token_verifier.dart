@@ -56,8 +56,12 @@ class Rs256TokenVerifier implements TokenVerifier {
 /// `JwksTokenVerifier`.
 void checkRs256Signature(JwtParts jwt, List<RsaPublicKey> keys) {
   final kid = jwt.keyId;
-  final candidates =
-      kid == null ? keys : [for (final k in keys) if (k.keyId == kid) k];
+  final candidates = kid == null
+      ? keys
+      : [
+          for (final k in keys)
+            if (k.keyId == kid) k
+        ];
   if (candidates.isEmpty) {
     throw const InvalidCredentialsException('Unknown token key');
   }

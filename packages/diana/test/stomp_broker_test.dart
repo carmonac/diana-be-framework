@@ -21,8 +21,7 @@ class FakeSession implements WebSocketSession {
   bool _open = true;
 
   /// Frames the client received, in order (heartbeats excluded).
-  List<StompFrame> get frames =>
-      [for (final s in sent) ...parseStompText(s)];
+  List<StompFrame> get frames => [for (final s in sent) ...parseStompText(s)];
 
   StompFrame get last => frames.last;
 
@@ -64,8 +63,8 @@ Future<void> feed(StompBroker broker, FakeSession s, String text) async {
 }
 
 StompBroker newBroker({Map<String, Object?> config = const {}}) {
-  return StompBroker(DianaEventBus(onError: (_, __) {}),
-      DianaConfig(config), onError: (_, __) {});
+  return StompBroker(DianaEventBus(onError: (_, __) {}), DianaConfig(config),
+      onError: (_, __) {});
 }
 
 Future<FakeSession> connected(StompBroker broker,
@@ -132,8 +131,10 @@ void main() {
       final broker = newBroker();
       final a = await connected(broker, id: 'ws-a');
       final b = await connected(broker, id: 'ws-b');
-      await feed(broker, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
-      await feed(broker, b, frame('SEND', {'destination': '/topic/x'}, 'hello'));
+      await feed(broker, a,
+          frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
+      await feed(
+          broker, b, frame('SEND', {'destination': '/topic/x'}, 'hello'));
 
       final msg = a.frames.last;
       expect(msg.command, 'MESSAGE');
@@ -146,9 +147,10 @@ void main() {
     test('custom SEND headers pass through to the MESSAGE', () async {
       final broker = newBroker();
       final a = await connected(broker);
-      await feed(broker, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
-      await feed(broker, a,
-          frame('SEND', {'destination': '/t', 'x-tag': 'v1'}, 'hi'));
+      await feed(
+          broker, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
+      await feed(
+          broker, a, frame('SEND', {'destination': '/t', 'x-tag': 'v1'}, 'hi'));
       expect(a.frames.last.headers['x-tag'], 'v1');
     });
 
@@ -163,15 +165,18 @@ void main() {
     test('duplicate subscription id', () async {
       final broker = newBroker();
       final s = await connected(broker);
-      await feed(broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
-      await feed(broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/u'}));
+      await feed(
+          broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
+      await feed(
+          broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/u'}));
       expect(s.last.headers['message'], 'duplicate subscription id "0"');
     });
 
     test('UNSUBSCRIBE stops delivery; unknown id errors', () async {
       final broker = newBroker();
       final s = await connected(broker);
-      await feed(broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
+      await feed(
+          broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
       await feed(broker, s, frame('UNSUBSCRIBE', {'id': '0'}));
       final before = s.frames.length;
       await feed(broker, s, frame('SEND', {'destination': '/t'}, 'x'));
@@ -185,8 +190,11 @@ void main() {
     test('a receipt header yields a RECEIPT after processing', () async {
       final broker = newBroker();
       final s = await connected(broker);
-      await feed(broker, s,
-          frame('SUBSCRIBE', {'id': '0', 'destination': '/t', 'receipt': 'r7'}));
+      await feed(
+          broker,
+          s,
+          frame(
+              'SUBSCRIBE', {'id': '0', 'destination': '/t', 'receipt': 'r7'}));
       expect(s.last.command, 'RECEIPT');
       expect(s.last.headers['receipt-id'], 'r7');
     });
@@ -207,7 +215,8 @@ void main() {
     test('auto mode adds no ack header', () async {
       final broker = newBroker();
       final s = await connected(broker);
-      await feed(broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
+      await feed(
+          broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
       await feed(broker, s, frame('SEND', {'destination': '/t'}, 'x'));
       expect(s.frames.last.headers.containsKey('ack'), isFalse);
     });
@@ -241,11 +250,15 @@ void main() {
     test('unknown ack id and NACK', () async {
       final broker = newBroker();
       final logs = <Object>[];
-      final b2 = StompBroker(DianaEventBus(onError: (_, __) {}),
-          const DianaConfig.empty(), onError: (e, _) => logs.add(e));
+      final b2 = StompBroker(
+          DianaEventBus(onError: (_, __) {}), const DianaConfig.empty(),
+          onError: (e, _) => logs.add(e));
       final s = await connected(b2);
-      await feed(b2, s,
-          frame('SUBSCRIBE', {'id': '0', 'destination': '/t', 'ack': 'client'}));
+      await feed(
+          b2,
+          s,
+          frame(
+              'SUBSCRIBE', {'id': '0', 'destination': '/t', 'ack': 'client'}));
       await feed(b2, s, frame('SEND', {'destination': '/t'}, 'x'));
       final ackId = s.frames.last.headers['ack']!;
       await feed(b2, s, frame('NACK', {'id': ackId}));
@@ -259,7 +272,8 @@ void main() {
     test('COMMIT replays buffered SENDs in order; ABORT discards', () async {
       final broker = newBroker();
       final s = await connected(broker);
-      await feed(broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
+      await feed(
+          broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
 
       await feed(broker, s, frame('BEGIN', {'transaction': 'tx1'}));
       await feed(broker, s,
@@ -309,7 +323,8 @@ void main() {
       final broker = newBroker();
       final a = await connected(broker, id: 'ws-a');
       final b = await connected(broker, id: 'ws-b');
-      await feed(broker, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
+      await feed(
+          broker, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
       broker.onClose(a, 1000, null);
       final before = a.frames.length;
       await feed(broker, b, frame('SEND', {'destination': '/t'}, 'x'));
@@ -332,7 +347,8 @@ void main() {
       final listener = await connected(broker, id: 'ws-l');
       await feed(broker, listener,
           frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/out'}));
-      await feed(broker, sender, frame('SEND', {'destination': '/app/echo'}, 'hi'));
+      await feed(
+          broker, sender, frame('SEND', {'destination': '/app/echo'}, 'hi'));
 
       expect(seen!.body, 'hi');
       expect(seen!.principal, 'ada');
@@ -342,8 +358,9 @@ void main() {
 
     test('an unmapped /app destination is dropped and logged', () async {
       final logs = <Object>[];
-      final broker = StompBroker(DianaEventBus(onError: (_, __) {}),
-          const DianaConfig.empty(), onError: (e, _) => logs.add(e));
+      final broker = StompBroker(
+          DianaEventBus(onError: (_, __) {}), const DianaConfig.empty(),
+          onError: (e, _) => logs.add(e));
       final s = await connected(broker);
       await feed(broker, s, frame('SEND', {'destination': '/app/nope'}, 'x'));
       expect(logs, isNotEmpty);
@@ -397,8 +414,10 @@ void main() {
       return null;
     });
     final s = await connected(broker);
-    broker.onMessage(s, TextMessage(frame('SEND', {'destination': '/app/slow'}, '1')));
-    broker.onMessage(s, TextMessage(frame('SEND', {'destination': '/app/fast'}, '2')));
+    broker.onMessage(
+        s, TextMessage(frame('SEND', {'destination': '/app/slow'}, '1')));
+    broker.onMessage(
+        s, TextMessage(frame('SEND', {'destination': '/app/fast'}, '2')));
     await Future<void>.delayed(const Duration(milliseconds: 60));
     expect(order, ['slow:1', 'fast:2']);
   });

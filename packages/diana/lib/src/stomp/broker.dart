@@ -143,8 +143,8 @@ class StompBroker implements StompPublisher {
     void Function(Object error, StackTrace stackTrace)? onError,
   })  : _bus = bus,
         _onError = onError ?? _defaultOnError,
-        _appPrefix = config.get<String>('stomp.appPrefix',
-            defaultValue: '/app'),
+        _appPrefix =
+            config.get<String>('stomp.appPrefix', defaultValue: '/app'),
         _serverHeartbeatMs =
             config.get<int>('stomp.heartbeatMs', defaultValue: 10000) {
     // Registered up front so remote broadcasts are delivered locally.
@@ -227,7 +227,9 @@ class StompBroker implements StompPublisher {
   }
 
   Future<void> _handle(_Session s, StompFrame frame) async {
-    if (!s.connected && frame.command != 'CONNECT' && frame.command != 'STOMP') {
+    if (!s.connected &&
+        frame.command != 'CONNECT' &&
+        frame.command != 'STOMP') {
       throw const _StompProtocol(
           'not connected: first frame must be CONNECT or STOMP');
     }
@@ -277,11 +279,17 @@ class StompBroker implements StompPublisher {
       // Version-mismatch ERROR carries the supported `version` header; sent
       // directly (not via _fail) so the header is included, then the loop
       // stops because the session is gone.
-      _send(s, const StompFrame('ERROR', {
-        'version': '1.2',
-        'content-type': 'text/plain',
-        'message': 'unsupported protocol version: supported versions are 1.2',
-      }, 'unsupported protocol version: supported versions are 1.2'));
+      _send(
+          s,
+          const StompFrame(
+              'ERROR',
+              {
+                'version': '1.2',
+                'content-type': 'text/plain',
+                'message':
+                    'unsupported protocol version: supported versions are 1.2',
+              },
+              'unsupported protocol version: supported versions are 1.2'));
       _cleanup(s);
       unawaited(s.ws.close(4002, 'STOMP protocol error'));
       return;
@@ -299,11 +307,13 @@ class StompBroker implements StompPublisher {
     }
     s.connected = true;
     _startHeartbeats(s, clientTx: cx, clientRx: cy);
-    _send(s, StompFrame('CONNECTED', {
-      'version': '1.2',
-      'heart-beat': '$_serverHeartbeatMs,$_serverHeartbeatMs',
-      'session': s.ws.id,
-    }));
+    _send(
+        s,
+        StompFrame('CONNECTED', {
+          'version': '1.2',
+          'heart-beat': '$_serverHeartbeatMs,$_serverHeartbeatMs',
+          'session': s.ws.id,
+        }));
   }
 
   void _handleSubscribe(_Session s, StompFrame frame) {
@@ -365,7 +375,8 @@ class StompBroker implements StompPublisher {
       final result = await mapping.handler(message);
       final sendTo = mapping.sendTo;
       if (sendTo != null && result != null) {
-        final body = mapping.encode != null ? mapping.encode!(result) : '$result';
+        final body =
+            mapping.encode != null ? mapping.encode!(result) : '$result';
         await publish(sendTo, body);
       }
       return;
@@ -386,7 +397,9 @@ class StompBroker implements StompPublisher {
   void _handleAck(_Session s, StompFrame frame, {required bool nack}) {
     final tx = frame.headers['transaction'];
     if (tx != null) {
-      if (!s.txs.containsKey(tx)) throw _StompProtocol('unknown transaction "$tx"');
+      if (!s.txs.containsKey(tx)) {
+        throw _StompProtocol('unknown transaction "$tx"');
+      }
       _buffer(s, tx, frame);
       return;
     }
@@ -470,10 +483,9 @@ class StompBroker implements StompPublisher {
         sub.pending.add(pending);
         session.pendingById[ackId] = pending;
       }
-      headers['content-length'] =
-          '${utf8.encode(event.body).length}';
-      final ok =
-          session.ws.sendText(serializeStompFrame(StompFrame('MESSAGE', headers, event.body)));
+      headers['content-length'] = '${utf8.encode(event.body).length}';
+      final ok = session.ws.sendText(
+          serializeStompFrame(StompFrame('MESSAGE', headers, event.body)));
       if (!ok) _cleanup(session);
     }
   }
@@ -487,21 +499,20 @@ class StompBroker implements StompPublisher {
 
   // ---- heartbeats ----
 
-  void _startHeartbeats(_Session s, {required int clientTx, required int clientRx}) {
+  void _startHeartbeats(_Session s,
+      {required int clientTx, required int clientRx}) {
     final serverMs = _serverHeartbeatMs;
     // server → client
-    final outgoing = (serverMs == 0 || clientRx == 0)
-        ? 0
-        : math.max(serverMs, clientRx);
+    final outgoing =
+        (serverMs == 0 || clientRx == 0) ? 0 : math.max(serverMs, clientRx);
     if (outgoing > 0) {
       s.outgoingHb = Timer.periodic(Duration(milliseconds: outgoing), (_) {
         if (!s.ws.sendText(stompHeartbeat)) _cleanup(s);
       });
     }
     // client → server
-    final incoming = (clientTx == 0 || serverMs == 0)
-        ? 0
-        : math.max(clientTx, serverMs);
+    final incoming =
+        (clientTx == 0 || serverMs == 0) ? 0 : math.max(clientTx, serverMs);
     s.watchdogMs = incoming;
     _armWatchdog(s);
   }
@@ -510,8 +521,7 @@ class StompBroker implements StompPublisher {
     if (s.watchdogMs <= 0) return;
     s.watchdog?.cancel();
     s.watchdog = Timer(Duration(milliseconds: 2 * s.watchdogMs), () {
-      _onError(
-          StateError('STOMP heartbeat timeout on session ${s.ws.id}'),
+      _onError(StateError('STOMP heartbeat timeout on session ${s.ws.id}'),
           StackTrace.current);
       unawaited(s.ws.close(4000, 'heartbeat timeout'));
       _cleanup(s);
@@ -551,7 +561,8 @@ class StompBroker implements StompPublisher {
 
   // ---- helpers ----
 
-  void _send(_Session s, StompFrame frame) => s.ws.sendText(serializeStompFrame(frame));
+  void _send(_Session s, StompFrame frame) =>
+      s.ws.sendText(serializeStompFrame(frame));
 
   void _receipt(_Session s, StompFrame frame) {
     final receipt = frame.headers['receipt'];
@@ -563,8 +574,7 @@ class StompBroker implements StompPublisher {
   String _require(StompFrame frame, String header, String command) {
     final value = frame.headers[header];
     if (value == null) {
-      throw _StompProtocol(
-          'missing required header "$header" for $command');
+      throw _StompProtocol('missing required header "$header" for $command');
     }
     return value;
   }

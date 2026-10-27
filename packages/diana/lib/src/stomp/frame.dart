@@ -34,10 +34,24 @@ class StompParseException implements Exception {
 const String stompHeartbeat = '\n';
 
 const Set<String> _clientCommands = {
-  'CONNECT', 'STOMP', 'SEND', 'SUBSCRIBE', 'UNSUBSCRIBE', 'ACK', 'NACK',
-  'BEGIN', 'COMMIT', 'ABORT', 'DISCONNECT',
+  'CONNECT',
+  'STOMP',
+  'SEND',
+  'SUBSCRIBE',
+  'UNSUBSCRIBE',
+  'ACK',
+  'NACK',
+  'BEGIN',
+  'COMMIT',
+  'ABORT',
+  'DISCONNECT',
 };
-const Set<String> _serverCommands = {'CONNECTED', 'MESSAGE', 'RECEIPT', 'ERROR'};
+const Set<String> _serverCommands = {
+  'CONNECTED',
+  'MESSAGE',
+  'RECEIPT',
+  'ERROR'
+};
 
 /// Frames whose headers are NOT escaped (spec: CONNECT and CONNECTED; the
 /// 1.2 `STOMP` connect frame is treated like CONNECT).
@@ -48,7 +62,8 @@ const Set<String> _bodyCommands = {'SEND', 'MESSAGE', 'ERROR'};
 
 /// Parses one WebSocket text message into zero or more frames (heartbeat
 /// EOLs between and around frames are consumed silently).
-List<StompFrame> parseStompText(String text) => parseStompChunk(utf8.encode(text));
+List<StompFrame> parseStompText(String text) =>
+    parseStompChunk(utf8.encode(text));
 
 /// Byte-level variant of [parseStompText] (also used for binary WS frames).
 List<StompFrame> parseStompChunk(List<int> bytes) {
@@ -57,7 +72,8 @@ List<StompFrame> parseStompChunk(List<int> bytes) {
 
   bool atEol(int p) =>
       p < bytes.length &&
-      (bytes[p] == 0x0A || (bytes[p] == 0x0D && p + 1 < bytes.length && bytes[p + 1] == 0x0A));
+      (bytes[p] == 0x0A ||
+          (bytes[p] == 0x0D && p + 1 < bytes.length && bytes[p + 1] == 0x0A));
   int skipEol(int p) => bytes[p] == 0x0D ? p + 2 : p + 1;
 
   while (pos < bytes.length) {
@@ -75,8 +91,7 @@ List<StompFrame> parseStompChunk(List<int> bytes) {
     final command = _decodeUtf8(bytes.sublist(pos, commandEnd.start));
     if (!_clientCommands.contains(command) &&
         !_serverCommands.contains(command)) {
-      throw StompParseException(
-          'malformed frame: unknown command "$command"');
+      throw StompParseException('malformed frame: unknown command "$command"');
     }
     pos = commandEnd.next;
     final escaped = !_unescapedCommands.contains(command);
@@ -151,7 +166,9 @@ List<StompFrame> parseStompChunk(List<int> bytes) {
 /// connect-family frames) are emitted unescaped, everything else escaped.
 String serializeStompFrame(StompFrame frame) {
   final escaped = !_unescapedCommands.contains(frame.command);
-  final buffer = StringBuffer()..write(frame.command)..write('\n');
+  final buffer = StringBuffer()
+    ..write(frame.command)
+    ..write('\n');
   frame.headers.forEach((key, value) {
     buffer
       ..write(escaped ? _escapeHeader(key) : key)
@@ -213,8 +230,7 @@ String _decodeUtf8(List<int> bytes) {
   try {
     return utf8.decode(bytes);
   } on FormatException {
-    throw const StompParseException(
-        'malformed frame: body is not valid UTF-8');
+    throw const StompParseException('malformed frame: body is not valid UTF-8');
   }
 }
 

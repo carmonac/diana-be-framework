@@ -60,8 +60,7 @@ Future<AccountRepository> open() async {
 }
 
 void main() {
-  test('runCount and runExists aggregate through the query builder',
-      () async {
+  test('runCount and runExists aggregate through the query builder', () async {
     final repo = await open();
     addTearDown(repo.db.close);
 

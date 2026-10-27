@@ -30,8 +30,7 @@ String emitAdapter(AdapterModel model) {
   ].join(', ');
   final invocation =
       '${model.awaited ? 'await ' : ''}c.${model.methodName}($args)';
-  final statusArg =
-      model.status == null ? '' : ', statusCode: ${model.status}';
+  final statusArg = model.status == null ? '' : ', statusCode: ${model.status}';
 
   switch (model.returnKind) {
     case ReturnKind.response:
@@ -79,10 +78,9 @@ String emitAdapter(AdapterModel model) {
         payload = switch (model.jsonShape) {
           JsonShape.raw => 'result',
           JsonShape.dto => 'result$q.toJson()',
-          JsonShape.dtoList =>
-            model.nullableResult
-                ? 'result == null ? null : [for (final e in result) e.toJson()]'
-                : '[for (final e in result) e.toJson()]',
+          JsonShape.dtoList => model.nullableResult
+              ? 'result == null ? null : [for (final e in result) e.toJson()]'
+              : '[for (final e in result) e.toJson()]',
         };
       }
       if (producesArg != null) {
@@ -134,9 +132,9 @@ String _bindParam(
           '  final $variable = bindQueryParam<${param.typeDisplay}>(req, '
           "'${param.httpName}'$defaultArg);");
     case BindingKind.header:
-      buffer.writeln(
-          '  final $variable = bindHeader<${param.typeDisplay}>(req, '
-          "'${param.httpName}');");
+      buffer
+          .writeln('  final $variable = bindHeader<${param.typeDisplay}>(req, '
+              "'${param.httpName}');");
     case BindingKind.bodyText:
       buffer.writeln('  final $variable = await req.readBodyAsString();');
     case BindingKind.bodyForm:
@@ -144,8 +142,7 @@ String _bindParam(
     case BindingKind.bodyMap:
       buffer.writeln('  final $variable = $mapBody;');
     case BindingKind.bodyList:
-      buffer.writeln(
-          '  final $variable = ($listBody)'
+      buffer.writeln('  final $variable = ($listBody)'
           '.cast<${param.typeDisplay}>();');
     case BindingKind.bodyDto:
       final decode = param.jsonGenerated
@@ -169,8 +166,7 @@ String _bindParam(
         ..writeln('  ]);');
       if (param.validate) {
         buffer.writeln('  for (final e in $variable) {');
-        buffer.writeln(
-            '    const \$${param.dtoName}Validator().validate(e)'
+        buffer.writeln('    const \$${param.dtoName}Validator().validate(e)'
             '.throwIfInvalid();');
         buffer.writeln('  }');
       }

@@ -62,6 +62,5 @@ void main() {
 
 class _NoUsers implements UserStore {
   @override
-  Future<AuthPrincipal?> verify(String username, String password) async =>
-      null;
+  Future<AuthPrincipal?> verify(String username, String password) async => null;
 }

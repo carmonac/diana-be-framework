@@ -118,8 +118,8 @@ void main() {
     test('rejects malformed, empty and non-object bodies with 400', () {
       expect(() => decodeJsonMapBody(req(body: '{oops')),
           throwsA(isA<BadRequestException>()));
-      expect(() => decodeJsonMapBody(req()),
-          throwsA(isA<BadRequestException>()));
+      expect(
+          () => decodeJsonMapBody(req()), throwsA(isA<BadRequestException>()));
       expect(() => decodeJsonMapBody(req(body: '[1]')),
           throwsA(isA<BadRequestException>()));
     });

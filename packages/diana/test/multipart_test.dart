@@ -77,8 +77,8 @@ void main() {
 
     test('rejects other content types with 415', () {
       expect(
-        () => decodeFormBody(
-            formRequest('{}', contentType: 'application/json')),
+        () =>
+            decodeFormBody(formRequest('{}', contentType: 'application/json')),
         throwsA(isA<UnsupportedMediaTypeException>()),
       );
     });
@@ -111,16 +111,15 @@ void main() {
       expect(acceptsMime('application/json', 'application/json'), isTrue);
       expect(acceptsMime('text/html', 'application/json'), isFalse);
       expect(acceptsMime('application/json;q=0', 'application/json'), isFalse);
-      expect(
-          acceptsMime('text/html, */*;q=0.8', 'application/json'), isTrue);
+      expect(acceptsMime('text/html, */*;q=0.8', 'application/json'), isTrue);
     });
   });
 
   group('Accept guard over DianaServer', () {
     test('incompatible Accept yields 406; */* passes', () async {
       final server = DianaServer()
-        ..register(HttpMethod.get, '/data',
-            (req) => DianaResponse.json({'ok': true}));
+        ..register(
+            HttpMethod.get, '/data', (req) => DianaResponse.json({'ok': true}));
       await server.serve(port: 0, quiet: true);
       addTearDown(server.close);
 

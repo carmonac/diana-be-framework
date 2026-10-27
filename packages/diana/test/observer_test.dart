@@ -42,7 +42,8 @@ class RecordingObserver extends DianaObserver {
 Future<int> statusOf(int port, String path, {String method = 'GET'}) async {
   final client = HttpClient();
   try {
-    final req = await client.openUrl(method, Uri.parse('http://127.0.0.1:$port$path'));
+    final req =
+        await client.openUrl(method, Uri.parse('http://127.0.0.1:$port$path'));
     final res = await req.close();
     await res.drain<void>();
     return res.statusCode;
@@ -70,8 +71,8 @@ void main() {
 
     test('sees error-boundary status (500), not an exception', () async {
       server = DianaServer(observer: obs, onUnhandled: (_, __) {})
-        ..register(HttpMethod.get, '/boom',
-            (req) => throw StateError('kaboom'));
+        ..register(
+            HttpMethod.get, '/boom', (req) => throw StateError('kaboom'));
       await server.serve(port: 0);
       final status = await statusOf(server.port!, '/boom');
       expect(status, 500);
@@ -88,7 +89,8 @@ void main() {
 
     test('a null observer adds no wrapping', () async {
       server = DianaServer()
-        ..register(HttpMethod.get, '/x', (req) => const DianaResponse.text('x'));
+        ..register(
+            HttpMethod.get, '/x', (req) => const DianaResponse.text('x'));
       await server.serve(port: 0);
       expect(await statusOf(server.port!, '/x'), 200);
     });
@@ -110,8 +112,7 @@ void main() {
     test('reports run name, duration and success/failure', () async {
       final obs = RecordingObserver();
       final scheduler = DianaScheduler(observer: obs, onError: (_, __) {})
-        ..schedule(
-            task: () async {}, fixedDelayMs: 10, name: 'Job.ok')
+        ..schedule(task: () async {}, fixedDelayMs: 10, name: 'Job.ok')
         ..schedule(
             task: () async => throw StateError('x'),
             fixedRateMs: 10,
@@ -129,8 +130,7 @@ void main() {
       final scheduler = DianaScheduler(
           observer: RecordingObserver(), onError: (_, st) => seen = st)
         ..schedule(
-            task: () async =>
-                Error.throwWithStackTrace(StateError('x'), trace),
+            task: () async => Error.throwWithStackTrace(StateError('x'), trace),
             fixedDelayMs: 5,
             name: 'Job.fail')
         ..start();

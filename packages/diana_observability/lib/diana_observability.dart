@@ -10,8 +10,6 @@
 /// `package:opentelemetry` (enforced by a boundary test).
 library;
 
-export 'src/metrics/metrics.dart'
-    show Counter, Gauge, Histogram, MeterRegistry;
-export 'src/observability.dart'
-    show DianaObservability, metricsEndpointHandler;
+export 'src/metrics/metrics.dart' show Counter, Gauge, Histogram, MeterRegistry;
+export 'src/observability.dart' show DianaObservability, metricsEndpointHandler;
 export 'src/tracing/tracer.dart' show TracingOptions;

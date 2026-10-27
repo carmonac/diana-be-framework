@@ -52,8 +52,8 @@ class DianaConfig {
     final values = <String, Object?>{};
     await _mergeYamlFile(path, values);
 
-    final profilesRaw = env['DIANA_PROFILE'] ??
-        (values['diana.profile']?.toString() ?? '');
+    final profilesRaw =
+        env['DIANA_PROFILE'] ?? (values['diana.profile']?.toString() ?? '');
     final profiles = [
       for (final p in profilesRaw.split(','))
         if (p.trim().isNotEmpty) p.trim(),
@@ -218,8 +218,7 @@ class DianaConfig {
       result = convert<String>();
     } else if (T == _typeOf<List<int>>() || T == _typeOf<List<int>?>()) {
       result = convert<int>();
-    } else if (T == _typeOf<List<double>>() ||
-        T == _typeOf<List<double>?>()) {
+    } else if (T == _typeOf<List<double>>() || T == _typeOf<List<double>?>()) {
       result = convert<double>();
     } else if (T == _typeOf<List<bool>>() || T == _typeOf<List<bool>?>()) {
       result = convert<bool>();

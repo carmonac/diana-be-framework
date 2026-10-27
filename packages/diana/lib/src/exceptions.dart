@@ -11,8 +11,7 @@ class HttpException implements Exception {
   /// Machine-readable error identifier included in the response body.
   final String reason;
 
-  const HttpException(this.statusCode, this.message,
-      {this.reason = 'error'});
+  const HttpException(this.statusCode, this.message, {this.reason = 'error'});
 
   @override
   String toString() => 'HttpException($statusCode, $reason): $message';

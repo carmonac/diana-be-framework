@@ -55,7 +55,8 @@ class XmlController {
 }
 ''',
       output: allOf([
-        contains("decodeMapBody(\n    req,\n    consumes: const ['application/xml', 'application/json'],\n  )"),
+        contains(
+            "decodeMapBody(\n    req,\n    consumes: const ['application/xml', 'application/json'],\n  )"),
         contains("produces: const ['application/xml']"),
         contains('negotiatedResponse('),
       ]),
@@ -84,8 +85,7 @@ class C {
     );
   });
 
-  test('rejects @Produces on non-negotiable returns and empty lists',
-      () async {
+  test('rejects @Produces on non-negotiable returns and empty lists', () async {
     await expectPart(
       '''
 import 'package:diana_annotation/diana_annotation.dart';

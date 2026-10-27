@@ -1,8 +1,7 @@
 name: diana_auth
 description: >-
-  Authentication and authorization for the Diana backend framework:
-  pluggable authenticator strategies (JWT, HTTP Basic, API key),
-  Spring-style @Secured/@RolesAllowed guards and principal binding.
+  Authentication and authorization for the Diana framework: pluggable JWT,
+  Basic and API-key strategies plus @Secured/@RolesAllowed route guards.
 version: 0.15.0
 repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_auth
 issue_tracker: https://github.com/carmonac/diana-be-framework/issues

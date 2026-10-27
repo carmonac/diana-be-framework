@@ -3,7 +3,8 @@ import 'package:diana_observability/diana_observability.dart';
 import 'package:test/test.dart';
 
 DianaRequest req({Map<String, List<String>> headers = const {}}) =>
-    DianaRequest(method: HttpMethod.get, uri: Uri.parse('/x'), headers: headers);
+    DianaRequest(
+        method: HttpMethod.get, uri: Uri.parse('/x'), headers: headers);
 
 void main() {
   test('@Timed hook records duration and result labels', () async {
@@ -16,8 +17,7 @@ void main() {
 
     expect(await obs.observeTimedMethod('Svc.ok', () async => 42), 42);
     await expectLater(
-      Future.sync(() =>
-          obs.observeTimedMethod<void>('Svc.bad', () async {
+      Future.sync(() => obs.observeTimedMethod<void>('Svc.bad', () async {
             throw StateError('boom');
           })),
       throwsStateError,
@@ -32,7 +32,8 @@ void main() {
         text,
         contains(
             'diana_method_calls_total{method="Svc.bad",result="failure"} 1'));
-    expect(text, contains('diana_method_duration_seconds_count{method="Svc.ok"} 1'));
+    expect(text,
+        contains('diana_method_duration_seconds_count{method="Svc.ok"} 1'));
   });
 
   test('HTTP observation records a labelled counter and duration', () async {
@@ -58,12 +59,16 @@ void main() {
     final out = obs.scrape();
     expect(out, contains('diana_http_unmatched_total 1'));
     expect(out, contains('diana_db_queries_total{operation="select"} 1'));
-    expect(out,
-        contains('diana_scheduled_runs_total{task="Job.beat",result="success"} 1'));
-    expect(out,
-        contains('diana_scheduled_runs_total{task="Job.beat",result="failure"} 1'));
-    expect(out,
-        contains('diana_events_dispatched_total{type="OrderCreated"} 1'));
+    expect(
+        out,
+        contains(
+            'diana_scheduled_runs_total{task="Job.beat",result="success"} 1'));
+    expect(
+        out,
+        contains(
+            'diana_scheduled_runs_total{task="Job.beat",result="failure"} 1'));
+    expect(
+        out, contains('diana_events_dispatched_total{type="OrderCreated"} 1'));
     expect(out, contains('diana_process_resident_memory_bytes'));
   });
 

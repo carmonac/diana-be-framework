@@ -14,11 +14,11 @@ void main() {
 
     test('a specific time of day', () {
       final cron = CronExpression.parse('0 30 9 * * *');
-      expect(cron.nextAfter(at(2026, 3, 10, 8, 0, 0)),
-          at(2026, 3, 10, 9, 30, 0));
+      expect(
+          cron.nextAfter(at(2026, 3, 10, 8, 0, 0)), at(2026, 3, 10, 9, 30, 0));
       // Already past today → tomorrow.
-      expect(cron.nextAfter(at(2026, 3, 10, 10, 0, 0)),
-          at(2026, 3, 11, 9, 30, 0));
+      expect(
+          cron.nextAfter(at(2026, 3, 10, 10, 0, 0)), at(2026, 3, 11, 9, 30, 0));
     });
 
     test('step values', () {
@@ -29,8 +29,7 @@ void main() {
 
     test('ranges and lists', () {
       final cron = CronExpression.parse('0 0 9-17 * * *');
-      expect(cron.nextAfter(at(2026, 1, 1, 18, 0, 0)),
-          at(2026, 1, 2, 9, 0, 0));
+      expect(cron.nextAfter(at(2026, 1, 1, 18, 0, 0)), at(2026, 1, 2, 9, 0, 0));
       final list = CronExpression.parse('0 0 0 1,15 * *');
       expect(list.nextAfter(at(2026, 1, 2)), at(2026, 1, 15));
       expect(list.nextAfter(at(2026, 1, 20)), at(2026, 2, 1));
@@ -99,8 +98,8 @@ void main() {
     test('out-of-range values', () {
       expectError('60 0 0 * * *', contains('second value 60 is out of range'));
       expectError('0 0 24 * * *', contains('hour value 24 is out of range'));
-      expectError('0 0 0 32 * *',
-          contains('day-of-month value 32 is out of range'));
+      expectError(
+          '0 0 0 32 * *', contains('day-of-month value 32 is out of range'));
       expectError('0 0 0 * 13 *', contains('month value 13 is out of range'));
       expectError(
           '0 0 0 * * 8', contains('day-of-week value 8 is out of range'));
@@ -108,8 +107,8 @@ void main() {
 
     test('non-numeric and bad steps', () {
       expectError('x * * * * *', contains('second value "x" is not valid'));
-      expectError('0 0 0 * * MOO',
-          contains('day-of-week value "MOO" is not valid'));
+      expectError(
+          '0 0 0 * * MOO', contains('day-of-week value "MOO" is not valid'));
       expectError('*/0 * * * * *', contains('step must be >= 1'));
       expectError('0 5-3 * * * *', contains('descending'));
     });

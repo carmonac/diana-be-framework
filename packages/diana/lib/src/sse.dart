@@ -96,8 +96,7 @@ DianaResponse sseResponse(
   Stream<ServerSentEvent> events,
 ) =>
     DianaResponse.stream(
-      encodeSse(events,
-          heartbeatSeconds: request.limits.sseHeartbeatSeconds),
+      encodeSse(events, heartbeatSeconds: request.limits.sseHeartbeatSeconds),
       mimeType: 'text/event-stream',
       headers: const {'cache-control': 'no-cache'},
     );

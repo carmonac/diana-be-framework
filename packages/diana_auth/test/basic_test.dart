@@ -11,7 +11,8 @@ class FixedStore implements UserStore {
           : null;
 }
 
-String basic(String userPass) => 'Basic ${base64.encode(utf8.encode(userPass))}';
+String basic(String userPass) =>
+    'Basic ${base64.encode(utf8.encode(userPass))}';
 
 void main() {
   final authenticator = BasicAuthenticator(FixedStore(), realm: 'api');
@@ -41,8 +42,8 @@ void main() {
 
   test('wrong password and malformed base64 are invalid credentials', () {
     expect(
-      () => authenticator.authenticate(
-          MapAuthRequest({'authorization': basic('ada:wrong')})),
+      () => authenticator
+          .authenticate(MapAuthRequest({'authorization': basic('ada:wrong')})),
       throwsA(isA<InvalidCredentialsException>()),
     );
     expect(

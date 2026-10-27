@@ -35,29 +35,28 @@ class DianaObservability extends DianaObserver {
 
   final DianaTracer? _tracer;
 
-  late final Counter _httpRequests = meters.counter(
-      'diana_http_requests_total', 'Total HTTP requests.',
-      ['method', 'route', 'status']);
+  late final Counter _httpRequests = meters.counter('diana_http_requests_total',
+      'Total HTTP requests.', ['method', 'route', 'status']);
   late final Histogram _httpDuration = meters.histogram(
-      'diana_http_request_duration_seconds', 'HTTP request duration.',
+      'diana_http_request_duration_seconds',
+      'HTTP request duration.',
       ['method', 'route']);
   late final Counter _unmatched = meters.counter(
       'diana_http_unmatched_total', 'Requests that matched no route.');
-  late final Counter _dbQueries = meters.counter(
-      'diana_db_queries_total', 'Database operations.', ['operation']);
+  late final Counter _dbQueries = meters
+      .counter('diana_db_queries_total', 'Database operations.', ['operation']);
   late final Histogram _dbDuration = meters.histogram(
-      'diana_db_query_duration_seconds', 'Database operation duration.',
+      'diana_db_query_duration_seconds',
+      'Database operation duration.',
       ['operation']);
-  late final Counter _methodCalls = meters.counter(
-      'diana_method_calls_total', '@Timed method invocations.',
-      ['method', 'result']);
+  late final Counter _methodCalls = meters.counter('diana_method_calls_total',
+      '@Timed method invocations.', ['method', 'result']);
   late final Histogram _methodDuration = meters.histogram(
       'diana_method_duration_seconds', '@Timed method duration.', ['method']);
   late final Counter _scheduledRuns = meters.counter(
       'diana_scheduled_runs_total', 'Scheduled task runs.', ['task', 'result']);
-  late final Counter _events = meters.counter(
-      'diana_events_dispatched_total', 'Application events dispatched.',
-      ['type']);
+  late final Counter _events = meters.counter('diana_events_dispatched_total',
+      'Application events dispatched.', ['type']);
   late final Gauge _rss =
       meters.gauge('diana_process_resident_memory_bytes', 'Resident set size.');
 
@@ -66,8 +65,16 @@ class DianaObservability extends DianaObserver {
     // Touch every family so it registers up front and appears in a scrape
     // even before the first observation.
     [
-      _httpRequests, _httpDuration, _unmatched, _dbQueries, _dbDuration,
-      _methodCalls, _methodDuration, _scheduledRuns, _events, _rss,
+      _httpRequests,
+      _httpDuration,
+      _unmatched,
+      _dbQueries,
+      _dbDuration,
+      _methodCalls,
+      _methodDuration,
+      _scheduledRuns,
+      _events,
+      _rss,
     ];
   }
 
@@ -85,8 +92,7 @@ class DianaObservability extends DianaObserver {
                 otel.Attribute.fromString('http.method', method.name),
                 otel.Attribute.fromString('http.route', routeTemplate),
               ]);
-    _httpRequests
-        .inc([method.name, routeTemplate, '${response.statusCode}']);
+    _httpRequests.inc([method.name, routeTemplate, '${response.statusCode}']);
     _httpDuration
         .observe(sw.elapsedMicroseconds / 1e6, [method.name, routeTemplate]);
     return response;
@@ -137,7 +143,8 @@ class DianaObservability extends DianaObserver {
   @override
   void observeScheduledRun(String? name, Duration elapsed,
           {required bool success}) =>
-      _scheduledRuns.inc([name ?? 'anonymous', success ? 'success' : 'failure']);
+      _scheduledRuns
+          .inc([name ?? 'anonymous', success ? 'success' : 'failure']);
 
   @override
   void observeEventDispatch(String eventType, Duration elapsed) =>

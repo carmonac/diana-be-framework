@@ -36,8 +36,7 @@ void main() {
         ServerSentEvent('one'),
         ServerSentEvent('two'),
       ]);
-      final encoded =
-          await encodeSse(source).transform(utf8.decoder).join();
+      final encoded = await encodeSse(source).transform(utf8.decoder).join();
       expect(encoded, 'data: one\n\ndata: two\n\n');
     });
 
@@ -80,8 +79,8 @@ void main() {
 
       final server = DianaServer(
         config: DianaConfig({'server.sse.heartbeatSeconds': 1}),
-      )..register(HttpMethod.get, '/events',
-          (req) => sseResponse(req, events.stream));
+      )..register(
+          HttpMethod.get, '/events', (req) => sseResponse(req, events.stream));
       await server.serve(port: 0, quiet: true);
       addTearDown(server.close);
 
@@ -112,8 +111,7 @@ void main() {
           onTimeout: () => fail('handler stream was not cancelled'));
     });
 
-    test('hijacked head: real reason phrase, headers CRLF-sanitized',
-        () async {
+    test('hijacked head: real reason phrase, headers CRLF-sanitized', () async {
       final server = DianaServer()
         ..register(
           HttpMethod.get,
@@ -131,16 +129,15 @@ void main() {
       final socket = await Socket.connect('127.0.0.1', server.port!);
       socket.write('GET /stream HTTP/1.1\r\nhost: localhost\r\n\r\n');
       await socket.flush();
-      final raw = utf8.decode(
-          await socket.fold<List<int>>([], (a, b) => a..addAll(b)));
+      final raw =
+          utf8.decode(await socket.fold<List<int>>([], (a, b) => a..addAll(b)));
       socket.destroy();
 
       expect(raw, startsWith('HTTP/1.1 201 Created\r\n'));
       final head = raw.split('\r\n\r\n').first;
       expect(head, contains('x-meta: clean injected: 1'),
           reason: 'CR/LF in app-supplied header values must be stripped');
-      expect(head.split('\r\n').where((l) => l.startsWith('injected')),
-          isEmpty,
+      expect(head.split('\r\n').where((l) => l.startsWith('injected')), isEmpty,
           reason: 'a header value must not be able to inject header lines');
     });
 
@@ -163,8 +160,8 @@ void main() {
 
       final client = HttpClient();
       addTearDown(client.close);
-      final response = await (await client.getUrl(
-              Uri.parse('http://127.0.0.1:${server.port}/stream')))
+      final response = await (await client
+              .getUrl(Uri.parse('http://127.0.0.1:${server.port}/stream')))
           .close();
       final body = await response.transform(utf8.decoder).join();
       expect(body, 'firstsecond');
@@ -188,8 +185,7 @@ void main() {
       await source.close();
     });
 
-    test('copyWith preserves the stream body (middleware compatibility)',
-        () {
+    test('copyWith preserves the stream body (middleware compatibility)', () {
       final response = DianaResponse.stream(const Stream.empty(),
           mimeType: 'text/event-stream');
       final copied = response.copyWith(headers: {'x': 'y'});

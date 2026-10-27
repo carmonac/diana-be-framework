@@ -55,8 +55,7 @@ LibrarySummary readLibrary(LibraryElement library) {
     _checkSecurityPlacement(
       cls,
       isController: controllerAnn != null,
-      isSecurable:
-          controllerAnn != null || wsAnn != null || grpcAnn != null,
+      isSecurable: controllerAnn != null || wsAnn != null || grpcAnn != null,
     );
 
     // @Transactional is proxied, so it is valid only on @Injectable-family
@@ -104,19 +103,20 @@ LibrarySummary readLibrary(LibraryElement library) {
     if (injectableAnn != null) {
       injectables.add(
         _injectableFrom(cls, selfType, injectableAnn,
-            queryRepo:
-                cls.isAbstract && repoSuper != null
-                    ? _queryRepoOf(cls, repoSuper)
-                    : null),
+            queryRepo: cls.isAbstract && repoSuper != null
+                ? _queryRepoOf(cls, repoSuper)
+                : null),
       );
     } else if (controllerAnn != null) {
       final scope = _scopeName(controllerAnn.getField('scope'));
-      injectables.add(_withLifecycle(cls, InjectableInfo(
-        type: selfType,
-        scope: scope,
-        supertypes: _supertypeRefs(cls),
-        ctorParams: _ctorParams(cls),
-      )));
+      injectables.add(_withLifecycle(
+          cls,
+          InjectableInfo(
+            type: selfType,
+            scope: scope,
+            supertypes: _supertypeRefs(cls),
+            ctorParams: _ctorParams(cls),
+          )));
       controllers.add(_controllerFrom(cls, selfType, controllerAnn));
     } else if (wsAnn != null) {
       final scope = _scopeName(wsAnn.getField('scope'));
@@ -128,12 +128,14 @@ LibrarySummary readLibrary(LibraryElement library) {
           '(one handler per connection).',
         );
       }
-      injectables.add(_withLifecycle(cls, InjectableInfo(
-        type: selfType,
-        scope: scope,
-        supertypes: _supertypeRefs(cls),
-        ctorParams: _ctorParams(cls),
-      )));
+      injectables.add(_withLifecycle(
+          cls,
+          InjectableInfo(
+            type: selfType,
+            scope: scope,
+            supertypes: _supertypeRefs(cls),
+            ctorParams: _ctorParams(cls),
+          )));
       webSockets.add(WebSocketInfo(
         type: selfType,
         path: wsAnn.getField('path')!.toStringValue()!,
@@ -141,43 +143,51 @@ LibrarySummary readLibrary(LibraryElement library) {
         security: _securityOf(cls, cls.name!),
       ));
     } else if (grpcAnn != null) {
-      injectables.add(_withLifecycle(cls, InjectableInfo(
-        type: selfType,
-        scope: 'singleton',
-        supertypes: _supertypeRefs(cls),
-        ctorParams: _ctorParams(cls),
-      )));
+      injectables.add(_withLifecycle(
+          cls,
+          InjectableInfo(
+            type: selfType,
+            scope: 'singleton',
+            supertypes: _supertypeRefs(cls),
+            ctorParams: _ctorParams(cls),
+          )));
       grpcServices.add(GrpcServiceInfo(
         type: selfType,
         security: _securityOf(cls, cls.name!),
       ));
     } else if (gmAnn != null) {
-      injectables.add(_withLifecycle(cls, InjectableInfo(
-        type: selfType,
-        scope: 'singleton',
-        supertypes: _supertypeRefs(cls),
-        ctorParams: _ctorParams(cls),
-      )));
+      injectables.add(_withLifecycle(
+          cls,
+          InjectableInfo(
+            type: selfType,
+            scope: 'singleton',
+            supertypes: _supertypeRefs(cls),
+            ctorParams: _ctorParams(cls),
+          )));
       globalMiddleware.add(GlobalMiddlewareInfo(
         type: selfType,
         order: gmAnn.getField('order')?.toIntValue() ?? 0,
       ));
     } else if (adviceAnn != null) {
-      injectables.add(_withLifecycle(cls, InjectableInfo(
-        type: selfType,
-        scope: 'singleton',
-        supertypes: _supertypeRefs(cls),
-        ctorParams: _ctorParams(cls),
-      )));
+      injectables.add(_withLifecycle(
+          cls,
+          InjectableInfo(
+            type: selfType,
+            scope: 'singleton',
+            supertypes: _supertypeRefs(cls),
+            ctorParams: _ctorParams(cls),
+          )));
       advices.add(_adviceFrom(cls, selfType));
     } else if (configPropsAnn != null) {
-      injectables.add(_withLifecycle(cls, InjectableInfo(
-        type: selfType,
-        scope: 'singleton',
-        kind: ProviderKind.configProps,
-        configPrefix:
-            configPropsAnn.getField('prefix')?.toStringValue() ?? '',
-      )));
+      injectables.add(_withLifecycle(
+          cls,
+          InjectableInfo(
+            type: selfType,
+            scope: 'singleton',
+            kind: ProviderKind.configProps,
+            configPrefix:
+                configPropsAnn.getField('prefix')?.toStringValue() ?? '',
+          )));
     }
   }
 
@@ -283,8 +293,7 @@ QueryRepoInfo _queryRepoOf(ClassElement cls, InterfaceType superType) {
   // Entity resolution and validation.
   final typeArgs = superType.typeArguments;
   final entityType = typeArgs.length == 1 ? typeArgs.single : null;
-  final entityElement =
-      entityType is InterfaceType ? entityType.element : null;
+  final entityElement = entityType is InterfaceType ? entityType.element : null;
   if (entityElement is! ClassElement || entityElement.name == null) {
     throw DianaSourceError(
       cls,
@@ -396,8 +405,8 @@ QueryRepoInfo _queryRepoOf(ClassElement cls, InterfaceType superType) {
 
 /// Operator suffixes by descending length (longest-match), with their
 /// condition op, parameter arity, and whether they need a String property.
-const List<({String suffix, String op, int arity, bool stringOnly})>
-    _queryOps = [
+const List<({String suffix, String op, int arity, bool stringOnly})> _queryOps =
+    [
   (suffix: 'GreaterThanEqual', op: 'gte', arity: 1, stringOnly: false),
   (suffix: 'LessThanEqual', op: 'lte', arity: 1, stringOnly: false),
   (suffix: 'GreaterThan', op: 'gt', arity: 1, stringOnly: false),
@@ -521,8 +530,13 @@ QueryMethodInfo _parseQueryMethod(
       }
     }
     conditions.add(QueryConditionInfo(column: columns[prop]!, op: op));
-    conditionMeta.add(
-        (prop: prop, op: op, arity: arity, stringOnly: stringOnly, label: label));
+    conditionMeta.add((
+      prop: prop,
+      op: op,
+      arity: arity,
+      stringOnly: stringOnly,
+      label: label
+    ));
     if (pos == rest.length) break;
     String next;
     if (rest.startsWith('And', pos)) {
@@ -601,8 +615,7 @@ QueryMethodInfo _parseQueryMethod(
       );
     }
   }
-  final expected =
-      conditionMeta.fold<int>(0, (sum, c) => sum + c.arity);
+  final expected = conditionMeta.fold<int>(0, (sum, c) => sum + c.arity);
   final params = method.formalParameters;
   if (params.length != expected) {
     throw DianaSourceError(
@@ -660,8 +673,7 @@ QueryMethodInfo _parseQueryMethod(
         t.name == 'List' &&
         t.typeArgs.length == 1 &&
         t.typeArgs.single.key == entity.key),
-    'findFirst' =>
-      isFutureOf((t) => t.key == entity.key && t.nullable),
+    'findFirst' => isFutureOf((t) => t.key == entity.key && t.nullable),
     'count' => isFutureOf((t) => t.name == 'int'),
     'exists' => isFutureOf((t) => t.name == 'bool'),
     _ => isFutureOf((t) => t.name == 'void'),
@@ -812,8 +824,7 @@ DtoInfo? _dtoInfoOf(ClassElement cls) {
               field.name!)
           : field.name!,
       type: fieldType,
-      nullable:
-          field.type.nullabilitySuffix == NullabilitySuffix.question,
+      nullable: field.type.nullabilitySuffix == NullabilitySuffix.question,
       enumValues: enumValues,
       constraints: constraints,
     ));
@@ -853,7 +864,8 @@ SecurityInfo? _securityOf(Element element, String where) {
             .toList() ??
         const [];
     if (roles.isEmpty) {
-      throw DianaSourceError(element, '@RolesAllowed on $where lists no roles.');
+      throw DianaSourceError(
+          element, '@RolesAllowed on $where lists no roles.');
     }
     return SecurityInfo(roles: roles);
   }
@@ -1084,7 +1096,8 @@ typedef _Lifecycle = ({
 /// Reads `@PostConstruct`/`@PreDestroy` methods of a provider class,
 /// validating signatures and scope compatibility.
 _Lifecycle _lifecycleOf(ClassElement cls, String scope) {
-  final post = _lifecycleMethod(cls, postConstructChecker, 'PostConstruct', scope);
+  final post =
+      _lifecycleMethod(cls, postConstructChecker, 'PostConstruct', scope);
   final pre = _lifecycleMethod(cls, preDestroyChecker, 'PreDestroy', scope);
   return (
     postConstruct: post.name,
@@ -1334,7 +1347,12 @@ List<ScheduledMethodInfo> _scheduledOf(ClassElement cls, String scope) {
 /// expression or a known macro; per-field range validation happens when the
 /// runtime parses the expression at startup.
 const _cronMacros = {
-  '@yearly', '@annually', '@monthly', '@weekly', '@daily', '@midnight',
+  '@yearly',
+  '@annually',
+  '@monthly',
+  '@weekly',
+  '@daily',
+  '@midnight',
   '@hourly',
 };
 
@@ -1597,7 +1615,8 @@ List<AspectMethodInfo> _aspectMethodsOf(ClassElement cls) {
     if (breakerAnn != null) {
       final threshold =
           breakerAnn.getField('failureThreshold')?.toIntValue() ?? 5;
-      final reset = breakerAnn.getField('resetTimeoutMs')?.toIntValue() ?? 30000;
+      final reset =
+          breakerAnn.getField('resetTimeoutMs')?.toIntValue() ?? 30000;
       if (threshold < 1) {
         throw DianaSourceError(
           method,
@@ -1625,9 +1644,7 @@ List<AspectMethodInfo> _aspectMethodsOf(ClassElement cls) {
         for (final tp in method.typeParameters)
           TypeParamInfo(
             name: tp.name!,
-            bound: tp.bound == null
-                ? null
-                : _typeRefLenient(tp.bound!, method),
+            bound: tp.bound == null ? null : _typeRefLenient(tp.bound!, method),
           ),
       ],
       params: [
@@ -1685,8 +1702,7 @@ void _checkAspectPlacement(
   String annotation,
   String scope,
 ) {
-  final matches =
-      cls.methods.where((m) => checker.hasAnnotationOf(m)).toList();
+  final matches = cls.methods.where((m) => checker.hasAnnotationOf(m)).toList();
   if (matches.isEmpty) return (name: null, awaited: false);
   if (matches.length > 1) {
     throw DianaSourceError(

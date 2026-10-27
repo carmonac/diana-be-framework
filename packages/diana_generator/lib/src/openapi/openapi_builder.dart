@@ -213,8 +213,7 @@ Map<String, Object?> _schemaOf(DtoInfo dto, Map<String, DtoInfo> dtos) {
   return {
     'type': 'object',
     'properties': {
-      for (final key in properties.keys.toList()..sort())
-        key: properties[key],
+      for (final key in properties.keys.toList()..sort()) key: properties[key],
     },
     if (required.isNotEmpty) 'required': required..sort(),
   };

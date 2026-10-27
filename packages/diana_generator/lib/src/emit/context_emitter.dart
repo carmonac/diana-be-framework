@@ -210,8 +210,8 @@ ContextEmission emitContext(DiGraph graph) {
         // Abstract query repositories are constructed as their generated
         // implementation; deps (the Database among them) flow through the
         // user-declared constructor unchanged.
-        construction = refer('\$Repo\$${info.type.name}')
-            .newInstance(positional, named);
+        construction =
+            refer('\$Repo\$${info.type.name}').newInstance(positional, named);
       } else if (info.hasNewAspects) {
         construction = refer('\$Aspect\$${info.type.name}').newInstance(
           [
@@ -232,8 +232,7 @@ ContextEmission emitContext(DiGraph graph) {
           named,
         );
       } else {
-        construction =
-            referenceOf(info.type).newInstance(positional, named);
+        construction = referenceOf(info.type).newInstance(positional, named);
       }
     }
     final overridesExpr =
@@ -367,8 +366,7 @@ ContextEmission emitContext(DiGraph graph) {
         if (usesStomp && ctorStatements.isEmpty) {
           ctorStatements.add(const Code('stompBroker;'));
         } else if (usesStomp &&
-            !graph.ordered
-                .any((p) => p.info.messageMappings.isNotEmpty)) {
+            !graph.ordered.any((p) => p.info.messageMappings.isNotEmpty)) {
           ctorStatements.add(const Code('stompBroker;'));
         }
         if (ctorStatements.isNotEmpty) {
@@ -388,8 +386,7 @@ ContextEmission emitContext(DiGraph graph) {
         ..modifier = FieldModifier.final$
         ..type = refer('DianaEventBus', dianaLib)
         ..assignment = refer('DianaEventBus', dianaLib)
-            .newInstance(const [], observerArgs)
-            .code));
+            .newInstance(const [], observerArgs).code));
     }
     if (usesStomp) {
       // The broker relays topic publishes across isolates through the event
@@ -434,8 +431,8 @@ ContextEmission emitContext(DiGraph graph) {
           ..name = '_ctx'
           ..modifier = FieldModifier.final$
           ..type = refer('DianaContext')))
-        ..constructors.add(Constructor((ctor) => ctor.requiredParameters.add(
-            Parameter((p) => p
+        ..constructors.add(
+            Constructor((ctor) => ctor.requiredParameters.add(Parameter((p) => p
               ..name = '_ctx'
               ..toThis = true))));
       for (final provider in graph.ordered) {
@@ -481,8 +478,8 @@ Code _mappingRegistration(
     if (mapping.sendTo != null) {
       buffer.write(", sendTo: '${mapping.sendTo}'");
       if (mapping.returnKind == 'json') {
-        final toJson = allocate(refer(
-            '\$${mapping.returnType!.name}ToJson', mapping.returnType!.libraryUri));
+        final toJson = allocate(refer('\$${mapping.returnType!.name}ToJson',
+            mapping.returnType!.libraryUri));
         final typeCode = allocate(referenceOf(mapping.returnType!));
         buffer.write(', encode: (r) => '
             '${allocate(refer('stompJsonBody', dianaLib))}'

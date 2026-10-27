@@ -34,8 +34,8 @@ void main() {
       payloadKind: 'text',
     );
     final json = info.toJson();
-    expect(json.keys,
-        unorderedEquals(['method', 'destination', 'payloadKind']));
+    expect(
+        json.keys, unorderedEquals(['method', 'destination', 'payloadKind']));
     final back = MessageMappingInfo.fromJson(json);
     expect(back.returnKind, 'void');
     expect(back.wantsMessage, isFalse);

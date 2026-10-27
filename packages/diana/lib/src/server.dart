@@ -102,7 +102,8 @@ class DianaServer {
     // 4xx/5xx) and the route template, and never an exception.
     final observed = observer == null
         ? guarded
-        : (DianaRequest req) => observer!.observeHttp(method, path, req, guarded);
+        : (DianaRequest req) =>
+            observer!.observeHttp(method, path, req, guarded);
     (_registered[path] ??= {}).add(method);
     _adapter.register(method, path, observed);
   }
@@ -149,18 +150,18 @@ class DianaServer {
   /// HTTPS is enabled when `server.ssl.certPath` and `server.ssl.keyPath`
   /// are configured (`server.ssl.keyPassword` optional). [shared] allows
   /// multiple isolates to bind the same port.
-  Future<void> serve({int? port, bool quiet = false, bool shared = false}) async {
+  Future<void> serve(
+      {int? port, bool quiet = false, bool shared = false}) async {
     // Static file serving from `server.static.*`.
     if (config.get<bool>('server.static.enabled', defaultValue: false)) {
       _adapter.registerStatic(
-        directory: config.get<String>('server.static.dir',
-            defaultValue: 'public'),
-        prefix: config.get<String>('server.static.prefix',
-            defaultValue: '/static'),
+        directory:
+            config.get<String>('server.static.dir', defaultValue: 'public'),
+        prefix:
+            config.get<String>('server.static.prefix', defaultValue: '/static'),
         indexFile: config.get<String>('server.static.index',
             defaultValue: 'index.html'),
-        spaFallback:
-            config.get<bool>('server.static.spa', defaultValue: false),
+        spaFallback: config.get<bool>('server.static.spa', defaultValue: false),
         cacheMaxAgeSeconds:
             config.get<int>('server.static.cacheMaxAge', defaultValue: 3600),
       );

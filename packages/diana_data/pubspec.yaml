@@ -1,8 +1,8 @@
 name: diana_data
 description: >-
-  Persistence for the Diana backend framework: an injectable query executor
-  over knex_dart, ambient transactions with @Transactional, a lightweight
-  migration runner and a database health indicator.
+  Persistence for the Diana framework over knex_dart: an injectable
+  database, @Transactional, Spring-Data-style query repositories and
+  migrations.
 version: 0.15.0
 repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_data
 issue_tracker: https://github.com/carmonac/diana-be-framework/issues

@@ -12,8 +12,7 @@ void main() {
       returnType: _future,
       typeParams: [TypeParamInfo(name: 'T', bound: _string)],
       params: [
-        AspectParamInfo(
-            name: 'id', type: _string, kind: 'requiredPositional'),
+        AspectParamInfo(name: 'id', type: _string, kind: 'requiredPositional'),
         AspectParamInfo(
             name: 'limit',
             type: _string,

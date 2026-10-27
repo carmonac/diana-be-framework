@@ -22,9 +22,8 @@ bool acceptsMime(String acceptHeader, String mime) {
       final p = param.trim().replaceAll(' ', '');
       return p == 'q=0' || p == 'q=0.0' || p == 'q=0.00' || p == 'q=0.000';
     });
-    final matches = pattern == '*/*' ||
-        pattern == '$type/*' ||
-        pattern == '$type/$subtype';
+    final matches =
+        pattern == '*/*' || pattern == '$type/*' || pattern == '$type/$subtype';
     if (matches && !rejected) return true;
   }
   return false;

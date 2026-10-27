@@ -23,21 +23,18 @@ class TypeRef {
 
   /// Identity used for provider matching. Nullability is intentionally
   /// excluded.
-  String get key =>
-      '$libraryUri#$name'
+  String get key => '$libraryUri#$name'
       '${typeArgs.isEmpty ? '' : '<${typeArgs.map((t) => t.key).join(',')}>'}';
 
   /// Human-readable form for diagnostics.
-  String get displayName =>
-      '$name'
+  String get displayName => '$name'
       '${typeArgs.isEmpty ? '' : '<${typeArgs.map((t) => t.displayName).join(', ')}>'}'
       '${nullable ? '?' : ''}';
 
   Map<String, Object?> toJson() => {
         'lib': libraryUri,
         'name': name,
-        if (typeArgs.isNotEmpty)
-          'args': [for (final t in typeArgs) t.toJson()],
+        if (typeArgs.isNotEmpty) 'args': [for (final t in typeArgs) t.toJson()],
         if (nullable) 'nullable': true,
       };
 
@@ -244,8 +241,7 @@ class InjectableInfo {
             EventListenerInfo.fromJson((l as Map).cast<String, Object?>()),
         ],
         aspectMethods: [
-          for (final t
-              in (json['aspectMethods'] as List<Object?>? ?? const []))
+          for (final t in (json['aspectMethods'] as List<Object?>? ?? const []))
             AspectMethodInfo.fromJson((t as Map).cast<String, Object?>()),
         ],
         queryRepo: json['queryRepo'] == null
@@ -317,14 +313,12 @@ class AspectMethodInfo {
         'returnType': returnType.toJson(),
         if (typeParams.isNotEmpty)
           'typeParams': [for (final t in typeParams) t.toJson()],
-        if (params.isNotEmpty)
-          'params': [for (final p in params) p.toJson()],
+        if (params.isNotEmpty) 'params': [for (final p in params) p.toJson()],
         if (transactional) 'tx': true,
         if (timed != null) 'timed': timed!.toJson(),
         if (cacheable != null) 'cacheable': cacheable!.toJson(),
         if (retryable != null) 'retryable': retryable!.toJson(),
-        if (circuitBreaker != null)
-          'circuitBreaker': circuitBreaker!.toJson(),
+        if (circuitBreaker != null) 'circuitBreaker': circuitBreaker!.toJson(),
       };
 
   factory AspectMethodInfo.fromJson(Map<String, Object?> json) =>
@@ -577,8 +571,7 @@ class QueryMethodInfo {
           'conditions': [for (final c in conditions) c.toJson()],
         if (orderBy.isNotEmpty)
           'orderBy': [for (final o in orderBy) o.toJson()],
-        if (params.isNotEmpty)
-          'params': [for (final p in params) p.toJson()],
+        if (params.isNotEmpty) 'params': [for (final p in params) p.toJson()],
       };
 
   factory QueryMethodInfo.fromJson(Map<String, Object?> json) =>
@@ -636,8 +629,7 @@ class QueryOrderInfo {
         if (desc) 'desc': true,
       };
 
-  factory QueryOrderInfo.fromJson(Map<String, Object?> json) =>
-      QueryOrderInfo(
+  factory QueryOrderInfo.fromJson(Map<String, Object?> json) => QueryOrderInfo(
         column: json['column'] as String,
         desc: json['desc'] as bool? ?? false,
       );
@@ -650,8 +642,7 @@ class QueryParamInfo {
 
   const QueryParamInfo({required this.name, required this.type});
 
-  Map<String, Object?> toJson() =>
-      {'name': name, 'type': type.toJson()};
+  Map<String, Object?> toJson() => {'name': name, 'type': type.toJson()};
 
   factory QueryParamInfo.fromJson(Map<String, Object?> json) => QueryParamInfo(
         name: json['name'] as String,
@@ -825,7 +816,6 @@ class CorsInfo {
         maxAge: json['maxAge'] as int,
       );
 }
-
 
 /// A `@Secured`/`@RolesAllowed` declaration on a controller, route,
 /// WebSocket controller or gRPC service.
@@ -1222,8 +1212,8 @@ class HandlerInfo {
       };
 
   factory HandlerInfo.fromJson(Map<String, Object?> json) => HandlerInfo(
-        exceptionType:
-            TypeRef.fromJson((json['exception'] as Map).cast<String, Object?>()),
+        exceptionType: TypeRef.fromJson(
+            (json['exception'] as Map).cast<String, Object?>()),
         methodName: json['method'] as String,
         takesRequest: json['takesRequest'] as bool? ?? false,
         depth: json['depth'] as int,
@@ -1338,8 +1328,7 @@ class LibrarySummary {
             WebSocketInfo.fromJson((w as Map).cast<String, Object?>()),
         ],
         grpcServices: [
-          for (final g
-              in (json['grpcServices'] as List<Object?>? ?? const []))
+          for (final g in (json['grpcServices'] as List<Object?>? ?? const []))
             GrpcServiceInfo.fromJson((g as Map).cast<String, Object?>()),
         ],
         globalMiddleware: [

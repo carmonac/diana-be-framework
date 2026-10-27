@@ -54,7 +54,8 @@ void main() {
 
   test('an unknown kid triggers one re-fetch and picks up a rotated key',
       () async {
-    final server = await FakeJwksServer.start(jwksDoc([fixtureJwk(kid: 'old')]));
+    final server =
+        await FakeJwksServer.start(jwksDoc([fixtureJwk(kid: 'old')]));
     final verifier =
         JwksTokenVerifier(server.uri, refreshCooldown: Duration.zero);
     addTearDown(() async {
@@ -114,9 +115,10 @@ void main() {
     final verifier = JwksTokenVerifier(uri);
     addTearDown(verifier.close);
 
-    await expectLater(verifier.verify(signRs256(claims(), kid: 'k1')),
-        throwsA(isA<InvalidCredentialsException>().having(
-            (e) => e.message, 'message', 'Unable to verify token')));
+    await expectLater(
+        verifier.verify(signRs256(claims(), kid: 'k1')),
+        throwsA(isA<InvalidCredentialsException>()
+            .having((e) => e.message, 'message', 'Unable to verify token')));
   });
 
   test('a failed first fetch retries after the cooldown, not the TTL',
@@ -168,18 +170,18 @@ void main() {
 
     await expectLater(verifier.verify('not-a-jwt'),
         throwsA(isA<InvalidCredentialsException>()));
-    final hs256 = Hs256TokenSigner('secret')
-        .sign(Hs256TokenSigner.claimsFor('mallory'));
-    await expectLater(verifier.verify(hs256),
-        throwsA(isA<InvalidCredentialsException>()));
+    final hs256 =
+        Hs256TokenSigner('secret').sign(Hs256TokenSigner.claimsFor('mallory'));
+    await expectLater(
+        verifier.verify(hs256), throwsA(isA<InvalidCredentialsException>()));
     expect(server.requests, 0,
         reason: 'malformed/wrong-alg tokens must not trigger I/O');
   });
 
   test('enforces issuer and audience like the static verifiers', () async {
     final server = await FakeJwksServer.start(jwksDoc([fixtureJwk(kid: 'k1')]));
-    final verifier = JwksTokenVerifier(server.uri,
-        issuer: 'https://idp', audience: 'api');
+    final verifier =
+        JwksTokenVerifier(server.uri, issuer: 'https://idp', audience: 'api');
     addTearDown(() async {
       verifier.close();
       await server.close();

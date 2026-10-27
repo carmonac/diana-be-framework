@@ -8,6 +8,10 @@
   the seven packages in dependency order via
   `.github/workflows/publish.yml` using pub.dev automated publishing
   (OIDC); see `RELEASING.md`.
+- pub.dev score: every package ships an `example/`, descriptions fit the
+  60–180 character range, and dependency constraints now admit the latest
+  majors — `analyzer` 14 and `build` 5 (diana_generator), `grpc` 5
+  (diana_grpc), `xml` 7 (diana) — while keeping the previous lower bounds.
 
 ### Documentation site
 - The documentation in `docs/` is now published as a website at

@@ -77,7 +77,17 @@ class Gauge extends _Metric {
 class Histogram extends _Metric {
   /// Default buckets in seconds (Prometheus client defaults).
   static const List<double> defaultBuckets = [
-    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1,
+    2.5,
+    5,
+    10,
   ];
 
   final List<double> buckets;
@@ -87,8 +97,8 @@ class Histogram extends _Metric {
 
   Histogram(super.name, super.help,
       [super.labelNames = const [], List<double>? buckets])
-      : buckets =
-            List.unmodifiable(List<double>.of(buckets ?? defaultBuckets)..sort());
+      : buckets = List.unmodifiable(
+            List<double>.of(buckets ?? defaultBuckets)..sort());
 
   /// Records [value] (seconds) for the series identified by [labels]. Each
   /// bucket count is kept cumulative (observations `<= le`).

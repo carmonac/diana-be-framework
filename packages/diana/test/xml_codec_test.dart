@@ -22,7 +22,9 @@ void main() {
     expect(decoded['score'], 1.5);
     expect(decoded['done'], isTrue);
     expect(decoded['empty'], isNull);
-    expect(decoded['tags'], {'tag': ['a', 'b']});
+    expect(decoded['tags'], {
+      'tag': ['a', 'b']
+    });
     expect(decoded['address'], {'street': 'Main'});
     expect(decoded['items'], [1, 2]);
   });
@@ -53,7 +55,8 @@ void main() {
   });
 
   test('top-level lists use <item> elements', () {
-    expect(codec.encode([1, 2]), '<response><item>1</item><item>2</item></response>');
+    expect(codec.encode([1, 2]),
+        '<response><item>1</item><item>2</item></response>');
     expect(codec.decode('<r><item>1</item><item>2</item></r>'), [1, 2]);
   });
 

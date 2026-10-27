@@ -36,8 +36,8 @@ void main() {
     test('JSON is always available, including +json suffixes and params', () {
       const registry = BodyCodecRegistry();
       expect(registry.forMime('application/json'), isA<JsonBodyCodec>());
-      expect(registry.forMime('application/vnd.api+json'),
-          isA<JsonBodyCodec>());
+      expect(
+          registry.forMime('application/vnd.api+json'), isA<JsonBodyCodec>());
       expect(registry.forMime('application/json; charset=utf-8'),
           isA<JsonBodyCodec>());
       expect(registry.forMime('text/csv'), isNull);
@@ -85,18 +85,17 @@ void main() {
     });
 
     test('400 on malformed input and non-object payloads', () {
-      final malformed =
-          request(contentType: 'application/json', body: '{oops');
+      final malformed = request(contentType: 'application/json', body: '{oops');
       expect(
         () => decodeMapBody(malformed, consumes: const ['application/json']),
-        throwsA(isA<BadRequestException>().having((e) => e.message, 'message',
-            'Malformed application/json body.')),
+        throwsA(isA<BadRequestException>().having(
+            (e) => e.message, 'message', 'Malformed application/json body.')),
       );
       final list = request(contentType: 'application/json', body: '[1]');
       expect(
         () => decodeMapBody(list, consumes: const ['application/json']),
-        throwsA(isA<BadRequestException>().having(
-            (e) => e.message, 'message', 'Expected an object body.')),
+        throwsA(isA<BadRequestException>()
+            .having((e) => e.message, 'message', 'Expected an object body.')),
       );
     });
   });
@@ -132,8 +131,7 @@ void main() {
     test('406 when nothing produced is acceptable', () {
       final req = request(accept: 'text/html');
       expect(
-        () => negotiatedResponse(req, {},
-            produces: const ['application/json']),
+        () => negotiatedResponse(req, {}, produces: const ['application/json']),
         throwsA(isA<NotAcceptableException>()),
       );
     });

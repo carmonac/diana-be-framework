@@ -86,12 +86,11 @@ void main() {
 
   group('grpcAuthInterceptor', () {
     final method = grpc.ServiceMethod<List<int>, List<int>>(
-      'M', (call, req) async* {}, true, true, (b) => b, (b) => b);
+        'M', (call, req) async* {}, true, true, (b) => b, (b) => b);
     grpc.ServiceCall callWith(Map<String, String>? metadata) =>
         _FakeServiceCall(metadata);
 
-    test('rejects missing/invalid credentials with UNAUTHENTICATED',
-        () async {
+    test('rejects missing/invalid credentials with UNAUTHENTICATED', () async {
       final interceptor = grpcAuthInterceptor((_) async => null);
       final error = await interceptor(callWith({}), method);
       expect(error, isA<grpc.GrpcError>());
@@ -148,6 +147,5 @@ class _FakeServiceCall implements grpc.ServiceCall {
   _FakeServiceCall(this.clientMetadata);
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

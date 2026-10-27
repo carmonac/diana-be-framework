@@ -34,8 +34,7 @@ void main() {
     }
   }
 
-  test('serves files, nested paths, index and 404s under the prefix',
-      () async {
+  test('serves files, nested paths, index and 404s under the prefix', () async {
     server = DianaServer(
       config: DianaConfig({
         'server.static.enabled': true,
@@ -43,8 +42,8 @@ void main() {
         'server.static.prefix': '/static',
         'server.static.cacheMaxAge': 60,
       }),
-    )..register(HttpMethod.get, '/api/ping',
-        (req) => const DianaResponse.text('pong'));
+    )..register(
+        HttpMethod.get, '/api/ping', (req) => const DianaResponse.text('pong'));
     await server.serve(port: 0, quiet: true);
 
     final (fileStatus, fileBody, cache) = await get('/static/hello.txt');

@@ -47,8 +47,7 @@ void main() {
       ]),
     ]);
     expect(result.errors, isEmpty);
-    final order =
-        result.graph!.ordered.map((p) => p.info.type.name).toList();
+    final order = result.graph!.ordered.map((p) => p.info.type.name).toList();
     expect(order, ['Repo', 'Service', 'Controller']);
   });
 

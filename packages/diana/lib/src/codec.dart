@@ -49,8 +49,7 @@ class JsonBodyCodec implements BodyCodec {
 class BodyCodecRegistry {
   final List<BodyCodec> _codecs;
 
-  const BodyCodecRegistry([List<BodyCodec> extra = const []])
-      : _codecs = extra;
+  const BodyCodecRegistry([List<BodyCodec> extra = const []]) : _codecs = extra;
 
   /// The codec for [mime] (parameters like `; charset=` are ignored), or
   /// `null` when no codec handles it.
@@ -101,9 +100,8 @@ Future<Object?> _decodeWithCodec(
 ) async {
   final contentType = request.header('content-type') ?? consumes.first;
   final mime = contentType.split(';').first.trim().toLowerCase();
-  final accepted = consumes
-      .map((c) => c.trim().toLowerCase())
-      .any((c) => c == mime || (c == 'application/json' && mime.endsWith('+json')));
+  final accepted = consumes.map((c) => c.trim().toLowerCase()).any(
+      (c) => c == mime || (c == 'application/json' && mime.endsWith('+json')));
   if (!accepted) {
     throw UnsupportedMediaTypeException(
       "Expected one of ${consumes.join(', ')}, got '$mime'.",

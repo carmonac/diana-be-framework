@@ -20,7 +20,8 @@ DianaRequest streamedRequest(
     headers: headers,
     bytesReader: () async* {
       for (var i = 0; i < bytes.length; i += chunkSize) {
-        final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+        final end =
+            (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
         yield Uint8List.fromList(bytes.sublist(i, end));
       }
     },
@@ -183,7 +184,8 @@ void main() {
 
   group('over a real server', () {
     test('oversized POST body yields HTTP 413', () async {
-      final server = DianaServer(config: DianaConfig({
+      final server = DianaServer(
+          config: DianaConfig({
         'server.maxBodyBytes': 64,
       }))
         ..register(

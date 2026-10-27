@@ -128,8 +128,7 @@ void main() {
 
   test('requires exactly one of fixedRate/fixedDelay/cron', () {
     final scheduler = DianaScheduler();
-    expect(() => scheduler.schedule(task: () async {}),
-        throwsArgumentError);
+    expect(() => scheduler.schedule(task: () async {}), throwsArgumentError);
     expect(
         () => scheduler.schedule(
             task: () async {}, fixedRateMs: 10, cron: '* * * * * *'),

@@ -124,9 +124,8 @@ JsonTypeModel _typeModelOf(DartType type, ClassElement cls, Element context) {
         className: element.name,
       );
     }
-    final hasFromJson =
-        element.constructors.any((c) => c.name == 'fromJson') ||
-            element.methods.any((m) => m.isStatic && m.name == 'fromJson');
+    final hasFromJson = element.constructors.any((c) => c.name == 'fromJson') ||
+        element.methods.any((m) => m.isStatic && m.name == 'fromJson');
     final hasToJson = [element, ...element.allSupertypes.map((s) => s.element)]
         .expand((e) => e.methods)
         .any((m) => m.name == 'toJson');

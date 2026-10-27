@@ -113,15 +113,13 @@ AdapterModel _readAdapter(ClassElement cls, MethodElement method) {
     kind = ReturnKind.text;
   } else if (returnType is InterfaceType) {
     kind = ReturnKind.json;
-    nullableResult =
-        returnType.nullabilitySuffix == NullabilitySuffix.question;
+    nullableResult = returnType.nullabilitySuffix == NullabilitySuffix.question;
     if (_isJsonPrimitiveOrCollection(returnType)) {
       jsonShape = JsonShape.raw;
     } else if (returnType.isDartCoreList) {
       final element = returnType.typeArguments.single;
       returnJsonGenerated = _requireToJson(element, method, where);
-      returnDtoName =
-          element is InterfaceType ? element.element.name : null;
+      returnDtoName = element is InterfaceType ? element.element.name : null;
       returnTypeRef =
           element is InterfaceType ? typeRefOf(element, method) : null;
       jsonShape = JsonShape.dtoList;
@@ -364,8 +362,7 @@ AdapterParam _readBodyParam(FormalParameterElement param, String where) {
       dtoName: element.getDisplayString(),
       validate: _needsValidation(element),
       jsonGenerated: elementGenerated,
-      typeRef:
-          element is InterfaceType ? typeRefOf(element, param) : null,
+      typeRef: element is InterfaceType ? typeRefOf(element, param) : null,
     );
   }
   final generated = _requireFromJson(type, param, where);
@@ -409,8 +406,7 @@ bool _isJsonPrimitiveOrCollection(InterfaceType type) {
     return type.typeArguments.every(
       (t) =>
           t is DynamicType ||
-          (t is InterfaceType &&
-              (_isJsonPrimitive(t) || t.isDartCoreObject)) ||
+          (t is InterfaceType && (_isJsonPrimitive(t) || t.isDartCoreObject)) ||
           (t is InterfaceType && _isJsonPrimitiveOrCollection(t)),
     );
   }

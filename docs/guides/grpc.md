@@ -16,8 +16,8 @@ no gRPC dependency.
 dependencies:
   diana: ^0.15.0
   diana_grpc: ^0.15.0
-  grpc: ^4.0.0
-  protobuf: ^4.0.0
+  grpc: ^5.0.0
+  protobuf: ^6.0.0
 ```
 
 Generate Dart code from your `.proto` (commit the output — it's source):

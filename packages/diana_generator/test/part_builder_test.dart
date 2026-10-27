@@ -161,8 +161,7 @@ class MeController {
     );
   });
 
-  test('rejects @Principal combined with another binding annotation',
-      () async {
+  test('rejects @Principal combined with another binding annotation', () async {
     await expectPart(
       '''
 import 'package:diana/diana.dart';
@@ -212,7 +211,9 @@ class C {
   String get() => '';
 }
 ''',
-      expectedErrors: ["missing the part directive. Add:\n\npart 'ctrl.diana.dart';"],
+      expectedErrors: [
+        "missing the part directive. Add:\n\npart 'ctrl.diana.dart';"
+      ],
     );
   });
 }

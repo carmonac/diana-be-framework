@@ -91,19 +91,18 @@ void main() {
       return response;
     }
 
-    test('actual responses get CORS headers; preflight is automatic',
-        () async {
+    test('actual responses get CORS headers; preflight is automatic', () async {
       server = DianaServer(
         config: DianaConfig({
           'server.cors.enabled': true,
           'server.cors.allowedOrigins': ['https://app.example'],
         }),
-      )..register(HttpMethod.get, '/data',
-          (req) => DianaResponse.json({'ok': true}));
+      )..register(
+          HttpMethod.get, '/data', (req) => DianaResponse.json({'ok': true}));
       await server.serve(port: 0, quiet: true);
 
-      final actual =
-          await send('GET', '/data', headers: {'origin': 'https://app.example'});
+      final actual = await send('GET', '/data',
+          headers: {'origin': 'https://app.example'});
       expect(actual.headers.value('access-control-allow-origin'),
           'https://app.example');
       expect(actual.headers.value('vary'), 'Origin');
@@ -131,8 +130,7 @@ void main() {
         'access-control-request-method': 'GET',
       });
       expect(badPreflight.statusCode, 204);
-      expect(
-          badPreflight.headers.value('access-control-allow-origin'), isNull);
+      expect(badPreflight.headers.value('access-control-allow-origin'), isNull);
       await badPreflight.drain<void>();
     });
 
@@ -144,8 +142,8 @@ void main() {
           (req) => const DianaResponse.text('ok'),
           cors: const CorsPolicy(),
         )
-        ..register(HttpMethod.get, '/plain',
-            (req) => const DianaResponse.text('ok'));
+        ..register(
+            HttpMethod.get, '/plain', (req) => const DianaResponse.text('ok'));
       await server.serve(port: 0, quiet: true);
 
       final open =

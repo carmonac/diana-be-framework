@@ -192,8 +192,8 @@ void main() {
       final separator = state.indexOf('|');
       counts[state.substring(separator + 1)] =
           int.parse(state.substring(0, separator));
-      final converged = counts.length == 3 &&
-          counts.values.every((count) => count == fires);
+      final converged =
+          counts.length == 3 && counts.values.every((count) => count == fires);
       if (converged) break;
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
@@ -513,8 +513,8 @@ void main() {
         }
         final server = DianaServer(
           config: DianaConfig({'server.port': port, 'server.isolates': 3}),
-        )..register(HttpMethod.get, '/ping',
-            (req) => const DianaResponse.text('pong'));
+        )..register(
+            HttpMethod.get, '/ping', (req) => const DianaResponse.text('pong'));
         return DianaRunnable(
           server: server,
           initialize: () async {},
@@ -526,8 +526,8 @@ void main() {
 
     await expectLater(
       done.timeout(const Duration(seconds: 10)),
-      throwsA(isA<StateError>().having((e) => e.message, 'message',
-          contains('worker 2 failed to start'))),
+      throwsA(isA<StateError>().having(
+          (e) => e.message, 'message', contains('worker 2 failed to start'))),
     );
     expect(await _portOpen(port), isFalse,
         reason: 'no orphan worker may keep serving after a failed startup');
@@ -563,8 +563,7 @@ void main() {
         reason: 'the worker must be shut down before run() rethrows');
   });
 
-  test('shutdown drains an in-flight remote dispatch before dispose',
-      () async {
+  test('shutdown drains an in-flight remote dispatch before dispose', () async {
     final port = 19432 + DateTime.now().millisecond % 100;
     final shutdown = Completer<void>();
 

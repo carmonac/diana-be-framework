@@ -49,10 +49,10 @@ class RsaPublicKey {
   /// Parses a PEM public key: `BEGIN PUBLIC KEY` (X.509
   /// SubjectPublicKeyInfo) or `BEGIN RSA PUBLIC KEY` (PKCS#1).
   factory RsaPublicKey.fromPem(String pem, {String? keyId}) {
-    final armor = RegExp(
-            r'-----BEGIN (RSA PUBLIC KEY|PUBLIC KEY)-----([A-Za-z0-9+/=\s]+)'
-            r'-----END \1-----')
-        .firstMatch(pem);
+    final armor =
+        RegExp(r'-----BEGIN (RSA PUBLIC KEY|PUBLIC KEY)-----([A-Za-z0-9+/=\s]+)'
+                r'-----END \1-----')
+            .firstMatch(pem);
     if (armor == null) {
       throw const FormatException(
           'Expected a PEM "PUBLIC KEY" or "RSA PUBLIC KEY" block');
@@ -119,7 +119,17 @@ const _sha256DigestInfoPrefix = [
 // ---- DER (parse-only, minimal) ----
 
 const _rsaEncryptionOid = [
-  0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01,
+  0x06,
+  0x09,
+  0x2a,
+  0x86,
+  0x48,
+  0x86,
+  0xf7,
+  0x0d,
+  0x01,
+  0x01,
+  0x01,
 ];
 
 /// Extracts the PKCS#1 `RSAPublicKey` DER from an X.509

@@ -117,7 +117,8 @@ class DianaScheduler {
     if (observer == null) return Future.sync(task.run);
     final sw = Stopwatch()..start();
     return Future.sync(task.run).then(
-      (_) => observer!.observeScheduledRun(task.name, sw.elapsed, success: true),
+      (_) =>
+          observer!.observeScheduledRun(task.name, sw.elapsed, success: true),
       onError: (Object e, StackTrace st) {
         observer!.observeScheduledRun(task.name, sw.elapsed, success: false);
         Error.throwWithStackTrace(e, st);

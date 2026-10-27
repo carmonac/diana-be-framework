@@ -12,12 +12,10 @@ String emitConfigPropsBinder(ConfigPropsModel model) {
         'DianaConfig config) =>')
     ..writeln('    ${model.className}(');
   for (final param in model.params) {
-    final key = model.prefix.isEmpty
-        ? param.name
-        : '${model.prefix}.${param.name}';
+    final key =
+        model.prefix.isEmpty ? param.name : '${model.prefix}.${param.name}';
     final label = param.isNamed ? '${param.name}: ' : '';
-    buffer.writeln(
-        "      ${label}config.get<${param.typeDisplay}>('$key'),");
+    buffer.writeln("      ${label}config.get<${param.typeDisplay}>('$key'),");
   }
   buffer.writeln('    );');
   return buffer.toString();

@@ -24,8 +24,7 @@ void main() {
     });
 
     test('rejects non-RSA JWKs and malformed input', () {
-      expect(() => RsaPublicKey.fromJwk({'kty': 'EC'}),
-          throwsFormatException);
+      expect(() => RsaPublicKey.fromJwk({'kty': 'EC'}), throwsFormatException);
       expect(() => RsaPublicKey.fromJwk({'kty': 'RSA', 'n': fixtureN}),
           throwsFormatException);
       expect(() => RsaPublicKey.fromJwk({'kty': 'RSA', 'n': '!!', 'e': 'AQAB'}),
@@ -80,9 +79,10 @@ void main() {
     test('kid selection: mismatched kid is rejected, matching verifies', () {
       final keyed = Rs256TokenVerifier([fixtureKey(kid: 'good')]);
       expect(keyed.verify(signRs256(claims(), kid: 'good'))['sub'], 'ada');
-      expect(() => keyed.verify(signRs256(claims(), kid: 'other')),
-          throwsA(isA<InvalidCredentialsException>().having(
-              (e) => e.message, 'message', 'Unknown token key')));
+      expect(
+          () => keyed.verify(signRs256(claims(), kid: 'other')),
+          throwsA(isA<InvalidCredentialsException>()
+              .having((e) => e.message, 'message', 'Unknown token key')));
       // No kid on the token: every key is tried.
       expect(keyed.verify(signRs256(claims()))['sub'], 'ada');
     });
@@ -95,8 +95,8 @@ void main() {
       final strict = Rs256TokenVerifier.single(fixtureKey(),
           issuer: 'https://idp', audience: 'api');
       expect(() => strict.verify(signRs256(claims())), rejects());
-      final ok = strict.verify(signRs256(
-          claims(extra: {'iss': 'https://idp', 'aud': 'api'})));
+      final ok = strict.verify(
+          signRs256(claims(extra: {'iss': 'https://idp', 'aud': 'api'})));
       expect(ok['sub'], 'ada');
     });
 
@@ -109,8 +109,8 @@ void main() {
       final token = signRs256(claims(sub: 'ada', extra: {
         'roles': ['admin']
       }));
-      final principal = await auth.authenticate(
-          MapAuthRequest({'authorization': 'Bearer $token'}));
+      final principal = await auth
+          .authenticate(MapAuthRequest({'authorization': 'Bearer $token'}));
       expect(principal!.name, 'ada');
       expect(principal.roles, {'admin'});
     });

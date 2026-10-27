@@ -8,8 +8,7 @@ Iterable<File> _dartFiles(String dir) => Directory(dir)
     .where((f) => f.path.endsWith('.dart'));
 
 void main() {
-  test('only diana_data imports package:knex_dart (keeps it out of core)',
-      () {
+  test('only diana_data imports package:knex_dart (keeps it out of core)', () {
     final offenders = <String>[];
     for (final package in [
       'diana',

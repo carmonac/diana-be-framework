@@ -27,8 +27,10 @@ void main() {
 
     final a = await connected(brokerA, id: 'ws-a');
     final b = await connected(brokerB, id: 'ws-b');
-    await feed(brokerA, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
-    await feed(brokerB, b, frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
+    await feed(
+        brokerA, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
+    await feed(
+        brokerB, b, frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
 
     // Publish from A's broker; both local (A) and remote (B) subscribers get it.
     await brokerA.publish('/topic/x', 'hello');
@@ -74,7 +76,8 @@ void main() {
     await Isolate.spawn(_echoRelay, port.sendPort);
     final send = await port.first as SendPort;
     final reply = ReceivePort();
-    send.send((const StompRelayEvent('/t', 'body', {'k': 'v'}), reply.sendPort));
+    send.send(
+        (const StompRelayEvent('/t', 'body', {'k': 'v'}), reply.sendPort));
     final echoed = await reply.first as StompRelayEvent;
     expect(echoed.destination, '/t');
     expect(echoed.body, 'body');

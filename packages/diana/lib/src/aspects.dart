@@ -239,10 +239,8 @@ class InMemoryCacheStore extends DianaCacheStore {
   @override
   Future<V> run<V>(
       CacheSpec spec, List<Object?> key, Future<V> Function() miss) async {
-    final cache = _caches.putIfAbsent(
-        spec.method,
-        () => MethodCache<Object?>(
-            ttl: spec.ttl, maxEntries: spec.maxEntries));
+    final cache = _caches.putIfAbsent(spec.method,
+        () => MethodCache<Object?>(ttl: spec.ttl, maxEntries: spec.maxEntries));
     return await cache.run(key, miss) as V;
   }
 

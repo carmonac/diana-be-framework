@@ -24,7 +24,9 @@ http_requests_total{route="/b"} 3
 
   test('gauge renders the latest value', () {
     final reg = MeterRegistry();
-    reg.gauge('temp', 'Temperature.')..set(21.5)..set(19);
+    reg.gauge('temp', 'Temperature.')
+      ..set(21.5)
+      ..set(19);
     expect(reg.scrape(), contains('temp 19\n'));
   });
 

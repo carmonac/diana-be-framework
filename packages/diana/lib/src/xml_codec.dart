@@ -98,8 +98,7 @@ class XmlCodec implements BodyCodec {
         final item = entry.value;
         if (item is List) {
           for (final element in item) {
-            builder.element(key,
-                nest: () => _encodeValue(builder, element));
+            builder.element(key, nest: () => _encodeValue(builder, element));
           }
         } else {
           builder.element(key, nest: () => _encodeValue(builder, item));

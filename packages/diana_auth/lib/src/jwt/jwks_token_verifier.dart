@@ -56,9 +56,7 @@ class JwksTokenVerifier implements TokenVerifier {
 
     var keys = await _currentKeys();
     final kid = jwt.keyId;
-    if (kid != null &&
-        !keys.any((k) => k.keyId == kid) &&
-        _cooldownElapsed()) {
+    if (kid != null && !keys.any((k) => k.keyId == kid) && _cooldownElapsed()) {
       // Possibly a freshly-rotated key: one immediate re-fetch.
       await _refresh();
       keys = _keys;
@@ -101,16 +99,13 @@ class JwksTokenVerifier implements TokenVerifier {
   Future<void> _fetch() async {
     List<RsaPublicKey> fetched;
     try {
-      final request =
-          await _client.getUrl(jwksUri).timeout(requestTimeout);
+      final request = await _client.getUrl(jwksUri).timeout(requestTimeout);
       final response = await request.close().timeout(requestTimeout);
       if (response.statusCode != 200) {
         throw HttpException('JWKS endpoint returned ${response.statusCode}');
       }
-      final body = await response
-          .transform(utf8.decoder)
-          .join()
-          .timeout(requestTimeout);
+      final body =
+          await response.transform(utf8.decoder).join().timeout(requestTimeout);
       fetched = _parseJwks(body);
     } catch (_) {
       // Stale-while-error: keep whatever we had. The cooldown clock still

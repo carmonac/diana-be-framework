@@ -139,8 +139,7 @@ String? _boundaryOf(String contentType) {
 }
 
 String? _dispositionParam(String disposition, String name) {
-  final match =
-      RegExp('$name="([^"]*)"').firstMatch(disposition) ??
-          RegExp('$name=([^;\\s]+)').firstMatch(disposition);
+  final match = RegExp('$name="([^"]*)"').firstMatch(disposition) ??
+      RegExp('$name=([^;\\s]+)').firstMatch(disposition);
   return match?.group(1);
 }

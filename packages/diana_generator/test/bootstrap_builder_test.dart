@@ -74,7 +74,8 @@ class CounterService {
 ''',
       },
       output: allOf(
-        contains('late final _i2.MemRepo memRepo = _overrides.memRepo ?? _i2.MemRepo();'),
+        contains(
+            'late final _i2.MemRepo memRepo = _overrides.memRepo ?? _i2.MemRepo();'),
         contains('late final _i2.CounterService counterService ='),
         contains('_i2.CounterService(memRepo)'),
         contains('DianaContext buildDianaContext'),
@@ -129,8 +130,7 @@ class NeedsClock {
     );
   });
 
-  test('sorts global middleware by order and wires route middleware',
-      () async {
+  test('sorts global middleware by order and wires route middleware', () async {
     await expectBootstrap(
       {
         'lib/app.dart': app,
@@ -251,8 +251,10 @@ class ErrorAdvice {
         reason: 'the more specific handler must be checked first');
     expect(generated, contains('ctx.errorAdvice.onDerived(e, req)'));
     expect(generated, contains('ctx.errorAdvice.onBase(e)'));
-    expect(generated,
-        contains('exceptionMapper: (e, st, req) => _mapException(ctx, e, req)'));
+    expect(
+        generated,
+        contains(
+            'exceptionMapper: (e, st, req) => _mapException(ctx, e, req)'));
   });
 
   test('rejects handlers with mismatched signatures', () async {
@@ -300,7 +302,8 @@ class ChatHandler extends BaseWebSocketHandler {
       output: allOf(
         contains("server.registerWebSocket('/ws/chat', "
             '() => ctx.createChatHandler());'),
-        contains("server.registerWebSocket('/ws/echo', () => ctx.echoHandler);"),
+        contains(
+            "server.registerWebSocket('/ws/echo', () => ctx.echoHandler);"),
       ),
     );
   });
@@ -317,8 +320,7 @@ import 'package:diana/diana.dart';
 class AdminHandler extends BaseWebSocketHandler {}
 ''',
       },
-      output: matches(RegExp(
-          r"registerWebSocket\(\s*'/ws/admin',[^;]*?"
+      output: matches(RegExp(r"registerWebSocket\(\s*'/ws/admin',[^;]*?"
           r"const (_i\d+\.)?RolesGuard\(\['admin'\]\)")),
     );
   });
@@ -384,8 +386,7 @@ class RequestHandler extends BaseWebSocketHandler {}
     );
   });
 
-  test('emits initialize/dispose with lifecycle hooks in topo order',
-      () async {
+  test('emits initialize/dispose with lifecycle hooks in topo order', () async {
     await expectBootstrap(
       {
         'lib/app.dart': app,
@@ -545,7 +546,6 @@ class Greeter {
       ),
     );
   });
-
 
   test('wires BodyCodec singletons into DianaServer', () async {
     await expectBootstrap(
@@ -862,8 +862,7 @@ class Auditor {
     );
   });
 
-  test('rejects @EventListener parameters that are not class types',
-      () async {
+  test('rejects @EventListener parameters that are not class types', () async {
     await expectBootstrap(
       {
         'lib/app.dart': app,
@@ -1040,9 +1039,9 @@ class AppAuth extends AuthenticationMiddleware {
 }
 ''',
       },
-      output: matches(RegExp(
-          r'grpcAuthInterceptor\(\s*ctx\.appAuth\.authorizeMetadata,\s*'
-          r"rolesAllowed: \['admin'\]")),
+      output: matches(
+          RegExp(r'grpcAuthInterceptor\(\s*ctx\.appAuth\.authorizeMetadata,\s*'
+              r"rolesAllowed: \['admin'\]")),
     );
   });
 
@@ -1277,7 +1276,8 @@ class XController {
   });
 
   group('aspect proxies', () {
-    test('tx-only providers keep the historical shape with no aspect '
+    test(
+        'tx-only providers keep the historical shape with no aspect '
         'machinery', () async {
       await expectBootstrap(
         {
@@ -1349,8 +1349,8 @@ class Reports {
         output: allOf([
           // Proxy class with observer + db prepended in the constructor.
           matches(RegExp(r'class \$Aspect\$Reports extends (_i\d+\.)?Reports')),
-          matches(RegExp(
-              r'\$Aspect\$Reports\(\s*this\._observer,\s*this\._db,')),
+          matches(
+              RegExp(r'\$Aspect\$Reports\(\s*this\._observer,\s*this\._db,')),
           matches(RegExp(r'final (_i\d+\.)?DianaObserver\? _observer;')),
           // Per-method state fields with the annotation's values.
           matches(RegExp(
@@ -1437,8 +1437,7 @@ class Lookup {
       );
     });
 
-    test('generic aspect methods re-declare their type parameters',
-        () async {
+    test('generic aspect methods re-declare their type parameters', () async {
       await expectBootstrap(
         {
           'lib/app.dart': app,
@@ -1453,8 +1452,8 @@ class Picker {
 ''',
         },
         output: allOf([
-          matches(RegExp(
-              r'Future<T> first<T extends Object>\(List<T> items\)')),
+          matches(
+              RegExp(r'Future<T> first<T extends Object>\(List<T> items\)')),
           contains(r'_retry$first.run(() => super.first(items))'),
         ]),
       );
@@ -1656,7 +1655,8 @@ class B {
           );
 
       test('bad signature', () async {
-        await expectMappingError('''
+        await expectMappingError(
+            '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -1664,13 +1664,15 @@ class Svc {
   @MessageMapping('/x')
   void handle(String a, String b, String c) {}
 }
-''', '@MessageMapping method Svc.handle must be a public instance method '
-            'with one or two positional parameters: the payload (String or '
-            'an @Json class), optionally followed by a StompMessage.');
+''',
+            '@MessageMapping method Svc.handle must be a public instance method '
+                'with one or two positional parameters: the payload (String or '
+                'an @Json class), optionally followed by a StompMessage.');
       });
 
       test('bad payload type', () async {
-        await expectMappingError('''
+        await expectMappingError(
+            '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -1678,12 +1680,14 @@ class Svc {
   @MessageMapping('/x')
   void handle(int payload) {}
 }
-''', '@MessageMapping payload parameter "payload" of Svc.handle must be '
-            'String or a class annotated with @Json; found int.');
+''',
+            '@MessageMapping payload parameter "payload" of Svc.handle must be '
+                'String or a class annotated with @Json; found int.');
       });
 
       test('non-void return without @SendTo', () async {
-        await expectMappingError('''
+        await expectMappingError(
+            '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -1691,8 +1695,9 @@ class Svc {
   @MessageMapping('/x')
   String handle(String body) => body;
 }
-''', '@MessageMapping method Svc.handle returns a value but has no @SendTo '
-            "destination. Add @SendTo('/topic/...') or return void.");
+''',
+            '@MessageMapping method Svc.handle returns a value but has no @SendTo '
+                "destination. Add @SendTo('/topic/...') or return void.");
       });
 
       test('@SendTo on a void method', () async {
@@ -1803,7 +1808,8 @@ class AppDb extends DatabaseConnector {
 
     test('emits the CRUD + query implementations and swaps construction',
         () async {
-      await expectRepo('''
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -1828,42 +1834,41 @@ abstract class CommentRepository extends DianaRepository<Comment> {
       String prefix);
   Future<List<Comment>> findByPostId(int postId);
 }
-''', allOf([
-        matches(RegExp(
-            r'class \$Repo\$CommentRepository extends (_i\d+\.)?CommentRepository')),
-        // Construction swapped to the generated impl, db forwarded.
-        matches(RegExp(r'\$Repo\$CommentRepository\(database\)')),
-        // CRUD.
-        chainMatch("for (final row in await db.select(db.table('comments')))"),
-        chainMatch("db.table('comments').where('id', '=', id).limit(1)"),
-        chainMatch(
-            r'.insert($PREFIX$CommentToJson(entity)'
-            '..removeWhere((k, v) => v == null))'),
-        chainMatch("db.table('comments').where('id', '=', id).delete()"),
-        // Query methods.
-        chainMatch("db.table('comments').where('title', '=', title)"),
-        chainMatch(
-            "db.table('comments').where('id', '=', id)"
-            ".where('title', '=', title).limit(1)"),
-        chainMatch("runCount(db.table('comments')"),
-        chainMatch(
-            "runExists(db.table('comments').where('body', 'like', body))"),
-        chainMatch(
-            "db.delete(db.table('comments')"
-            ".where('title', '=', title).delete())"),
-        chainMatch(r"where('body', 'like', '%$body%').orderBy('id', 'desc')"),
-        chainMatch("whereBetween('id', [low, high])"),
-        chainMatch("whereIn('title', titles)"),
-        chainMatch(
-            "where('title', '=', title).orWhere('body', '=', body)"),
-        chainMatch("whereNull('body')"),
-        chainMatch("where('id', '<>', id)"),
-        chainMatch(r"where('title', 'like', '$prefix%')"
-            ".orderBy('title', 'asc').orderBy('id', 'desc')"),
-        // @JsonField(name:) doubles as the column override.
-        chainMatch("where('post_id', '=', postId)"),
-        matches(RegExp(r'(_i\d+\.)?\$CommentFromJson\(row\)')),
-      ]));
+''',
+          allOf([
+            matches(RegExp(
+                r'class \$Repo\$CommentRepository extends (_i\d+\.)?CommentRepository')),
+            // Construction swapped to the generated impl, db forwarded.
+            matches(RegExp(r'\$Repo\$CommentRepository\(database\)')),
+            // CRUD.
+            chainMatch(
+                "for (final row in await db.select(db.table('comments')))"),
+            chainMatch("db.table('comments').where('id', '=', id).limit(1)"),
+            chainMatch(r'.insert($PREFIX$CommentToJson(entity)'
+                '..removeWhere((k, v) => v == null))'),
+            chainMatch("db.table('comments').where('id', '=', id).delete()"),
+            // Query methods.
+            chainMatch("db.table('comments').where('title', '=', title)"),
+            chainMatch("db.table('comments').where('id', '=', id)"
+                ".where('title', '=', title).limit(1)"),
+            chainMatch("runCount(db.table('comments')"),
+            chainMatch(
+                "runExists(db.table('comments').where('body', 'like', body))"),
+            chainMatch("db.delete(db.table('comments')"
+                ".where('title', '=', title).delete())"),
+            chainMatch(
+                r"where('body', 'like', '%$body%').orderBy('id', 'desc')"),
+            chainMatch("whereBetween('id', [low, high])"),
+            chainMatch("whereIn('title', titles)"),
+            chainMatch("where('title', '=', title).orWhere('body', '=', body)"),
+            chainMatch("whereNull('body')"),
+            chainMatch("where('id', '<>', id)"),
+            chainMatch(r"where('title', 'like', '$prefix%')"
+                ".orderBy('title', 'asc').orderBy('id', 'desc')"),
+            // @JsonField(name:) doubles as the column override.
+            chainMatch("where('post_id', '=', postId)"),
+            matches(RegExp(r'(_i\d+\.)?\$CommentFromJson\(row\)')),
+          ]));
     });
 
     test('apps without query repos emit no repo machinery', () async {
@@ -1878,7 +1883,8 @@ abstract class CommentRepository extends DianaRepository<Comment> {
     });
 
     test('rejects a raw DianaRepository supertype', () async {
-      await expectRepo('''
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -1886,17 +1892,20 @@ import 'package:diana_data/diana_data.dart';
 abstract class BadRepo extends DianaRepository {
   BadRepo(super.db);
 }
-''', '', expectedErrors: [
-        'Query repository BadRepo must extend DianaRepository<E> with a '
-            'concrete class type argument.',
-      ]);
+''',
+          '',
+          expectedErrors: [
+            'Query repository BadRepo must extend DianaRepository<E> with a '
+                'concrete class type argument.',
+          ]);
     });
 
     test('rejects a non-@Json entity', () async {
-      await expectBootstrap({
-        'lib/app.dart': app,
-        'lib/db.dart': connectorLib,
-        'lib/repo.dart': '''
+      await expectBootstrap(
+          {
+            'lib/app.dart': app,
+            'lib/db.dart': connectorLib,
+            'lib/repo.dart': '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -1910,18 +1919,21 @@ abstract class PlainRepo extends DianaRepository<Plain> {
   PlainRepo(super.db);
 }
 ''',
-      }, output: '', expectedErrors: [
-        'Query repository PlainRepo targets Plain, which is not a @Json '
-            'class. Annotate Plain with @Json() so rows can be mapped to '
-            'instances.',
-      ]);
+          },
+          output: '',
+          expectedErrors: [
+            'Query repository PlainRepo targets Plain, which is not a @Json '
+                'class. Annotate Plain with @Json() so rows can be mapped to '
+                'instances.',
+          ]);
     });
 
     test('rejects a missing @Table and a missing id field', () async {
-      await expectBootstrap({
-        'lib/app.dart': app,
-        'lib/db.dart': connectorLib,
-        'lib/repo.dart': '''
+      await expectBootstrap(
+          {
+            'lib/app.dart': app,
+            'lib/db.dart': connectorLib,
+            'lib/repo.dart': '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -1936,14 +1948,17 @@ abstract class NoTableRepo extends DianaRepository<NoTable> {
   NoTableRepo(super.db);
 }
 ''',
-      }, output: '', expectedErrors: [
-        'Query repository NoTableRepo targets NoTable, which is missing '
-            "@Table. Annotate NoTable with @Table('table_name').",
-      ]);
-      await expectBootstrap({
-        'lib/app.dart': app,
-        'lib/db.dart': connectorLib,
-        'lib/repo.dart': '''
+          },
+          output: '',
+          expectedErrors: [
+            'Query repository NoTableRepo targets NoTable, which is missing '
+                "@Table. Annotate NoTable with @Table('table_name').",
+          ]);
+      await expectBootstrap(
+          {
+            'lib/app.dart': app,
+            'lib/db.dart': connectorLib,
+            'lib/repo.dart': '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -1959,15 +1974,18 @@ abstract class NoIdRepo extends DianaRepository<NoId> {
   NoIdRepo(super.db);
 }
 ''',
-      }, output: '', expectedErrors: [
-        "Query repository NoIdRepo targets NoId, which has no 'id' field; "
-            'DianaRepository.findById/deleteById need one.',
-      ]);
+          },
+          output: '',
+          expectedErrors: [
+            "Query repository NoIdRepo targets NoId, which has no 'id' field; "
+                'DianaRepository.findById/deleteById need one.',
+          ]);
     });
 
     test('rejects aspects, abstract getters and CRUD re-declarations',
         () async {
-      await expectRepo('''
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -1980,13 +1998,16 @@ abstract class R1 extends DianaRepository<Comment> {
   @Transactional()
   Future<List<Comment>> findByTitle(String title);
 }
-''', '', expectedErrors: [
-        'Query repository R1 declares aspect-annotated methods; '
-            '@Transactional/@Timed/@Cacheable/@Retryable/@CircuitBreaker are '
-            'not supported on query repositories in this version. Move them '
-            'to a service that injects R1.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Query repository R1 declares aspect-annotated methods; '
+                '@Transactional/@Timed/@Cacheable/@Retryable/@CircuitBreaker are '
+                'not supported on query repositories in this version. Move them '
+                'to a service that injects R1.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -1998,11 +2019,14 @@ abstract class R2 extends DianaRepository<Comment> {
 
   int get total;
 }
-''', '', expectedErrors: [
-        'Query repository R2 declares abstract member "total" which is not '
-            'a method; only query methods can be abstract.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Query repository R2 declares abstract member "total" which is not '
+                'a method; only query methods can be abstract.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2015,14 +2039,17 @@ abstract class R3 extends DianaRepository<Comment> {
   @override
   Future<List<Comment>> findAll();
 }
-''', '', expectedErrors: [
-        'Query repository R3 re-declares "findAll", which is implemented by '
-            'the generated repository; remove the declaration.',
-      ]);
+''',
+          '',
+          expectedErrors: [
+            'Query repository R3 re-declares "findAll", which is implemented by '
+                'the generated repository; remove the declaration.',
+          ]);
     });
 
     test('rejects unparseable names with helpful positions', () async {
-      await expectRepo('''
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2034,11 +2061,14 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> byTitle(String title);
 }
-''', '', expectedErrors: [
-        'Query method R.byTitle must start with findBy, findFirstBy, '
-            'countBy, existsBy or deleteBy.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Query method R.byTitle must start with findBy, findFirstBy, '
+                'countBy, existsBy or deleteBy.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2050,12 +2080,15 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByAuthor(String author);
 }
-''', '', expectedErrors: [
-        'Cannot parse query method R.findByAuthor at "Author": expected a '
-            'property of Comment followed by an optional condition. Known '
-            'properties: id, postId, title, body.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Cannot parse query method R.findByAuthor at "Author": expected a '
+                'property of Comment followed by an optional condition. Known '
+                'properties: id, postId, title, body.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2067,11 +2100,14 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByTitleAndBodyOrId(String t, String b, int id);
 }
-''', '', expectedErrors: [
-        'Query method R.findByTitleAndBodyOrId mixes And and Or; a method '
-            'may use only one connector.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Query method R.findByTitleAndBodyOrId mixes And and Or; a method '
+                'may use only one connector.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2083,12 +2119,15 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByTitleOrderByTitle(String title);
 }
-''', '', expectedErrors: [
-        'Cannot parse the OrderBy clause of query method '
-            'R.findByTitleOrderByTitle at "": expected <Property>Asc or '
-            '<Property>Desc. Known properties: id, postId, title, body.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Cannot parse the OrderBy clause of query method '
+                'R.findByTitleOrderByTitle at "": expected <Property>Asc or '
+                '<Property>Desc. Known properties: id, postId, title, body.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2100,14 +2139,17 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<int> countByTitleOrderByIdAsc(String title);
 }
-''', '', expectedErrors: [
-        'OrderBy is not supported on countBy/existsBy/deleteBy (query '
-            'method R.countByTitleOrderByIdAsc).',
-      ]);
+''',
+          '',
+          expectedErrors: [
+            'OrderBy is not supported on countBy/existsBy/deleteBy (query '
+                'method R.countByTitleOrderByIdAsc).',
+          ]);
     });
 
     test('rejects parameter and return-type mismatches', () async {
-      await expectRepo('''
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2119,11 +2161,14 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByTitle({required String title});
 }
-''', '', expectedErrors: [
-        'Query method R.findByTitle must declare only required positional '
-            'parameters.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Query method R.findByTitle must declare only required positional '
+                'parameters.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2135,11 +2180,14 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByIdBetween(int low);
 }
-''', '', expectedErrors: [
-        'Query method R.findByIdBetween declares 1 parameter(s) but its '
-            'conditions take 2.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Query method R.findByIdBetween declares 1 parameter(s) but its '
+                'conditions take 2.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2151,11 +2199,14 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByTitleIn(String titles);
 }
-''', '', expectedErrors: [
-        'Parameter "titles" of query method R.findByTitleIn must be '
-            'List<String> for condition "TitleIn"; got String.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Parameter "titles" of query method R.findByTitleIn must be '
+                'List<String> for condition "TitleIn"; got String.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2167,11 +2218,14 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByIdContains(int id);
 }
-''', '', expectedErrors: [
-        'Condition "IdContains" of query method R.findByIdContains needs a '
-            "String-typed property; 'id' of Comment is int?.",
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Condition "IdContains" of query method R.findByIdContains needs a '
+                "String-typed property; 'id' of Comment is int?.",
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2183,11 +2237,14 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<Comment> findByTitle(String title);
 }
-''', '', expectedErrors: [
-        'Query method R.findByTitle must return Future<List<Comment>> '
-            '(findBy); got Future<Comment>.',
-      ]);
-      await expectRepo('''
+''',
+          '',
+          expectedErrors: [
+            'Query method R.findByTitle must return Future<List<Comment>> '
+                '(findBy); got Future<Comment>.',
+          ]);
+      await expectRepo(
+          '''
 import 'package:diana/diana.dart';
 import 'package:diana_data/diana_data.dart';
 
@@ -2199,10 +2256,12 @@ abstract class R extends DianaRepository<Comment> {
 
   Future<List<Comment>> findByTitleInOrBody(List<String> t, String b);
 }
-''', '', expectedErrors: [
-        'Query method R.findByTitleInOrBody combines In with the Or '
-            'connector, which the query builder cannot express; use And.',
-      ]);
+''',
+          '',
+          expectedErrors: [
+            'Query method R.findByTitleInOrBody combines In with the Or '
+                'connector, which the query builder cannot express; use And.',
+          ]);
     });
   });
 
@@ -2247,8 +2306,7 @@ class Lookup {
           contains('maxEntries: 4'),
           isNot(contains('MethodCache')),
           // Cache layer goes through the store.
-          matches(RegExp(
-              r'_cacheStore\.run\(\s*_spec\$find,\s*\[\s*id,?\s*\]',
+          matches(RegExp(r'_cacheStore\.run\(\s*_spec\$find,\s*\[\s*id,?\s*\]',
               multiLine: true)),
           // Context passes the store provider into the proxy.
           matches(RegExp(r'\$Aspect\$Lookup\(\s*null,\s*appCacheStore\)')),
@@ -2365,7 +2423,8 @@ class Reporter {
     });
 
     test('rejects @Cacheable on a non-Future method', () async {
-      await expectAspectError('''
+      await expectAspectError(
+          '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -2373,8 +2432,9 @@ class Reporter {
   @Cacheable()
   int count() => 1;
 }
-''', '@Cacheable method Reporter.count must return Future (aspect proxies '
-          'are asynchronous); found int.');
+''',
+          '@Cacheable method Reporter.count must return Future (aspect proxies '
+              'are asynchronous); found int.');
     });
 
     test('rejects @Retryable on a static method', () async {
@@ -2390,7 +2450,8 @@ class Reporter {
     });
 
     test('rejects a non-extendable class with new aspects', () async {
-      await expectAspectError('''
+      await expectAspectError(
+          '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -2398,13 +2459,15 @@ final class Reporter {
   @Timed()
   Future<int> count() async => 1;
 }
-''', 'Aspect-annotated class Reporter must be extendable: remove the '
-          'final/base/sealed modifier so Diana can generate an aspect proxy '
-          'subclass.');
+''',
+          'Aspect-annotated class Reporter must be extendable: remove the '
+              'final/base/sealed modifier so Diana can generate an aspect proxy '
+              'subclass.');
     });
 
     test('rejects @Cacheable on a generic method', () async {
-      await expectAspectError('''
+      await expectAspectError(
+          '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -2412,12 +2475,14 @@ class Reporter {
   @Cacheable()
   Future<T> first<T>(List<T> items) async => items.first;
 }
-''', '@Cacheable method Reporter.first declares type parameters; caching '
-          'generic methods is not supported.');
+''',
+          '@Cacheable method Reporter.first declares type parameters; caching '
+              'generic methods is not supported.');
     });
 
     test('rejects @Cacheable on Future<void>', () async {
-      await expectAspectError('''
+      await expectAspectError(
+          '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -2425,8 +2490,9 @@ class Reporter {
   @Cacheable()
   Future<void> warm() async {}
 }
-''', '@Cacheable method Reporter.warm must return Future<T> with a '
-          'non-void T (a void result cannot be cached); found Future<void>.');
+''',
+          '@Cacheable method Reporter.warm must return Future<T> with a '
+              'non-void T (a void result cannot be cached); found Future<void>.');
     });
 
     test('rejects out-of-range aspect values', () async {
@@ -2457,7 +2523,8 @@ class Reporter {
   Future<int> count() async => 1;
 }
 ''', '@Retryable on Reporter.count requires backoffMs >= 0; found -5.');
-      await expectAspectError('''
+      await expectAspectError(
+          '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -2465,9 +2532,11 @@ class Reporter {
   @CircuitBreaker(failureThreshold: 0)
   Future<int> count() async => 1;
 }
-''', '@CircuitBreaker on Reporter.count requires failureThreshold >= 1; '
-          'found 0.');
-      await expectAspectError('''
+''',
+          '@CircuitBreaker on Reporter.count requires failureThreshold >= 1; '
+              'found 0.');
+      await expectAspectError(
+          '''
 import 'package:diana/diana.dart';
 
 @Service()
@@ -2475,8 +2544,9 @@ class Reporter {
   @CircuitBreaker(resetTimeoutMs: 0)
   Future<int> count() async => 1;
 }
-''', '@CircuitBreaker on Reporter.count requires resetTimeoutMs >= 1; '
-          'found 0.');
+''',
+          '@CircuitBreaker on Reporter.count requires resetTimeoutMs >= 1; '
+              'found 0.');
       await expectAspectError('''
 import 'package:diana/diana.dart';
 
@@ -2489,7 +2559,8 @@ class Reporter {
     });
 
     test('rejects @Timed on a non-provider class', () async {
-      await expectAspectError('''
+      await expectAspectError(
+          '''
 import 'package:diana/diana.dart';
 
 @RestController('/x')
@@ -2498,8 +2569,9 @@ class XController {
   @Timed()
   Future<String> hello() async => 'hi';
 }
-''', '@Timed on XController has no effect: it is not a '
-          '@Service/@Component/@Repository provider.');
+''',
+          '@Timed on XController has no effect: it is not a '
+              '@Service/@Component/@Repository provider.');
     });
   });
 
@@ -2534,12 +2606,14 @@ class Beater {
         // Liveness/readiness always present.
         contains("'/actuator/health/liveness'"),
         contains("'/actuator/health/readiness'"),
-        contains("import 'package:diana_observability/diana_observability.dart'"),
+        contains(
+            "import 'package:diana_observability/diana_observability.dart'"),
       ]),
     );
   });
 
-  test('apps without observability emit no diana_observability reference '
+  test(
+      'apps without observability emit no diana_observability reference '
       'but keep liveness/readiness', () async {
     await expectBootstrap(
       {

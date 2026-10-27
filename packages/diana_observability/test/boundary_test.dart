@@ -30,7 +30,9 @@ void main() {
   test('the generator never imports diana_observability (URL-string rule)', () {
     final offenders = [
       for (final file in _dartFiles('../diana_generator/lib'))
-        if (file.readAsStringSync().contains("import 'package:diana_observability"))
+        if (file
+            .readAsStringSync()
+            .contains("import 'package:diana_observability"))
           file.path,
     ];
     expect(offenders, isEmpty);

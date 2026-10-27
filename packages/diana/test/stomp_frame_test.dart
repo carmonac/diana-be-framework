@@ -60,9 +60,9 @@ void main() {
     });
 
     test('multiple frames and interleaved heartbeats in one chunk', () {
-      final frames = parseStompText(
-          '\nSUBSCRIBE\nid:0\ndestination:/t\n\n\x00\n\nSEND\n'
-          'destination:/t\n\nhi\x00\n');
+      final frames =
+          parseStompText('\nSUBSCRIBE\nid:0\ndestination:/t\n\n\x00\n\nSEND\n'
+              'destination:/t\n\nhi\x00\n');
       expect(frames, hasLength(2));
       expect(frames[0].command, 'SUBSCRIBE');
       expect(frames[1].command, 'SEND');
@@ -72,13 +72,13 @@ void main() {
 
   group('parse — errors', () {
     test('unknown command', () {
-      expectParseError('WOBBLE\n\n\x00',
-          'malformed frame: unknown command "WOBBLE"');
+      expectParseError(
+          'WOBBLE\n\n\x00', 'malformed frame: unknown command "WOBBLE"');
     });
 
     test('header line without a colon', () {
-      expectParseError('SEND\nbroken\n\n\x00',
-          'malformed frame: header line without ":"');
+      expectParseError(
+          'SEND\nbroken\n\n\x00', 'malformed frame: header line without ":"');
     });
 
     test('invalid escape sequence', () {
@@ -104,13 +104,14 @@ void main() {
     test('non-UTF-8 body bytes', () {
       final bytes = [
         ...utf8.encode('SEND\ndestination:/a\n\n'),
-        0xFF, 0xFE,
+        0xFF,
+        0xFE,
         0x00,
       ];
       expect(
         () => parseStompChunk(bytes),
-        throwsA(isA<StompParseException>().having((e) => e.message, 'm',
-            'malformed frame: body is not valid UTF-8')),
+        throwsA(isA<StompParseException>().having(
+            (e) => e.message, 'm', 'malformed frame: body is not valid UTF-8')),
       );
     });
 
@@ -155,8 +156,8 @@ void main() {
   group('json payload helpers', () {
     test('decodes an object, rejects non-objects and malformed JSON', () {
       expect(stompJsonMap('{"a":1}'), {'a': 1});
-      expect(() => stompJsonMap('[1,2]'),
-          throwsA(isA<StompPayloadException>()));
+      expect(
+          () => stompJsonMap('[1,2]'), throwsA(isA<StompPayloadException>()));
       expect(() => stompJsonMap('not json'),
           throwsA(isA<StompPayloadException>()));
     });
