@@ -8,8 +8,8 @@ and database — no per-route code.
 
 ```yaml
 dependencies:
-  diana: ^0.15.0
-  diana_observability: ^0.15.0
+  diana: ^0.15.1
+  diana_observability: ^0.15.1
 ```
 
 Read the [observability guide](https://carmonac.github.io/diana-be-framework/guides/observability/).

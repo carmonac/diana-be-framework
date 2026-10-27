@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.1
+
+- Package metadata for pub.dev: MIT license, repository/documentation
+  links, topics, and an `example/`.
+- Fixed the `opentelemetry` lower bound (`^0.18.11`): the tracer uses
+  `spanKind`/`spanAttributes`, which early 0.18 releases lack.
+- Added a README; `dart format` applied.
+
 ## 0.15.0
 
 - Version bump only (kept in lockstep with the workspace).

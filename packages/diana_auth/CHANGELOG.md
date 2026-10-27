@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1
+
+- Package metadata for pub.dev: MIT license, repository/documentation
+  links, topics, and an `example/`.
+- Added a README; shorter pub.dev description; `dart format` applied.
+
 ## 0.15.0
 
 - RS256/JWKS verification in pure Dart: `RsaPublicKey` (JWK + PEM),

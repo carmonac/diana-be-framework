@@ -2,7 +2,7 @@ name: diana_auth
 description: >-
   Authentication and authorization for the Diana framework: pluggable JWT,
   Basic and API-key strategies plus @Secured/@RolesAllowed route guards.
-version: 0.15.0
+version: 0.15.1
 repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_auth
 issue_tracker: https://github.com/carmonac/diana-be-framework/issues
 documentation: https://carmonac.github.io/diana-be-framework/
@@ -19,7 +19,7 @@ resolution: workspace
 
 dependencies:
   crypto: ^3.0.0
-  diana: ^0.15.0
+  diana: ^0.15.1
 
 dev_dependencies:
   lints: ^5.1.0

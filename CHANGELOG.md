@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.1 — 2026-10-27
 
 ### Publishing to pub.dev
 - All packages are now publishable (MIT license, repository/documentation

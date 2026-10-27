@@ -2,7 +2,7 @@ name: diana_observability
 description: >-
   Observability for the Diana backend framework: in-package Prometheus
   metrics, OpenTelemetry tracing, and Kubernetes-style liveness/readiness.
-version: 0.15.0
+version: 0.15.1
 repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_observability
 issue_tracker: https://github.com/carmonac/diana-be-framework/issues
 documentation: https://carmonac.github.io/diana-be-framework/
@@ -18,7 +18,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  diana: ^0.15.0
+  diana: ^0.15.1
   opentelemetry: ^0.18.11
 
 dev_dependencies:

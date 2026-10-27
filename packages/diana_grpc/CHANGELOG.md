@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.1
+
+- Package metadata for pub.dev: MIT license, repository/documentation
+  links, topics, and an `example/`.
+- `grpc` constraint now admits 5.x.
+- Added a README.
+
 ## 0.15.0
 
 - Version bump only (kept in lockstep with the workspace).

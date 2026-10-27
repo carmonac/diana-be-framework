@@ -5,11 +5,11 @@ apply automatically to your package:
 
 ```yaml
 dependencies:
-  diana: ^0.15.0
+  diana: ^0.15.1
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.15.0
+  diana_generator: ^0.15.1
 ```
 
 Given this application:

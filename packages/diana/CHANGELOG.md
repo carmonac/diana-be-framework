@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.1
+
+- Package metadata for pub.dev: MIT license, repository/documentation
+  links, topics, and an `example/`.
+- `xml` constraint now admits 7.x.
+- Shorter pub.dev description; `dart format` applied (no behavior change).
+
 ## 0.15.0
 
 - Version bump only (kept in lockstep with the workspace).

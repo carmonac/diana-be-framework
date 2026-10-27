@@ -8,8 +8,8 @@ WebSocket handshakes and gRPC services at compile time.
 
 ```yaml
 dependencies:
-  diana: ^0.15.0
-  diana_auth: ^0.15.0
+  diana: ^0.15.1
+  diana_auth: ^0.15.1
 ```
 
 This is the only Diana package that depends on `package:crypto`; apps that

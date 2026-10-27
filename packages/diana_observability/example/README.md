@@ -2,8 +2,8 @@
 
 ```yaml
 dependencies:
-  diana: ^0.15.0
-  diana_observability: ^0.15.0
+  diana: ^0.15.1
+  diana_observability: ^0.15.1
 ```
 
 Register one `DianaObservability` subclass. The generator discovers it and

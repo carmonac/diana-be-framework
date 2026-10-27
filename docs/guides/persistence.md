@@ -15,8 +15,8 @@ and supply the connection through a small connector.
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.15.0
-  diana_data: ^0.15.0
+  diana: ^0.15.1
+  diana_data: ^0.15.1
   knex_dart_sqlite: ^0.4.0   # your driver of choice
 ```
 
