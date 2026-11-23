@@ -2,8 +2,8 @@
 
 ```yaml
 dependencies:
-  diana: ^0.15.1
-  diana_data: ^0.15.1
+  diana: ^0.16.0
+  diana_data: ^0.16.0
   knex_dart_sqlite: ^0.4.0 # your driver of choice
 ```
 

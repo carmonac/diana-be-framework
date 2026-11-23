@@ -2,8 +2,8 @@
 
 ```yaml
 dependencies:
-  diana: ^0.15.1
-  diana_auth: ^0.15.1
+  diana: ^0.16.0
+  diana_auth: ^0.16.0
 ```
 
 Register one authentication filter with the strategies your app accepts —

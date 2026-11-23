@@ -15,6 +15,7 @@ void main() {
       'diana_annotation',
       'diana_generator',
       'diana_grpc',
+      'diana_native',
     ]) {
       for (final file in _dartFiles('../$package/lib')) {
         if (file.readAsStringSync().contains("import 'package:crypto")) {

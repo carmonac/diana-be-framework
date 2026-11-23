@@ -8,8 +8,8 @@ controllers.
 
 ```yaml
 dependencies:
-  diana: ^0.15.1
-  diana_grpc: ^0.15.1
+  diana: ^0.16.0
+  diana_grpc: ^0.16.0
 ```
 
 This is the only Diana package that depends on `package:grpc`; HTTP-only

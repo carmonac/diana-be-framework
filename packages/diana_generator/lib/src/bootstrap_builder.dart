@@ -90,6 +90,7 @@ class DianaBootstrapBuilder implements Builder {
       errors.addAll(_checkDatabase(result.graph!));
       errors.addAll(_checkObservability(result.graph!));
       errors.addAll(_checkCacheStore(result.graph!));
+      errors.addAll(_checkHttpEngine(result.graph!));
       errors.addAll(_checkStomp(result.graph!, summaries));
     }
     if (errors.isNotEmpty) {
@@ -313,6 +314,42 @@ class DianaBootstrapBuilder implements Builder {
           ))
             provider,
       ];
+
+  /// The `DianaHttpEngine` providers in the graph (discovered by supertype;
+  /// the contract lives in `package:diana` core, implementations in add-ons
+  /// such as `diana_native`).
+  List<ResolvedProvider> _httpEngineProviders(DiGraph graph) => [
+        for (final provider in graph.ordered)
+          if (provider.info.supertypes.any(
+            (s) =>
+                s.name == 'DianaHttpEngine' &&
+                s.libraryUri.startsWith('package:diana/'),
+          ))
+            provider,
+      ];
+
+  /// At most one `DianaHttpEngine` provider, and it must be a singleton
+  /// (it binds the one server of the isolate).
+  List<String> _checkHttpEngine(DiGraph graph) {
+    final providers = _httpEngineProviders(graph);
+    if (providers.length > 1) {
+      return [
+        'Multiple DianaHttpEngine providers: '
+            '${providers.map((p) => '${p.info.type.displayName} '
+                '(${p.declaredIn})').join(', ')}. Declare exactly one.',
+      ];
+    }
+    if (providers.isNotEmpty) {
+      final p = providers.single;
+      if (p.scope != 'singleton' || p.needsRequestScope) {
+        return [
+          '${p.info.type.displayName} extends DianaHttpEngine but is '
+              '${p.scope}-scoped; HTTP engines must be singletons.',
+        ];
+      }
+    }
+    return const [];
+  }
 
   /// At most one `DianaCacheStore` provider, and it must be a singleton
   /// (every cached method routes through the same instance).
@@ -1149,6 +1186,12 @@ class DianaBootstrapBuilder implements Builder {
         : refer('ctx')
             .property(names.fields[observabilityProviders.single.key]!);
 
+    // The HTTP engine provider (validated by _checkHttpEngine), if any.
+    final httpEngineProviders = _httpEngineProviders(graph);
+    final Expression? httpEngineField = httpEngineProviders.isEmpty
+        ? null
+        : refer('ctx').property(names.fields[httpEngineProviders.single.key]!);
+
     // Exception handlers across all advices, most specific exception type
     // first (ties broken by advice type then declaration order).
     final advices = [for (final s in summaries) ...s.advices]
@@ -1225,6 +1268,7 @@ class DianaBootstrapBuilder implements Builder {
                   refer('ctx').property(names.fields[codec.key]!),
               ]),
             if (observabilityField != null) 'observer': observabilityField,
+            if (httpEngineField != null) 'engine': httpEngineField,
             if (mapExceptionFn != null)
               'exceptionMapper': Method((m) => m
                     ..requiredParameters.addAll([

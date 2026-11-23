@@ -20,8 +20,9 @@ DianaRequest streamedRequest(
     headers: headers,
     bytesReader: () async* {
       for (var i = 0; i < bytes.length; i += chunkSize) {
-        final end =
-            (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+        final end = (i + chunkSize < bytes.length)
+            ? i + chunkSize
+            : bytes.length;
         yield Uint8List.fromList(bytes.sublist(i, end));
       }
     },
@@ -35,14 +36,13 @@ DianaRequest stringRequest(
   String body, {
   Map<String, List<String>> headers = const {},
   DianaRequestLimits limits = const DianaRequestLimits(),
-}) =>
-    DianaRequest(
-      method: HttpMethod.post,
-      uri: Uri.parse('/x'),
-      headers: headers,
-      bodyReader: () async => body,
-      limits: limits,
-    );
+}) => DianaRequest(
+  method: HttpMethod.post,
+  uri: Uri.parse('/x'),
+  headers: headers,
+  bodyReader: () async => body,
+  limits: limits,
+);
 
 final _tooLarge = throwsA(isA<PayloadTooLargeException>());
 
@@ -144,14 +144,14 @@ void main() {
 
   group('multipart keeps its own key', () {
     String multipartBody(String boundary, String content) => [
-          '--$boundary',
-          'Content-Disposition: form-data; name="file"; filename="f.txt"',
-          'Content-Type: text/plain',
-          '',
-          content,
-          '--$boundary--',
-          '',
-        ].join('\r\n');
+      '--$boundary',
+      'Content-Disposition: form-data; name="file"; filename="f.txt"',
+      'Content-Type: text/plain',
+      '',
+      content,
+      '--$boundary--',
+      '',
+    ].join('\r\n');
 
     test('a small maxBodyBytes does not cap multipart uploads', () async {
       final body = multipartBody('XBOUND', 'file content here');
@@ -184,15 +184,13 @@ void main() {
 
   group('over a real server', () {
     test('oversized POST body yields HTTP 413', () async {
-      final server = DianaServer(
-          config: DianaConfig({
-        'server.maxBodyBytes': 64,
-      }))
-        ..register(
-          HttpMethod.post,
-          '/echo',
-          (req) async => DianaResponse.text(await req.readBodyAsString()),
-        );
+      final server =
+          DianaServer(config: DianaConfig({'server.maxBodyBytes': 64}))
+            ..register(
+              HttpMethod.post,
+              '/echo',
+              (req) async => DianaResponse.text(await req.readBodyAsString()),
+            );
       await server.serve(port: 0, quiet: true);
       addTearDown(server.close);
 
@@ -209,12 +207,14 @@ void main() {
 
 Future<(int, String)> _post(int port, String path, String body) async {
   final socket = await Socket.connect('127.0.0.1', port);
-  socket.write('POST $path HTTP/1.1\r\n'
-      'Host: 127.0.0.1\r\n'
-      'Content-Type: text/plain\r\n'
-      'Content-Length: ${utf8.encode(body).length}\r\n'
-      'Connection: close\r\n\r\n'
-      '$body');
+  socket.write(
+    'POST $path HTTP/1.1\r\n'
+    'Host: 127.0.0.1\r\n'
+    'Content-Type: text/plain\r\n'
+    'Content-Length: ${utf8.encode(body).length}\r\n'
+    'Connection: close\r\n\r\n'
+    '$body',
+  );
   final response = await utf8.decodeStream(socket);
   socket.destroy();
   final status = int.parse(response.split(' ')[1]);

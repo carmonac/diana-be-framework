@@ -17,22 +17,24 @@ class OtherEvent {
 }
 
 void main() {
-  test('a listener registering another listener mid-dispatch is safe',
-      () async {
-    final bus = DianaEventBus();
-    final seen = <String>[];
-    bus.on<String>((e) {
-      seen.add('first:$e');
-      // Must not throw ConcurrentModificationError; the new listener joins
-      // from the next publish.
-      bus.on<String>((e2) => seen.add('second:$e2'));
-    });
-    await bus.publish('a');
-    expect(seen, ['first:a']);
-    seen.clear();
-    await bus.publish('b');
-    expect(seen, ['first:b', 'second:b']);
-  });
+  test(
+    'a listener registering another listener mid-dispatch is safe',
+    () async {
+      final bus = DianaEventBus();
+      final seen = <String>[];
+      bus.on<String>((e) {
+        seen.add('first:$e');
+        // Must not throw ConcurrentModificationError; the new listener joins
+        // from the next publish.
+        bus.on<String>((e2) => seen.add('second:$e2'));
+      });
+      await bus.publish('a');
+      expect(seen, ['first:a']);
+      seen.clear();
+      await bus.publish('b');
+      expect(seen, ['first:b', 'second:b']);
+    },
+  );
 
   test('dispatches by subtype and skips unrelated listeners', () async {
     final bus = DianaEventBus();
@@ -86,15 +88,17 @@ void main() {
     expect(reached, isFalse);
   });
 
-  test('broadcast calls the sink exactly once, before local dispatch',
-      () async {
-    final bus = DianaEventBus();
-    final trace = <String>[];
-    bus.remoteSink = (event) => trace.add('sink');
-    bus.on<BaseEvent>((e) => trace.add('local'));
-    await bus.broadcast(const BaseEvent('x'));
-    expect(trace, ['sink', 'local']);
-  });
+  test(
+    'broadcast calls the sink exactly once, before local dispatch',
+    () async {
+      final bus = DianaEventBus();
+      final trace = <String>[];
+      bus.remoteSink = (event) => trace.add('sink');
+      bus.on<BaseEvent>((e) => trace.add('local'));
+      await bus.broadcast(const BaseEvent('x'));
+      expect(trace, ['sink', 'local']);
+    },
+  );
 
   test('broadcast without a sink behaves like publish', () async {
     final bus = DianaEventBus();
@@ -111,14 +115,16 @@ void main() {
     bus.on<BaseEvent>((e) => delivered = true);
     await expectLater(
       bus.broadcast(const BaseEvent('x')),
-      throwsA(isA<ArgumentError>().having(
-        (e) => e.message,
-        'message',
-        'Diana broadcast failed: event of type BaseEvent is not sendable '
-            'across isolates. Broadcast events must be plain data (no '
-            'ReceivePorts or other unsendable objects). '
-            'See docs/guides/events.md.',
-      )),
+      throwsA(
+        isA<ArgumentError>().having(
+          (e) => e.message,
+          'message',
+          'Diana broadcast failed: event of type BaseEvent is not sendable '
+              'across isolates. Broadcast events must be plain data (no '
+              'ReceivePorts or other unsendable objects). '
+              'See docs/guides/events.md.',
+        ),
+      ),
     );
     expect(delivered, isFalse, reason: 'local dispatch must not run');
   });
@@ -135,7 +141,10 @@ void main() {
     await bus.dispatchRemote(const BaseEvent('x'));
     expect(sinkCalls, 0, reason: 'remote events must not be re-broadcast');
     expect(errors, hasLength(1));
-    expect(reached, isTrue,
-        reason: 'remote dispatch continues past a failing listener');
+    expect(
+      reached,
+      isTrue,
+      reason: 'remote dispatch continues past a failing listener',
+    );
   });
 }

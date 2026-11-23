@@ -5,7 +5,8 @@ void main() {
   const codec = XmlCodec();
 
   test('decodes nested elements, lists and scalar inference', () {
-    final decoded = codec.decode('''
+    final decoded =
+        codec.decode('''
 <request>
   <title>hello</title>
   <priority>3</priority>
@@ -16,14 +17,15 @@ void main() {
   <address><street>Main</street></address>
   <items><item>1</item><item>2</item></items>
 </request>
-''') as Map<String, dynamic>;
+''')
+            as Map<String, dynamic>;
     expect(decoded['title'], 'hello');
     expect(decoded['priority'], 3);
     expect(decoded['score'], 1.5);
     expect(decoded['done'], isTrue);
     expect(decoded['empty'], isNull);
     expect(decoded['tags'], {
-      'tag': ['a', 'b']
+      'tag': ['a', 'b'],
     });
     expect(decoded['address'], {'street': 'Main'});
     expect(decoded['items'], [1, 2]);
@@ -46,17 +48,16 @@ void main() {
   });
 
   test('round-trips a DTO-shaped map', () {
-    final original = {
-      'title': 'buy milk',
-      'priority': 5,
-    };
+    final original = {'title': 'buy milk', 'priority': 5};
     final decoded = codec.decode(codec.encode(original));
     expect(decoded, original);
   });
 
   test('top-level lists use <item> elements', () {
-    expect(codec.encode([1, 2]),
-        '<response><item>1</item><item>2</item></response>');
+    expect(
+      codec.encode([1, 2]),
+      '<response><item>1</item><item>2</item></response>',
+    );
     expect(codec.decode('<r><item>1</item><item>2</item></r>'), [1, 2]);
   });
 

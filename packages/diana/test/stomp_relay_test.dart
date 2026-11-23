@@ -17,38 +17,55 @@ import 'stomp_broker_test.dart' show frame, feed, connected;
 }
 
 void main() {
-  test('a topic publish reaches subscribers on both isolates exactly once',
-      () async {
-    final (busA, busB) = crossWired();
-    final brokerA =
-        StompBroker(busA, const DianaConfig.empty(), onError: (_, __) {});
-    final brokerB =
-        StompBroker(busB, const DianaConfig.empty(), onError: (_, __) {});
+  test(
+    'a topic publish reaches subscribers on both isolates exactly once',
+    () async {
+      final (busA, busB) = crossWired();
+      final brokerA = StompBroker(
+        busA,
+        const DianaConfig.empty(),
+        onError: (_, __) {},
+      );
+      final brokerB = StompBroker(
+        busB,
+        const DianaConfig.empty(),
+        onError: (_, __) {},
+      );
 
-    final a = await connected(brokerA, id: 'ws-a');
-    final b = await connected(brokerB, id: 'ws-b');
-    await feed(
-        brokerA, a, frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
-    await feed(
-        brokerB, b, frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}));
+      final a = await connected(brokerA, id: 'ws-a');
+      final b = await connected(brokerB, id: 'ws-b');
+      await feed(
+        brokerA,
+        a,
+        frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}),
+      );
+      await feed(
+        brokerB,
+        b,
+        frame('SUBSCRIBE', {'id': '0', 'destination': '/topic/x'}),
+      );
 
-    // Publish from A's broker; both local (A) and remote (B) subscribers get it.
-    await brokerA.publish('/topic/x', 'hello');
-    await Future<void>.delayed(Duration.zero);
+      // Publish from A's broker; both local (A) and remote (B) subscribers get it.
+      await brokerA.publish('/topic/x', 'hello');
+      await Future<void>.delayed(Duration.zero);
 
-    final aMsgs = a.frames.where((f) => f.command == 'MESSAGE').toList();
-    final bMsgs = b.frames.where((f) => f.command == 'MESSAGE').toList();
-    expect(aMsgs, hasLength(1), reason: 'local delivery exactly once');
-    expect(bMsgs, hasLength(1), reason: 'remote delivery exactly once');
-    expect(aMsgs.single.body, 'hello');
-    expect(bMsgs.single.body, 'hello');
-  });
+      final aMsgs = a.frames.where((f) => f.command == 'MESSAGE').toList();
+      final bMsgs = b.frames.where((f) => f.command == 'MESSAGE').toList();
+      expect(aMsgs, hasLength(1), reason: 'local delivery exactly once');
+      expect(bMsgs, hasLength(1), reason: 'remote delivery exactly once');
+      expect(aMsgs.single.body, 'hello');
+      expect(bMsgs.single.body, 'hello');
+    },
+  );
 
   test('single-isolate (no remoteSink) delivers exactly once', () async {
     final bus = DianaEventBus(onError: (_, __) {});
     expect(bus.remoteSink, isNull);
-    final broker =
-        StompBroker(bus, const DianaConfig.empty(), onError: (_, __) {});
+    final broker = StompBroker(
+      bus,
+      const DianaConfig.empty(),
+      onError: (_, __) {},
+    );
     final s = await connected(broker);
     await feed(broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
     await broker.publish('/t', 'x');
@@ -56,28 +73,39 @@ void main() {
     expect(s.frames.where((f) => f.command == 'MESSAGE'), hasLength(1));
   });
 
-  test('a broker built before a remote event arrives still receives it',
-      () async {
-    final bus = DianaEventBus(onError: (_, __) {});
-    // Broker registers its bus.on<StompRelayEvent> listener in its ctor.
-    final broker =
-        StompBroker(bus, const DianaConfig.empty(), onError: (_, __) {});
-    final s = await connected(broker);
-    await feed(broker, s, frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}));
+  test(
+    'a broker built before a remote event arrives still receives it',
+    () async {
+      final bus = DianaEventBus(onError: (_, __) {});
+      // Broker registers its bus.on<StompRelayEvent> listener in its ctor.
+      final broker = StompBroker(
+        bus,
+        const DianaConfig.empty(),
+        onError: (_, __) {},
+      );
+      final s = await connected(broker);
+      await feed(
+        broker,
+        s,
+        frame('SUBSCRIBE', {'id': '0', 'destination': '/t'}),
+      );
 
-    // Simulate an inbound remote event (as DianaRuntime would deliver it).
-    await bus.dispatchRemote(const StompRelayEvent('/t', 'remote', {}));
-    expect(s.frames.last.command, 'MESSAGE');
-    expect(s.frames.last.body, 'remote');
-  });
+      // Simulate an inbound remote event (as DianaRuntime would deliver it).
+      await bus.dispatchRemote(const StompRelayEvent('/t', 'remote', {}));
+      expect(s.frames.last.command, 'MESSAGE');
+      expect(s.frames.last.body, 'remote');
+    },
+  );
 
   test('StompRelayEvent is sendable across a real isolate', () async {
     final port = ReceivePort();
     await Isolate.spawn(_echoRelay, port.sendPort);
     final send = await port.first as SendPort;
     final reply = ReceivePort();
-    send.send(
-        (const StompRelayEvent('/t', 'body', {'k': 'v'}), reply.sendPort));
+    send.send((
+      const StompRelayEvent('/t', 'body', {'k': 'v'}),
+      reply.sendPort,
+    ));
     final echoed = await reply.first as StompRelayEvent;
     expect(echoed.destination, '/t');
     expect(echoed.body, 'body');

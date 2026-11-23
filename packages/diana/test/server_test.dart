@@ -4,12 +4,16 @@ import 'dart:io';
 import 'package:diana/diana.dart';
 import 'package:test/test.dart';
 
-Future<(int, String)> httpGet(int port, String path,
-    {Map<String, String> headers = const {}}) async {
+Future<(int, String)> httpGet(
+  int port,
+  String path, {
+  Map<String, String> headers = const {},
+}) async {
   final client = HttpClient();
   try {
-    final request =
-        await client.getUrl(Uri.parse('http://127.0.0.1:$port$path'));
+    final request = await client.getUrl(
+      Uri.parse('http://127.0.0.1:$port$path'),
+    );
     headers.forEach(request.headers.add);
     final response = await request.close();
     final body = await response.transform(utf8.decoder).join();
@@ -31,7 +35,10 @@ void main() {
 
     test('serves a registered route', () async {
       server.register(
-          HttpMethod.get, '/ping', (req) => const DianaResponse.text('pong'));
+        HttpMethod.get,
+        '/ping',
+        (req) => const DianaResponse.text('pong'),
+      );
       await server.serve(port: 0);
 
       final (status, body) = await httpGet(server.port!, '/ping');
@@ -66,7 +73,10 @@ void main() {
 
     test('unknown routes return JSON 404', () async {
       server.register(
-          HttpMethod.get, '/ping', (req) => const DianaResponse.text('pong'));
+        HttpMethod.get,
+        '/ping',
+        (req) => const DianaResponse.text('pong'),
+      );
       await server.serve(port: 0);
 
       final (status, body) = await httpGet(server.port!, '/nope');
@@ -75,8 +85,11 @@ void main() {
     });
 
     test('HttpException maps to its status code', () async {
-      server.register(HttpMethod.get, '/missing',
-          (req) => throw const NotFoundException('no such thing'));
+      server.register(
+        HttpMethod.get,
+        '/missing',
+        (req) => throw const NotFoundException('no such thing'),
+      );
       await server.serve(port: 0);
 
       final (status, body) = await httpGet(server.port!, '/missing');
@@ -91,7 +104,10 @@ void main() {
       Object? captured;
       server = DianaServer(onUnhandled: (e, st) => captured = e);
       server.register(
-          HttpMethod.get, '/boom', (req) => throw StateError('secret'));
+        HttpMethod.get,
+        '/boom',
+        (req) => throw StateError('secret'),
+      );
       await server.serve(port: 0);
 
       final (status, body) = await httpGet(server.port!, '/boom');
@@ -103,15 +119,10 @@ void main() {
     test('middleware wrap in order and can short-circuit', () async {
       final events = <String>[];
       server = DianaServer(globalMiddleware: [_Recorder('g1', events)]);
-      server.register(
-        HttpMethod.get,
-        '/chain',
-        (req) {
-          events.add('handler');
-          return const DianaResponse.text('ok');
-        },
-        middleware: [_Recorder('r1', events), _Guard()],
-      );
+      server.register(HttpMethod.get, '/chain', (req) {
+        events.add('handler');
+        return const DianaResponse.text('ok');
+      }, middleware: [_Recorder('r1', events), _Guard()]);
       await server.serve(port: 0);
 
       final (status, _) = await httpGet(server.port!, '/chain');

@@ -35,8 +35,11 @@ bool? disposeSawListenerFinished;
 
 Future<bool> _portOpen(int port) async {
   try {
-    final socket = await Socket.connect('127.0.0.1', port,
-        timeout: const Duration(milliseconds: 250));
+    final socket = await Socket.connect(
+      '127.0.0.1',
+      port,
+      timeout: const Duration(milliseconds: 250),
+    );
     socket.destroy();
     return true;
   } on SocketException {
@@ -59,88 +62,103 @@ Future<String> _get(String url) async {
 }
 
 void main() {
-  test('DianaRuntime.run: initialize → serve → shutdown → close → dispose',
-      () async {
-    final events = <String>[];
-    final shutdown = Completer<void>();
-    late DianaServer server;
+  test(
+    'DianaRuntime.run: initialize → serve → shutdown → close → dispose',
+    () async {
+      final events = <String>[];
+      final shutdown = Completer<void>();
+      late DianaServer server;
 
-    final done = DianaRuntime.run(
-      () async {
-        server = DianaServer(config: DianaConfig({'server.port': 0}))
-          ..register(HttpMethod.get, '/ping',
-              (req) => const DianaResponse.text('pong'));
-        return DianaRunnable(
-          server: server,
-          initialize: () async => events.add('initialize'),
-          dispose: () async => events.add('dispose'),
-        );
-      },
-      installSignalHandlers: false,
-      shutdownTrigger: shutdown.future,
-    );
+      final done = DianaRuntime.run(
+        () async {
+          server = DianaServer(config: DianaConfig({'server.port': 0}))
+            ..register(
+              HttpMethod.get,
+              '/ping',
+              (req) => const DianaResponse.text('pong'),
+            );
+          return DianaRunnable(
+            server: server,
+            initialize: () async => events.add('initialize'),
+            dispose: () async => events.add('dispose'),
+          );
+        },
+        installSignalHandlers: false,
+        shutdownTrigger: shutdown.future,
+      );
 
-    // Wait until the server is up, prove it serves, then trigger shutdown.
-    while (events.isEmpty || server.port == null) {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-    }
-    final client = HttpClient();
-    final res = await (await client
-            .getUrl(Uri.parse('http://127.0.0.1:${server.port}/ping')))
-        .close();
-    expect(await res.transform(utf8.decoder).join(), 'pong');
-    client.close();
+      // Wait until the server is up, prove it serves, then trigger shutdown.
+      while (events.isEmpty || server.port == null) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      final client = HttpClient();
+      final res = await (await client.getUrl(
+        Uri.parse('http://127.0.0.1:${server.port}/ping'),
+      )).close();
+      expect(await res.transform(utf8.decoder).join(), 'pong');
+      client.close();
 
-    events.add('shutdown-requested');
-    shutdown.complete();
-    await done;
-    events.add('run-returned');
+      events.add('shutdown-requested');
+      shutdown.complete();
+      await done;
+      events.add('run-returned');
 
-    expect(events, [
-      'initialize',
-      'shutdown-requested',
-      'dispose',
-      'run-returned',
-    ]);
-  });
+      expect(events, [
+        'initialize',
+        'shutdown-requested',
+        'dispose',
+        'run-returned',
+      ]);
+    },
+  );
 
-  test('multi-isolate serving shares the port and shuts down cleanly',
-      () async {
-    final port = 18342 + DateTime.now().millisecond % 100;
-    final shutdown = Completer<void>();
+  test(
+    'multi-isolate serving shares the port and shuts down cleanly',
+    () async {
+      final port = 18342 + DateTime.now().millisecond % 100;
+      final shutdown = Completer<void>();
 
-    final done = DianaRuntime.run(
-      () async {
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 3}),
-        )..register(HttpMethod.get, '/whoami',
-            (req) => DianaResponse.text('isolate ${Isolate.current.hashCode}'));
-        return DianaRunnable(
-          server: server,
-          initialize: () async {},
-          dispose: () async {},
-        );
-      },
-      installSignalHandlers: false,
-      shutdownTrigger: shutdown.future,
-    );
+      final done = DianaRuntime.run(
+        () async {
+          final server =
+              DianaServer(
+                config: DianaConfig({
+                  'server.port': port,
+                  'server.isolates': 3,
+                }),
+              )..register(
+                HttpMethod.get,
+                '/whoami',
+                (req) =>
+                    DianaResponse.text('isolate ${Isolate.current.hashCode}'),
+              );
+          return DianaRunnable(
+            server: server,
+            initialize: () async {},
+            dispose: () async {},
+          );
+        },
+        installSignalHandlers: false,
+        shutdownTrigger: shutdown.future,
+      );
 
-    // Let the workers bind, then hammer the port: every request must
-    // succeed regardless of which isolate serves it.
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    final client = HttpClient();
-    for (var i = 0; i < 12; i++) {
-      final res = await (await client
-              .getUrl(Uri.parse('http://127.0.0.1:$port/whoami')))
-          .close();
-      expect(res.statusCode, 200);
-      expect(await res.transform(utf8.decoder).join(), startsWith('isolate'));
-    }
-    client.close();
+      // Let the workers bind, then hammer the port: every request must
+      // succeed regardless of which isolate serves it.
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final client = HttpClient();
+      for (var i = 0; i < 12; i++) {
+        final res = await (await client.getUrl(
+          Uri.parse('http://127.0.0.1:$port/whoami'),
+        )).close();
+        expect(res.statusCode, 200);
+        expect(await res.transform(utf8.decoder).join(), startsWith('isolate'));
+      }
+      client.close();
 
-    shutdown.complete();
-    await done.timeout(const Duration(seconds: 10));
-  });
+      shutdown.complete();
+      await done.timeout(const Duration(seconds: 10));
+    },
+  );
 
   test('broadcast events reach every isolate exactly once', () async {
     final port = 18452 + DateTime.now().millisecond % 100;
@@ -151,15 +169,22 @@ void main() {
         var count = 0;
         final bus = DianaEventBus()..on<FireEvent>((e) => count++);
         final name = Isolate.current.debugName ?? 'main';
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 3}),
-        )
-          ..register(HttpMethod.get, '/state',
-              (req) => DianaResponse.text('$count|$name'))
-          ..register(HttpMethod.get, '/fire', (req) async {
-            await bus.broadcast(const FireEvent());
-            return DianaResponse.text(name);
-          });
+        final server =
+            DianaServer(
+                config: DianaConfig({
+                  'server.port': port,
+                  'server.isolates': 3,
+                }),
+              )
+              ..register(
+                HttpMethod.get,
+                '/state',
+                (req) => DianaResponse.text('$count|$name'),
+              )
+              ..register(HttpMethod.get, '/fire', (req) async {
+                await bus.broadcast(const FireEvent());
+                return DianaResponse.text(name);
+              });
         return DianaRunnable(
           server: server,
           initialize: () async {},
@@ -190,126 +215,158 @@ void main() {
     while (DateTime.now().isBefore(deadline)) {
       final state = await _get('http://127.0.0.1:$port/state');
       final separator = state.indexOf('|');
-      counts[state.substring(separator + 1)] =
-          int.parse(state.substring(0, separator));
+      counts[state.substring(separator + 1)] = int.parse(
+        state.substring(0, separator),
+      );
       final converged =
           counts.length == 3 && counts.values.every((count) => count == fires);
       if (converged) break;
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
-    expect(counts.length, 3,
-        reason: 'all three isolates must serve /state; saw: $counts');
-    expect(counts.values, everyElement(fires),
-        reason: 'each isolate must receive every broadcast exactly once '
-            '(fired $fires times by $firedBy); saw: $counts');
+    expect(
+      counts.length,
+      3,
+      reason: 'all three isolates must serve /state; saw: $counts',
+    );
+    expect(
+      counts.values,
+      everyElement(fires),
+      reason:
+          'each isolate must receive every broadcast exactly once '
+          '(fired $fires times by $firedBy); saw: $counts',
+    );
 
     shutdown.complete();
     await done.timeout(const Duration(seconds: 10));
   });
 
-  test('broadcasting an unsendable event fails fast at the publisher',
-      () async {
-    final port = 18562 + DateTime.now().millisecond % 100;
-    final shutdown = Completer<void>();
+  test(
+    'broadcasting an unsendable event fails fast at the publisher',
+    () async {
+      final port = 18562 + DateTime.now().millisecond % 100;
+      final shutdown = Completer<void>();
 
-    final done = DianaRuntime.run(
-      () async {
-        final bus = DianaEventBus();
-        mainIsolateBus = bus;
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 2}),
-        );
-        return DianaRunnable(
-          server: server,
-          initialize: () async {},
-          dispose: () async {},
-          eventBus: bus,
-        );
-      },
-      installSignalHandlers: false,
-      shutdownTrigger: shutdown.future,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+      final done = DianaRuntime.run(
+        () async {
+          final bus = DianaEventBus();
+          mainIsolateBus = bus;
+          final server = DianaServer(
+            config: DianaConfig({'server.port': port, 'server.isolates': 2}),
+          );
+          return DianaRunnable(
+            server: server,
+            initialize: () async {},
+            dispose: () async {},
+            eventBus: bus,
+          );
+        },
+        installSignalHandlers: false,
+        shutdownTrigger: shutdown.future,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 600));
 
-    final unsendable = UnsendableEvent(ReceivePort());
-    await expectLater(
-      mainIsolateBus!.broadcast(unsendable),
-      throwsA(isA<ArgumentError>().having(
-        (e) => e.message,
-        'message',
-        contains('is not sendable across isolates'),
-      )),
-    );
-    unsendable.port.close();
+      final unsendable = UnsendableEvent(ReceivePort());
+      await expectLater(
+        mainIsolateBus!.broadcast(unsendable),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            contains('is not sendable across isolates'),
+          ),
+        ),
+      );
+      unsendable.port.close();
 
-    shutdown.complete();
-    await done.timeout(const Duration(seconds: 10));
-  });
+      shutdown.complete();
+      await done.timeout(const Duration(seconds: 10));
+    },
+  );
 
-  test('@Scheduled runs leader-only by default; perIsolate runs everywhere',
-      () async {
-    final port = 18672 + DateTime.now().millisecond % 100;
-    final shutdown = Completer<void>();
+  test(
+    '@Scheduled runs leader-only by default; perIsolate runs everywhere',
+    () async {
+      final port = 18672 + DateTime.now().millisecond % 100;
+      final shutdown = Completer<void>();
 
-    final done = DianaRuntime.run(
-      () async {
-        // Replicates what the generated DianaApp does: register tasks,
-        // start on initialize, stop on dispose.
-        var leaderCount = 0;
-        var perIsolateCount = 0;
-        final scheduler = DianaScheduler()
-          ..schedule(task: () async => leaderCount++, fixedDelayMs: 25)
-          ..schedule(
+      final done = DianaRuntime.run(
+        () async {
+          // Replicates what the generated DianaApp does: register tasks,
+          // start on initialize, stop on dispose.
+          var leaderCount = 0;
+          var perIsolateCount = 0;
+          final scheduler = DianaScheduler()
+            ..schedule(task: () async => leaderCount++, fixedDelayMs: 25)
+            ..schedule(
               task: () async => perIsolateCount++,
               fixedDelayMs: 25,
-              perIsolate: true);
-        final name = Isolate.current.debugName ?? 'main';
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 3}),
-        )..register(
-            HttpMethod.get,
-            '/state',
-            (req) => DianaResponse.text('$leaderCount|$perIsolateCount|$name'),
+              perIsolate: true,
+            );
+          final name = Isolate.current.debugName ?? 'main';
+          final server =
+              DianaServer(
+                config: DianaConfig({
+                  'server.port': port,
+                  'server.isolates': 3,
+                }),
+              )..register(
+                HttpMethod.get,
+                '/state',
+                (req) =>
+                    DianaResponse.text('$leaderCount|$perIsolateCount|$name'),
+              );
+          return DianaRunnable(
+            server: server,
+            initialize: () async => scheduler.start(),
+            dispose: () => scheduler.stop(),
           );
-        return DianaRunnable(
-          server: server,
-          initialize: () async => scheduler.start(),
-          dispose: () => scheduler.stop(),
-        );
-      },
-      installSignalHandlers: false,
-      shutdownTrigger: shutdown.future,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 800));
+        },
+        installSignalHandlers: false,
+        shutdownTrigger: shutdown.future,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 800));
 
-    // Poll until all three isolates have answered, then assert semantics
-    // (30s: accept distribution can starve one isolate for a while under
-    // load; the loop exits early once satisfied).
-    final states = <String, (int, int)>{};
-    final deadline = DateTime.now().add(const Duration(seconds: 30));
-    while (DateTime.now().isBefore(deadline)) {
-      final state = await _get('http://127.0.0.1:$port/state');
-      final parts = state.split('|');
-      states[parts[2]] = (int.parse(parts[0]), int.parse(parts[1]));
-      final satisfied = states.length == 3 &&
-          states.values.every((s) => s.$2 > 0) &&
-          states.values.where((s) => s.$1 > 0).length == 1;
-      if (satisfied) break;
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
+      // Poll until all three isolates have answered, then assert semantics
+      // (30s: accept distribution can starve one isolate for a while under
+      // load; the loop exits early once satisfied).
+      final states = <String, (int, int)>{};
+      final deadline = DateTime.now().add(const Duration(seconds: 30));
+      while (DateTime.now().isBefore(deadline)) {
+        final state = await _get('http://127.0.0.1:$port/state');
+        final parts = state.split('|');
+        states[parts[2]] = (int.parse(parts[0]), int.parse(parts[1]));
+        final satisfied =
+            states.length == 3 &&
+            states.values.every((s) => s.$2 > 0) &&
+            states.values.where((s) => s.$1 > 0).length == 1;
+        if (satisfied) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
 
-    expect(states.length, 3,
-        reason: 'all three isolates must serve /state; saw: $states');
-    expect(states.values.where((s) => s.$1 > 0).length, 1,
-        reason: 'the leader-only task must run in exactly one isolate '
-            '(the main one); saw: $states');
-    expect(states.values.every((s) => s.$2 > 0), isTrue,
-        reason: 'the perIsolate task must run in every isolate; '
-            'saw: $states');
+      expect(
+        states.length,
+        3,
+        reason: 'all three isolates must serve /state; saw: $states',
+      );
+      expect(
+        states.values.where((s) => s.$1 > 0).length,
+        1,
+        reason:
+            'the leader-only task must run in exactly one isolate '
+            '(the main one); saw: $states',
+      );
+      expect(
+        states.values.every((s) => s.$2 > 0),
+        isTrue,
+        reason:
+            'the perIsolate task must run in every isolate; '
+            'saw: $states',
+      );
 
-    shutdown.complete();
-    await done.timeout(const Duration(seconds: 10));
-  });
+      shutdown.complete();
+      await done.timeout(const Duration(seconds: 10));
+    },
+  );
 
   test('a worker whose dispose throws does not hang shutdown', () async {
     final port = 18782 + DateTime.now().millisecond % 100;
@@ -357,7 +414,8 @@ void main() {
           server: server,
           initialize: () async {},
           dispose: () => (isWorker ?? false)
-              ? Completer<void>().future // never completes
+              ? Completer<void>()
+                    .future // never completes
               : Future.value(),
         );
       },
@@ -381,8 +439,10 @@ void main() {
           // An uncaught async error kills the worker isolate shortly after
           // it starts serving (errorsAreFatal). The onExit sentinel must
           // mark it dead so shutdown skips it instead of waiting forever.
-          Timer(const Duration(milliseconds: 200),
-              () => throw StateError('worker crash'));
+          Timer(
+            const Duration(milliseconds: 200),
+            () => throw StateError('worker crash'),
+          );
         }
         final server = DianaServer(
           config: DianaConfig({'server.port': port, 'server.isolates': 2}),
@@ -411,8 +471,9 @@ void main() {
         dispose: () async {},
       ),
       installSignalHandlers: false,
-      shutdownTrigger: Future<void>.delayed(const Duration(milliseconds: 100))
-          .then((_) => throw StateError('trigger boom')),
+      shutdownTrigger: Future<void>.delayed(
+        const Duration(milliseconds: 100),
+      ).then((_) => throw StateError('trigger boom')),
     );
     await done.timeout(const Duration(seconds: 10));
   });
@@ -426,15 +487,22 @@ void main() {
         var count = 0;
         final bus = DianaEventBus()..on<FireEvent>((e) => count++);
         final name = Isolate.current.debugName ?? 'main';
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 3}),
-        )
-          ..register(HttpMethod.get, '/state',
-              (req) => DianaResponse.text('$count|$name'))
-          ..register(HttpMethod.get, '/fire', (req) async {
-            await bus.broadcast(const FireEvent());
-            return DianaResponse.text(name);
-          });
+        final server =
+            DianaServer(
+                config: DianaConfig({
+                  'server.port': port,
+                  'server.isolates': 3,
+                }),
+              )
+              ..register(
+                HttpMethod.get,
+                '/state',
+                (req) => DianaResponse.text('$count|$name'),
+              )
+              ..register(HttpMethod.get, '/fire', (req) async {
+                await bus.broadcast(const FireEvent());
+                return DianaResponse.text(name);
+              });
         return DianaRunnable(
           server: server,
           initialize: () async {
@@ -459,17 +527,24 @@ void main() {
     // and miss later-spawned siblings.
     await mainInitializeStarted.future.timeout(const Duration(seconds: 10));
     for (var i = 0; i < 5; i++) {
-      expect(await _portOpen(port), isFalse,
-          reason: 'no isolate may accept connections before initialize() '
-              'completed on the main isolate');
+      expect(
+        await _portOpen(port),
+        isFalse,
+        reason:
+            'no isolate may accept connections before initialize() '
+            'completed on the main isolate',
+      );
       await Future<void>.delayed(const Duration(milliseconds: 40));
     }
 
     mainInitializeGate.complete();
     final up = DateTime.now().add(const Duration(seconds: 30));
     while (!await _portOpen(port)) {
-      expect(DateTime.now().isBefore(up), isTrue,
-          reason: 'the server must come up once initialize() completes');
+      expect(
+        DateTime.now().isBefore(up),
+        isTrue,
+        reason: 'the server must come up once initialize() completes',
+      );
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
 
@@ -483,84 +558,108 @@ void main() {
     while (DateTime.now().isBefore(deadline)) {
       final state = await _get('http://127.0.0.1:$port/state');
       final separator = state.indexOf('|');
-      counts[state.substring(separator + 1)] =
-          int.parse(state.substring(0, separator));
+      counts[state.substring(separator + 1)] = int.parse(
+        state.substring(0, separator),
+      );
       if (counts.length == 3 && counts.values.every((count) => count == 1)) {
         break;
       }
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
-    expect(counts.length, 3,
-        reason: 'all three isolates must serve /state; saw: $counts');
-    expect(counts.values, everyElement(1),
-        reason: 'the first broadcast must reach every isolate exactly '
-            'once; saw: $counts');
+    expect(
+      counts.length,
+      3,
+      reason: 'all three isolates must serve /state; saw: $counts',
+    );
+    expect(
+      counts.values,
+      everyElement(1),
+      reason:
+          'the first broadcast must reach every isolate exactly '
+          'once; saw: $counts',
+    );
 
     shutdown.complete();
     await done.timeout(const Duration(seconds: 10));
   });
 
-  test('a worker failing to start shuts down already-spawned workers',
-      () async {
-    final port = 19212 + DateTime.now().millisecond % 100;
+  test(
+    'a worker failing to start shuts down already-spawned workers',
+    () async {
+      final port = 19212 + DateTime.now().millisecond % 100;
 
-    final done = DianaRuntime.run(
-      () async {
+      final done = DianaRuntime.run(() async {
         // Worker 1 bootstraps fine; worker 2 fails, so startup must tear
         // worker 1 down again instead of leaking it.
         if (Isolate.current.debugName == 'diana-worker-2') {
           throw StateError('boom in worker 2');
         }
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 3}),
-        )..register(
-            HttpMethod.get, '/ping', (req) => const DianaResponse.text('pong'));
+        final server =
+            DianaServer(
+              config: DianaConfig({'server.port': port, 'server.isolates': 3}),
+            )..register(
+              HttpMethod.get,
+              '/ping',
+              (req) => const DianaResponse.text('pong'),
+            );
         return DianaRunnable(
           server: server,
           initialize: () async {},
           dispose: () async {},
         );
-      },
-      installSignalHandlers: false,
-    );
+      }, installSignalHandlers: false);
 
-    await expectLater(
-      done.timeout(const Duration(seconds: 10)),
-      throwsA(isA<StateError>().having(
-          (e) => e.message, 'message', contains('worker 2 failed to start'))),
-    );
-    expect(await _portOpen(port), isFalse,
-        reason: 'no orphan worker may keep serving after a failed startup');
-  });
+      await expectLater(
+        done.timeout(const Duration(seconds: 10)),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('worker 2 failed to start'),
+          ),
+        ),
+      );
+      expect(
+        await _portOpen(port),
+        isFalse,
+        reason: 'no orphan worker may keep serving after a failed startup',
+      );
+    },
+  );
 
   test('main initialize() failing shuts down spawned workers', () async {
     final port = 19322 + DateTime.now().millisecond % 100;
 
-    final done = DianaRuntime.run(
-      () async {
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 2}),
-        );
-        return DianaRunnable(
-          server: server,
-          initialize: () async {
-            if (!DianaRuntime.isWorkerIsolate) {
-              throw StateError('post-construct failed on main');
-            }
-          },
-          dispose: () async {},
-        );
-      },
-      installSignalHandlers: false,
-    );
+    final done = DianaRuntime.run(() async {
+      final server = DianaServer(
+        config: DianaConfig({'server.port': port, 'server.isolates': 2}),
+      );
+      return DianaRunnable(
+        server: server,
+        initialize: () async {
+          if (!DianaRuntime.isWorkerIsolate) {
+            throw StateError('post-construct failed on main');
+          }
+        },
+        dispose: () async {},
+      );
+    }, installSignalHandlers: false);
 
     await expectLater(
       done.timeout(const Duration(seconds: 10)),
-      throwsA(isA<StateError>().having(
-          (e) => e.message, 'message', contains('post-construct failed'))),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('post-construct failed'),
+        ),
+      ),
     );
-    expect(await _portOpen(port), isFalse,
-        reason: 'the worker must be shut down before run() rethrows');
+    expect(
+      await _portOpen(port),
+      isFalse,
+      reason: 'the worker must be shut down before run() rethrows',
+    );
   });
 
   test('shutdown drains an in-flight remote dispatch before dispose', () async {
@@ -579,12 +678,13 @@ void main() {
             slowListenerFinished = true;
           });
         final name = Isolate.current.debugName ?? 'main';
-        final server = DianaServer(
-          config: DianaConfig({'server.port': port, 'server.isolates': 2}),
-        )..register(HttpMethod.get, '/fire', (req) async {
-            await bus.broadcast(const FireEvent());
-            return DianaResponse.text(name);
-          });
+        final server =
+            DianaServer(
+              config: DianaConfig({'server.port': port, 'server.isolates': 2}),
+            )..register(HttpMethod.get, '/fire', (req) async {
+              await bus.broadcast(const FireEvent());
+              return DianaResponse.text(name);
+            });
         return DianaRunnable(
           server: server,
           initialize: () async {},
@@ -605,34 +705,45 @@ void main() {
     // dispatch as a remote event), then shut down immediately.
     final deadline = DateTime.now().add(const Duration(seconds: 10));
     while (await _get('http://127.0.0.1:$port/fire') == 'main') {
-      expect(DateTime.now().isBefore(deadline), isTrue,
-          reason: 'a worker isolate must eventually serve /fire');
+      expect(
+        DateTime.now().isBefore(deadline),
+        isTrue,
+        reason: 'a worker isolate must eventually serve /fire',
+      );
     }
     shutdown.complete();
     await done.timeout(const Duration(seconds: 10));
 
-    expect(disposeSawListenerFinished, isTrue,
-        reason: 'dispose() must not run while a remote-event listener is '
-            "still mid-dispatch (it would tear the listener's dependencies "
-            'down underneath it)');
+    expect(
+      disposeSawListenerFinished,
+      isTrue,
+      reason:
+          'dispose() must not run while a remote-event listener is '
+          "still mid-dispatch (it would tear the listener's dependencies "
+          'down underneath it)',
+    );
   });
 
   test('serves HTTPS when server.ssl.* is configured', () async {
-    final server = DianaServer(
-      config: DianaConfig({
-        'server.ssl.certPath': 'test/fixtures/cert.pem',
-        'server.ssl.keyPath': 'test/fixtures/key.pem',
-      }),
-    )..register(
-        HttpMethod.get, '/ping', (req) => const DianaResponse.text('pong'));
+    final server =
+        DianaServer(
+          config: DianaConfig({
+            'server.ssl.certPath': 'test/fixtures/cert.pem',
+            'server.ssl.keyPath': 'test/fixtures/key.pem',
+          }),
+        )..register(
+          HttpMethod.get,
+          '/ping',
+          (req) => const DianaResponse.text('pong'),
+        );
     await server.serve(port: 0, quiet: true);
     addTearDown(server.close);
 
     final client = HttpClient()
       ..badCertificateCallback = (cert, host, port) => true;
-    final res = await (await client
-            .getUrl(Uri.parse('https://127.0.0.1:${server.port}/ping')))
-        .close();
+    final res = await (await client.getUrl(
+      Uri.parse('https://127.0.0.1:${server.port}/ping'),
+    )).close();
     expect(res.statusCode, 200);
     expect(await res.transform(utf8.decoder).join(), 'pong');
     client.close();

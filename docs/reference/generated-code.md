@@ -153,6 +153,10 @@ The DI container. Contents, in topological (dependency) order:
 - when the app uses observability: `DianaServer`, the event bus, the
   scheduler and `Database` receive `observer: <the DianaObservability
   provider field>`, and `@Scheduled` tasks are emitted with a `name:`.
+- when the app declares a `DianaHttpEngine` provider (e.g. a
+  `DianaNativeEngine` subclass): `DianaServer` receives `engine: <the
+  provider field>`. Apps without one get no `engine:` argument
+  (byte-identical output).
 - when the app uses persistence: a `late final Database database =
   Database(connector, config);` field (from `package:diana_data`), opened
   (and migrated) at the start of `initialize()` and closed at the end of

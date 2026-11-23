@@ -1,6 +1,6 @@
 # Releasing Diana
 
-All seven packages share one version (lockstep) and are published to
+All eight packages share one version (lockstep) and are published to
 pub.dev together by [.github/workflows/publish.yml](.github/workflows/publish.yml)
 when a `vX.Y.Z` tag is pushed. Authentication uses pub.dev
 [automated publishing](https://dart.dev/tools/pub/automated-publishing)
@@ -18,7 +18,8 @@ hand.
 
    ```bash
    for p in diana_annotation diana diana_generator \
-            diana_auth diana_data diana_grpc diana_observability; do
+            diana_auth diana_data diana_grpc diana_observability \
+            diana_native; do
      (cd packages/$p && dart pub publish) || break
    done
    ```

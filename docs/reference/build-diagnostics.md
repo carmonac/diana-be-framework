@@ -228,6 +228,13 @@ one binding annotation" / "combines multiple binding annotations" errors.
 | `Multiple DianaCacheStore providers: A (lib), B (lib). Declare exactly one.` | Keep a single pluggable cache store |
 | `X extends DianaCacheStore but is <scope>-scoped; cache stores must be singletons.` | Make the store a singleton provider |
 
+## HTTP engine
+
+| Message | Fix |
+|---|---|
+| `Multiple DianaHttpEngine providers: A (lib), B (lib). Declare exactly one.` | Keep a single engine (e.g. one `DianaNativeEngine` subclass) |
+| `X extends DianaHttpEngine but is <scope>-scoped; HTTP engines must be singletons.` | Make the engine a singleton provider |
+
 ## Query repositories
 
 | Message | Fix |

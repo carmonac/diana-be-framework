@@ -104,6 +104,7 @@ nav:
           - Authentication & authorization: guides/auth.md
           - Persistence: guides/persistence.md
           - Observability: guides/observability.md
+          - Native HTTP engine: guides/native-engine.md
       - Production:
           - Operations: guides/operations.md
           - Testing: guides/testing.md

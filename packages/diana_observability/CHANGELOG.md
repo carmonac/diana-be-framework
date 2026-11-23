@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0
+
+- Version bump only (kept in lockstep with the workspace). Requires
+  `diana` 0.16.0, which runs on relic 2 (Dart 3.10+).
+
 ## 0.15.1
 
 - Package metadata for pub.dev: MIT license, repository/documentation

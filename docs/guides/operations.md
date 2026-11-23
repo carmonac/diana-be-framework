@@ -130,3 +130,6 @@ order → environment variables. A profile without a file is skipped.
   default termination works out of the box.
 - `/actuator/health` (when `management.enabled`) returns 503 while any
   `HealthIndicator` is down — wire it to readiness probes.
+- For raw HTTP throughput, the optional [native engine](native-engine.md)
+  (`diana_native`) serves through a Zig HTTP server. It requires
+  `dart build cli` (ship the whole bundle) and serves TLS 1.3 only.

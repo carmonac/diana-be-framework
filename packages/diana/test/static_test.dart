@@ -24,9 +24,9 @@ void main() {
   Future<(int, String, String?)> get(String path) async {
     final client = HttpClient();
     try {
-      final res = await (await client
-              .getUrl(Uri.parse('http://127.0.0.1:${server.port}$path')))
-          .close();
+      final res = await (await client.getUrl(
+        Uri.parse('http://127.0.0.1:${server.port}$path'),
+      )).close();
       final body = await res.transform(utf8.decoder).join();
       return (res.statusCode, body, res.headers.value('cache-control'));
     } finally {
@@ -35,15 +35,19 @@ void main() {
   }
 
   test('serves files, nested paths, index and 404s under the prefix', () async {
-    server = DianaServer(
-      config: DianaConfig({
-        'server.static.enabled': true,
-        'server.static.dir': dir.path,
-        'server.static.prefix': '/static',
-        'server.static.cacheMaxAge': 60,
-      }),
-    )..register(
-        HttpMethod.get, '/api/ping', (req) => const DianaResponse.text('pong'));
+    server =
+        DianaServer(
+          config: DianaConfig({
+            'server.static.enabled': true,
+            'server.static.dir': dir.path,
+            'server.static.prefix': '/static',
+            'server.static.cacheMaxAge': 60,
+          }),
+        )..register(
+          HttpMethod.get,
+          '/api/ping',
+          (req) => const DianaResponse.text('pong'),
+        );
     await server.serve(port: 0, quiet: true);
 
     final (fileStatus, fileBody, cache) = await get('/static/hello.txt');

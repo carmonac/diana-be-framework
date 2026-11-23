@@ -21,6 +21,11 @@ underscores). Your application adds its own keys freely (`@Value`,
 | `server.ssl.keyPath` | — | Private key (PEM) |
 | `server.ssl.keyPassword` | — | Key password, if any |
 
+With [`diana_native`](../guides/native-engine.md) the same keys serve
+HTTPS through the native engine, which is TLS 1.3 only. The engine itself
+is chosen by declaring a `DianaHttpEngine` provider, not by a config key;
+`server.host`, `server.port` and `server.isolates` apply unchanged.
+
 ## CORS (`server.cors.*`)
 
 | Key | Default | Meaning |

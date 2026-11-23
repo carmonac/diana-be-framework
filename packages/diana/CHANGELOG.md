@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.16.0
+
+- HTTP engine upgraded to relic 2.0 (`relic: ^2.0.0`); minimum Dart SDK
+  is now 3.10. HEAD falls back to GET, cross-origin WebSocket upgrades
+  are refused with 403, and `Content-Type` always comes from
+  `DianaResponse.mimeType` (MIME parameters such as `charset` are now
+  parsed). See the root CHANGELOG for details.
+- New `DianaHttpEngine`/`DianaEngineBinding` contract and
+  `DianaServer(engine:)`, so an add-on (`diana_native`) can serve through
+  another relic adapter.
+
 ## 0.15.1
 
 - Package metadata for pub.dev: MIT license, repository/documentation

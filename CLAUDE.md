@@ -18,6 +18,7 @@ communicates in Spanish.
 | `packages/diana_auth` | security add-on — the ONLY package importing `package:crypto` |
 | `packages/diana_data` | persistence add-on (knex_dart) — the ONLY package importing `package:knex_dart` |
 | `packages/diana_observability` | metrics/tracing add-on — the ONLY package importing `package:opentelemetry` |
+| `packages/diana_native` | native HTTP engine add-on (relic_native, Zig) — the ONLY package importing `package:relic_native` |
 | `examples/todo_api` | exercises everything HTTP (auth, events, XML, SSE…) |
 | `examples/greeter_grpc` | gRPC + HTTP side by side (committed protoc output) |
 | `examples/blog_api` | persistence dogfood (sqlite in-memory, hermetic) |
@@ -41,7 +42,8 @@ validators, JSON codecs) → `diana_bootstrap` (aggregates summaries →
    (catalog: `docs/reference/build-diagnostics.md`).
 5. **Boundary rules, enforced by walk-the-tree tests**: relic only in
    `diana/lib/src/adapter/relic_adapter.dart`; grpc only in diana_grpc;
-   crypto only in diana_auth; knex_dart only in diana_data; the generator
+   crypto only in diana_auth; knex_dart only in diana_data; relic_native
+   only in diana_native; the generator
    NEVER imports add-on packages — it references their types by import-URL
    string (`refer('X', 'package:diana_auth/diana_auth.dart')`).
 6. **Generated part files resolve through the HOST library's imports** —
@@ -55,7 +57,7 @@ validators, JSON codecs) → `diana_bootstrap` (aggregates summaries →
 8. **Lockstep versioning**: all packages share one version; bump every
    pubspec + cross-package constraints + example constraints + doc
    snippets (incl. the add-on READMEs) together. A `vX.Y.Z` tag publishes
-   all 7 packages to pub.dev (`.github/workflows/publish.yml`, see
+   all 8 packages to pub.dev (`.github/workflows/publish.yml`, see
    `RELEASING.md`); the examples stay `publish_to: none`.
 
 ## Commands
@@ -110,6 +112,12 @@ to GitHub URLs.
   `_cache$m` MethodCache field for a `static const _spec$m` CacheSpec routed
   through `_cacheStore.run(...)` — gated so store-less apps stay
   byte-identical; ctor slot order is observer?/cacheStore/db.
+- **Pluggable HTTP engine**: `DianaHttpEngine` (core, `engine.dart`) returns
+  a relic `Adapter` typed `Object` from `bind(DianaEngineBinding)`;
+  `RelicAdapter.serve` runs `_app.run(...)` with it instead of
+  `_app.serve(...)`. `diana_native`'s `DianaNativeEngine` joins isolates to
+  one native server via a shared bind group. Apps using it must build with
+  `dart build cli` (`dart compile exe` rejects build hooks).
 - **Discovery by supertype** (BodyCodec/HealthIndicator/AuthenticationMiddleware):
   scan `provider.info.supertypes` for name + library-prefix; singleton-scope
   check with the `'X implements Y but is <scope>-scoped'` message pattern.

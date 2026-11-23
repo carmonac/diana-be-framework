@@ -16,6 +16,7 @@ void main() {
       'diana_generator',
       'diana_grpc',
       'diana_auth',
+      'diana_native',
     ]) {
       for (final file in _dartFiles('../$package/lib')) {
         if (file.readAsStringSync().contains("import 'package:knex_dart")) {

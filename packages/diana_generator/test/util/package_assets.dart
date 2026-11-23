@@ -115,6 +115,7 @@ export 'package:diana_annotation/diana_annotation.dart';
 
 export 'src/aspects.dart';
 export 'src/codec.dart';
+export 'src/engine.dart';
 export 'src/events.dart';
 export 'src/http/request.dart';
 export 'src/http/response.dart';
@@ -123,6 +124,19 @@ export 'src/observer.dart';
 export 'src/sse.dart';
 export 'src/stomp.dart';
 export 'src/websocket.dart';
+''',
+  'diana|lib/src/engine.dart': '''
+import 'dart:async';
+
+class DianaEngineBinding {
+  const DianaEngineBinding();
+}
+
+abstract class DianaHttpEngine {
+  const DianaHttpEngine();
+  String get name;
+  FutureOr<Object> bind(DianaEngineBinding binding);
+}
 ''',
   'diana|lib/src/aspects.dart': '''
 import 'dart:async';

@@ -59,6 +59,8 @@ Task-oriented explanations of each feature:
 - [Observability](guides/observability.md) — `diana_observability`
   (Prometheus metrics, OpenTelemetry tracing, liveness/readiness),
   `/actuator/health`/`/info`, `@Scheduled` tasks
+- [Native HTTP engine](guides/native-engine.md) — `diana_native`, serving
+  through relic_native's Zig HTTP server instead of `dart:io`
 - [OpenAPI](guides/openapi.md) — the build-time generated spec and
   `/openapi.json`
 - [Operations](guides/operations.md) — HTTPS, multi-isolate serving,
@@ -85,10 +87,10 @@ Complete API documentation — every public symbol and every diagnostic:
 
 ## Requirements
 
-- Dart SDK **3.6 or later**
+- Dart SDK **3.10 or later** (required by the relic 2 HTTP engine)
 - `build_runner` (code generation)
 
 ## Versioning and stability
 
-Diana is currently `0.15.1`. APIs may change before `1.0.0`. The
+Diana is currently `0.16.0`. APIs may change before `1.0.0`. The
 [roadmap](../README.md#status--roadmap) lists what's planned.

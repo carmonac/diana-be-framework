@@ -1,0 +1,30 @@
+name: diana_native
+description: >-
+  Native HTTP engine for the Diana backend framework: serves through
+  relic_native, a Zig HTTP server about five times faster than dart:io.
+version: 0.16.0
+repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana_native
+issue_tracker: https://github.com/carmonac/diana-be-framework/issues
+documentation: https://carmonac.github.io/diana-be-framework/
+topics:
+  - server
+  - http
+  - performance
+  - native
+
+environment:
+  sdk: ^3.10.0
+
+resolution: workspace
+
+dependencies:
+  diana: ^0.16.0
+  relic_native: ^2.0.0
+
+dev_dependencies:
+  lints: ^5.1.0
+  test: ^1.25.0
+
+# Self-signed TLS fixture for the HTTPS test, not a real secret.
+false_secrets:
+  - /test/fixtures/key.pem

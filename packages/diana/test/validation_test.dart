@@ -55,14 +55,12 @@ void main() {
     expect(result.isValid, isFalse);
     expect(
       result.throwIfInvalid,
-      throwsA(isA<ValidationException>().having(
-        (e) => e.fieldMap,
-        'fieldMap',
-        {
+      throwsA(
+        isA<ValidationException>().having((e) => e.fieldMap, 'fieldMap', {
           'title': ['must not be blank', 'size must be at most 5'],
           'priority': ['must be at least 1'],
-        },
-      )),
+        }),
+      ),
     );
     expect(const ValidationResult([]).isValid, isTrue);
     const ValidationResult([]).throwIfInvalid();

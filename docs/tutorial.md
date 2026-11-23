@@ -49,14 +49,14 @@ Edit `pubspec.yaml`:
 ```yaml
 name: bookstore
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.10.0
 
 dependencies:
-  diana: ^0.15.1
+  diana: ^0.16.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.15.1
+  diana_generator: ^0.16.0
   test: ^1.25.0
 ```
 

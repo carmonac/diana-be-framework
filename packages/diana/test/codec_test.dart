@@ -6,8 +6,9 @@ class CsvCodec implements BodyCodec {
   List<String> get mimeTypes => const ['text/csv'];
 
   @override
-  Object? decode(String body) =>
-      [for (final line in body.trim().split('\n')) line.split(',')];
+  Object? decode(String body) => [
+    for (final line in body.trim().split('\n')) line.split(','),
+  ];
 
   @override
   String encode(Object? value) =>
@@ -19,17 +20,16 @@ DianaRequest request({
   String? accept,
   String body = '',
   BodyCodecRegistry codecs = const BodyCodecRegistry(),
-}) =>
-    DianaRequest(
-      method: HttpMethod.post,
-      uri: Uri.parse('/x'),
-      headers: {
-        if (contentType != null) 'content-type': [contentType],
-        if (accept != null) 'accept': [accept],
-      },
-      bodyReader: () async => body,
-      codecs: codecs,
-    );
+}) => DianaRequest(
+  method: HttpMethod.post,
+  uri: Uri.parse('/x'),
+  headers: {
+    if (contentType != null) 'content-type': [contentType],
+    if (accept != null) 'accept': [accept],
+  },
+  bodyReader: () async => body,
+  codecs: codecs,
+);
 
 void main() {
   group('BodyCodecRegistry', () {
@@ -37,9 +37,13 @@ void main() {
       const registry = BodyCodecRegistry();
       expect(registry.forMime('application/json'), isA<JsonBodyCodec>());
       expect(
-          registry.forMime('application/vnd.api+json'), isA<JsonBodyCodec>());
-      expect(registry.forMime('application/json; charset=utf-8'),
-          isA<JsonBodyCodec>());
+        registry.forMime('application/vnd.api+json'),
+        isA<JsonBodyCodec>(),
+      );
+      expect(
+        registry.forMime('application/json; charset=utf-8'),
+        isA<JsonBodyCodec>(),
+      );
       expect(registry.forMime('text/csv'), isNull);
     });
 
@@ -52,23 +56,23 @@ void main() {
 
   group('decodeMapBody', () {
     test('decodes with the matching codec', () async {
-      final req = request(
-        contentType: 'application/json',
-        body: '{"a": 1}',
-      );
-      expect(await decodeMapBody(req, consumes: const ['application/json']),
-          {'a': 1});
+      final req = request(contentType: 'application/json', body: '{"a": 1}');
+      expect(await decodeMapBody(req, consumes: const ['application/json']), {
+        'a': 1,
+      });
     });
 
     test('415 when content type is not in consumes', () {
       final req = request(contentType: 'text/csv', body: 'a,b');
       expect(
         () => decodeMapBody(req, consumes: const ['application/json']),
-        throwsA(isA<UnsupportedMediaTypeException>().having(
-          (e) => e.message,
-          'message',
-          "Expected one of application/json, got 'text/csv'.",
-        )),
+        throwsA(
+          isA<UnsupportedMediaTypeException>().having(
+            (e) => e.message,
+            'message',
+            "Expected one of application/json, got 'text/csv'.",
+          ),
+        ),
       );
     });
 
@@ -76,11 +80,13 @@ void main() {
       final req = request(contentType: 'application/xml', body: '<a/>');
       expect(
         () => decodeMapBody(req, consumes: const ['application/xml']),
-        throwsA(isA<UnsupportedMediaTypeException>().having(
-          (e) => e.message,
-          'message',
-          contains("No body codec registered for 'application/xml'"),
-        )),
+        throwsA(
+          isA<UnsupportedMediaTypeException>().having(
+            (e) => e.message,
+            'message',
+            contains("No body codec registered for 'application/xml'"),
+          ),
+        ),
       );
     });
 
@@ -88,14 +94,24 @@ void main() {
       final malformed = request(contentType: 'application/json', body: '{oops');
       expect(
         () => decodeMapBody(malformed, consumes: const ['application/json']),
-        throwsA(isA<BadRequestException>().having(
-            (e) => e.message, 'message', 'Malformed application/json body.')),
+        throwsA(
+          isA<BadRequestException>().having(
+            (e) => e.message,
+            'message',
+            'Malformed application/json body.',
+          ),
+        ),
       );
       final list = request(contentType: 'application/json', body: '[1]');
       expect(
         () => decodeMapBody(list, consumes: const ['application/json']),
-        throwsA(isA<BadRequestException>()
-            .having((e) => e.message, 'message', 'Expected an object body.')),
+        throwsA(
+          isA<BadRequestException>().having(
+            (e) => e.message,
+            'message',
+            'Expected an object body.',
+          ),
+        ),
       );
     });
   });
@@ -122,8 +138,11 @@ void main() {
         accept: '*/*',
         codecs: BodyCodecRegistry([CsvCodec()]),
       );
-      final response = negotiatedResponse(req, {'a': 1},
-          produces: const ['application/json', 'text/csv']);
+      final response = negotiatedResponse(
+        req,
+        {'a': 1},
+        produces: const ['application/json', 'text/csv'],
+      );
       expect(response.mimeType, 'application/json');
       expect(response.bodyText, '{"a":1}');
     });
@@ -137,8 +156,12 @@ void main() {
     });
 
     test('missing Accept means anything goes', () {
-      final response = negotiatedResponse(request(), {'a': 1},
-          produces: const ['application/json'], statusCode: 201);
+      final response = negotiatedResponse(
+        request(),
+        {'a': 1},
+        produces: const ['application/json'],
+        statusCode: 201,
+      );
       expect(response.statusCode, 201);
       expect(response.mimeType, 'application/json');
     });

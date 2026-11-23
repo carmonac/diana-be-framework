@@ -21,26 +21,32 @@ void main() {
     expect(runs, inInclusiveRange(2, 4));
   });
 
-  test('a task that throws synchronously lands in onError, not the zone',
-      () async {
-    final errors = <Object>[];
-    var laterRuns = 0;
-    Future<void> syncBoom() {
-      throw StateError('sync throw'); // before returning any future
-    }
+  test(
+    'a task that throws synchronously lands in onError, not the zone',
+    () async {
+      final errors = <Object>[];
+      var laterRuns = 0;
+      Future<void> syncBoom() {
+        throw StateError('sync throw'); // before returning any future
+      }
 
-    final scheduler = DianaScheduler(onError: (e, st) => errors.add(e))
-      ..schedule(task: syncBoom, fixedDelayMs: 20)
-      ..schedule(task: () async => laterRuns++, fixedDelayMs: 20)
-      ..start();
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    await scheduler.stop();
+      final scheduler = DianaScheduler(onError: (e, st) => errors.add(e))
+        ..schedule(task: syncBoom, fixedDelayMs: 20)
+        ..schedule(task: () async => laterRuns++, fixedDelayMs: 20)
+        ..start();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await scheduler.stop();
 
-    expect(errors, isNotEmpty,
-        reason: 'a synchronous throw must reach onError — escaping the '
-            'timer callback would kill the isolate');
-    expect(laterRuns, greaterThan(0));
-  });
+      expect(
+        errors,
+        isNotEmpty,
+        reason:
+            'a synchronous throw must reach onError — escaping the '
+            'timer callback would kill the isolate',
+      );
+      expect(laterRuns, greaterThan(0));
+    },
+  );
 
   test('errors are reported and do not stop the schedule', () async {
     final errors = <Object>[];
@@ -86,15 +92,15 @@ void main() {
 
     var leaderRuns = 0;
     final scheduler = DianaScheduler()
-      ..schedule(
-        task: () async => leaderRuns++,
-        fixedDelayMs: 10,
-      )
+      ..schedule(task: () async => leaderRuns++, fixedDelayMs: 10)
       ..start();
     await Future<void>.delayed(const Duration(milliseconds: 60));
     await scheduler.stop();
-    expect(leaderRuns, 0,
-        reason: 'default (leader-only) tasks must not run in workers');
+    expect(
+      leaderRuns,
+      0,
+      reason: 'default (leader-only) tasks must not run in workers',
+    );
   });
 
   test('perIsolate tasks run in worker isolates', () async {
@@ -103,11 +109,7 @@ void main() {
 
     var runs = 0;
     final scheduler = DianaScheduler()
-      ..schedule(
-        task: () async => runs++,
-        fixedDelayMs: 10,
-        perIsolate: true,
-      )
+      ..schedule(task: () async => runs++, fixedDelayMs: 10, perIsolate: true)
       ..start();
     await Future<void>.delayed(const Duration(milliseconds: 60));
     await scheduler.stop();
@@ -122,23 +124,32 @@ void main() {
       ..start();
     await Future<void>.delayed(const Duration(milliseconds: 2500));
     await scheduler.stop();
-    expect(runs, inInclusiveRange(1, 3),
-        reason: 'roughly one run per second, re-armed after completion');
+    expect(
+      runs,
+      inInclusiveRange(1, 3),
+      reason: 'roughly one run per second, re-armed after completion',
+    );
   });
 
   test('requires exactly one of fixedRate/fixedDelay/cron', () {
     final scheduler = DianaScheduler();
     expect(() => scheduler.schedule(task: () async {}), throwsArgumentError);
     expect(
-        () => scheduler.schedule(
-            task: () async {}, fixedRateMs: 10, cron: '* * * * * *'),
-        throwsArgumentError);
+      () => scheduler.schedule(
+        task: () async {},
+        fixedRateMs: 10,
+        cron: '* * * * * *',
+      ),
+      throwsArgumentError,
+    );
   });
 
   test('an invalid cron expression throws at registration', () {
     final scheduler = DianaScheduler();
-    expect(() => scheduler.schedule(task: () async {}, cron: 'nope'),
-        throwsA(isA<FormatException>()));
+    expect(
+      () => scheduler.schedule(task: () async {}, cron: 'nope'),
+      throwsA(isA<FormatException>()),
+    );
   });
 
   test('a cron task is leader-only by default', () async {

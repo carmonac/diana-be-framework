@@ -6,14 +6,13 @@ DianaRequest req({
   String query = '',
   Map<String, List<String>> headers = const {},
   String body = '',
-}) =>
-    DianaRequest(
-      method: HttpMethod.get,
-      uri: Uri.parse('/x${query.isEmpty ? '' : '?$query'}'),
-      pathParameters: path,
-      headers: headers,
-      bodyReader: () async => body,
-    );
+}) => DianaRequest(
+  method: HttpMethod.get,
+  uri: Uri.parse('/x${query.isEmpty ? '' : '?$query'}'),
+  pathParameters: path,
+  headers: headers,
+  bodyReader: () async => body,
+);
 
 class PrincipalUser {
   final String name;
@@ -23,13 +22,9 @@ class PrincipalUser {
 void main() {
   group('bindPathParam', () {
     test('converts to int, double, num, bool and String', () {
-      final r = req(path: {
-        'i': '42',
-        'd': '3.5',
-        'n': '7',
-        'b': 'true',
-        's': 'hi',
-      });
+      final r = req(
+        path: {'i': '42', 'd': '3.5', 'n': '7', 'b': 'true', 's': 'hi'},
+      );
       expect(bindPathParam<int>(r, 'i'), 42);
       expect(bindPathParam<double>(r, 'd'), 3.5);
       expect(bindPathParam<num>(r, 'n'), 7);
@@ -40,8 +35,13 @@ void main() {
     test('throws BadRequest with a precise message on parse failure', () {
       expect(
         () => bindPathParam<int>(req(path: {'id': 'abc'}), 'id'),
-        throwsA(isA<BadRequestException>().having((e) => e.message, 'message',
-            "Path parameter 'id' must be int, got 'abc'.")),
+        throwsA(
+          isA<BadRequestException>().having(
+            (e) => e.message,
+            'message',
+            "Path parameter 'id' must be int, got 'abc'.",
+          ),
+        ),
       );
     });
   });
@@ -59,8 +59,13 @@ void main() {
     test('missing required parameter is a 400', () {
       expect(
         () => bindQueryParam<int>(req(), 'limit'),
-        throwsA(isA<BadRequestException>().having((e) => e.message, 'message',
-            "Missing required Query parameter 'limit'.")),
+        throwsA(
+          isA<BadRequestException>().having(
+            (e) => e.message,
+            'message',
+            "Missing required Query parameter 'limit'.",
+          ),
+        ),
       );
     });
 
@@ -72,9 +77,11 @@ void main() {
 
   group('bindHeader', () {
     test('reads case-insensitively and converts', () {
-      final r = req(headers: {
-        'X-Retries': ['3'],
-      });
+      final r = req(
+        headers: {
+          'X-Retries': ['3'],
+        },
+      );
       expect(bindHeader<int>(r, 'x-retries'), 3);
       expect(bindHeader<String?>(r, 'x-missing'), isNull);
     });
@@ -116,12 +123,18 @@ void main() {
     });
 
     test('rejects malformed, empty and non-object bodies with 400', () {
-      expect(() => decodeJsonMapBody(req(body: '{oops')),
-          throwsA(isA<BadRequestException>()));
       expect(
-          () => decodeJsonMapBody(req()), throwsA(isA<BadRequestException>()));
-      expect(() => decodeJsonMapBody(req(body: '[1]')),
-          throwsA(isA<BadRequestException>()));
+        () => decodeJsonMapBody(req(body: '{oops')),
+        throwsA(isA<BadRequestException>()),
+      );
+      expect(
+        () => decodeJsonMapBody(req()),
+        throwsA(isA<BadRequestException>()),
+      );
+      expect(
+        () => decodeJsonMapBody(req(body: '[1]')),
+        throwsA(isA<BadRequestException>()),
+      );
     });
   });
 
@@ -135,8 +148,10 @@ void main() {
     test('absent principal: nullable gets null, non-nullable throws 401', () {
       final r = req();
       expect(bindPrincipal<PrincipalUser?>(r), isNull);
-      expect(() => bindPrincipal<PrincipalUser>(r),
-          throwsA(isA<UnauthorizedException>()));
+      expect(
+        () => bindPrincipal<PrincipalUser>(r),
+        throwsA(isA<UnauthorizedException>()),
+      );
     });
 
     test('a mismatched type surfaces as TypeError', () {
@@ -149,8 +164,10 @@ void main() {
   group('decodeJsonListBody', () {
     test('decodes arrays and rejects objects', () async {
       expect(await decodeJsonListBody(req(body: '[1, 2]')), [1, 2]);
-      expect(() => decodeJsonListBody(req(body: '{}')),
-          throwsA(isA<BadRequestException>()));
+      expect(
+        () => decodeJsonListBody(req(body: '{}')),
+        throwsA(isA<BadRequestException>()),
+      );
     });
   });
 }

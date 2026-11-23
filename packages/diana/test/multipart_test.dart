@@ -8,30 +8,29 @@ DianaRequest formRequest(
   String body, {
   required String contentType,
   DianaRequestLimits limits = const DianaRequestLimits(),
-}) =>
-    DianaRequest(
-      method: HttpMethod.post,
-      uri: Uri.parse('/upload'),
-      headers: {
-        'content-type': [contentType],
-      },
-      bodyReader: () async => body,
-      limits: limits,
-    );
+}) => DianaRequest(
+  method: HttpMethod.post,
+  uri: Uri.parse('/upload'),
+  headers: {
+    'content-type': [contentType],
+  },
+  bodyReader: () async => body,
+  limits: limits,
+);
 
 String multipartBody(String boundary) => [
-      '--$boundary',
-      'Content-Disposition: form-data; name="title"',
-      '',
-      'my upload',
-      '--$boundary',
-      'Content-Disposition: form-data; name="file"; filename="notes.txt"',
-      'Content-Type: text/plain',
-      '',
-      'file content here',
-      '--$boundary--',
-      '',
-    ].join('\r\n');
+  '--$boundary',
+  'Content-Disposition: form-data; name="title"',
+  '',
+  'my upload',
+  '--$boundary',
+  'Content-Disposition: form-data; name="file"; filename="notes.txt"',
+  'Content-Type: text/plain',
+  '',
+  'file content here',
+  '--$boundary--',
+  '',
+].join('\r\n');
 
 void main() {
   group('decodeFormBody', () {
@@ -58,19 +57,20 @@ void main() {
         '--XBOUND--',
         '',
       ].join('\r\n');
-      final form = await decodeFormBody(formRequest(
-        body,
-        contentType: 'multipart/form-data; boundary=XBOUND',
-      ));
+      final form = await decodeFormBody(
+        formRequest(body, contentType: 'multipart/form-data; boundary=XBOUND'),
+      );
       // Latin-1 decoding would yield mojibake ('caf\u00c3\u00a9 ...').
       expect(form.fields, {'city': 'caf\u00e9 \u2615'});
     });
 
     test('parses urlencoded bodies as fields', () async {
-      final form = await decodeFormBody(formRequest(
-        'a=1&b=hello%20world',
-        contentType: 'application/x-www-form-urlencoded',
-      ));
+      final form = await decodeFormBody(
+        formRequest(
+          'a=1&b=hello%20world',
+          contentType: 'application/x-www-form-urlencoded',
+        ),
+      );
       expect(form.fields, {'a': '1', 'b': 'hello world'});
       expect(form.files, isEmpty);
     });
@@ -98,7 +98,8 @@ void main() {
     test('missing boundary is a 400', () {
       expect(
         () => decodeFormBody(
-            formRequest('x', contentType: 'multipart/form-data')),
+          formRequest('x', contentType: 'multipart/form-data'),
+        ),
         throwsA(isA<BadRequestException>()),
       );
     });
@@ -119,7 +120,10 @@ void main() {
     test('incompatible Accept yields 406; */* passes', () async {
       final server = DianaServer()
         ..register(
-            HttpMethod.get, '/data', (req) => DianaResponse.json({'ok': true}));
+          HttpMethod.get,
+          '/data',
+          (req) => DianaResponse.json({'ok': true}),
+        );
       await server.serve(port: 0, quiet: true);
       addTearDown(server.close);
 
@@ -137,10 +141,12 @@ void main() {
 
 Future<(int, String)> _get(int port, String path, String accept) async {
   final socket = await Socket.connect('127.0.0.1', port);
-  socket.write('GET $path HTTP/1.1\r\n'
-      'Host: 127.0.0.1\r\n'
-      'Accept: $accept\r\n'
-      'Connection: close\r\n\r\n');
+  socket.write(
+    'GET $path HTTP/1.1\r\n'
+    'Host: 127.0.0.1\r\n'
+    'Accept: $accept\r\n'
+    'Connection: close\r\n\r\n',
+  );
   final response = await utf8.decodeStream(socket);
   socket.destroy();
   final status = int.parse(response.split(' ')[1]);

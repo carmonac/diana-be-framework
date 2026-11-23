@@ -25,11 +25,13 @@ void main() {
       expect(config.get<String?>('a.b'), isNull);
       expect(
         () => config.get<String>('app.greeting'),
-        throwsA(isA<ConfigException>().having(
-          (e) => e.message,
-          'message',
-          contains('APP_GREETING'),
-        )),
+        throwsA(
+          isA<ConfigException>().having(
+            (e) => e.message,
+            'message',
+            contains('APP_GREETING'),
+          ),
+        ),
       );
     });
 
@@ -41,8 +43,10 @@ void main() {
       expect(config.get<int>('server.port'), 9090);
       expect(config.get<String>('app.api-key'), 'from-env');
       // Env-only keys work without a YAML entry.
-      final envOnly =
-          DianaConfig(const {}, environment: {'EXTRA_FLAG': 'true'});
+      final envOnly = DianaConfig(
+        const {},
+        environment: {'EXTRA_FLAG': 'true'},
+      );
       expect(envOnly.get<bool>('extra.flag'), isTrue);
     });
 
@@ -50,11 +54,13 @@ void main() {
       final config = DianaConfig({'server.port': 'not-a-number'});
       expect(
         () => config.get<int>('server.port'),
-        throwsA(isA<ConfigException>().having(
-          (e) => e.message,
-          'message',
-          contains('cannot be read as int'),
-        )),
+        throwsA(
+          isA<ConfigException>().having(
+            (e) => e.message,
+            'message',
+            contains('cannot be read as int'),
+          ),
+        ),
       );
     });
 
@@ -67,8 +73,10 @@ void main() {
         },
         environment: {'APP_TAGS': 'x, y ,z', 'APP_PORTS': '1,2'},
       );
-      expect(config.get<List<String>>('cors.origins'),
-          ['https://a.com', 'https://b.com']);
+      expect(config.get<List<String>>('cors.origins'), [
+        'https://a.com',
+        'https://b.com',
+      ]);
       // Env overrides a YAML list with a comma-separated string.
       expect(config.get<List<int>>('app.ports'), [1, 2]);
       expect(config.get<List<bool>>('app.flags'), [true, false]);
@@ -85,10 +93,7 @@ void main() {
         {'info.name': 'demo', 'info.build.rev': 'abc', 'other.key': 1},
         environment: {'INFO_NAME': 'from-env'},
       );
-      expect(config.section('info'), {
-        'name': 'from-env',
-        'build.rev': 'abc',
-      });
+      expect(config.section('info'), {'name': 'from-env', 'build.rev': 'abc'});
       expect(config.section('nope'), isEmpty);
     });
 
@@ -114,8 +119,10 @@ app:
 ''');
 
       // diana.profile from the base file activates 'dev'.
-      final fromFile = await DianaConfig.load('${dir.path}/application.yaml',
-          environment: {});
+      final fromFile = await DianaConfig.load(
+        '${dir.path}/application.yaml',
+        environment: {},
+      );
       expect(fromFile.activeProfiles, ['dev']);
       expect(fromFile.get<String>('app.a'), 'dev');
       expect(fromFile.get<String>('app.c'), 'base');
@@ -143,7 +150,8 @@ app:
     test('load() flattens nested YAML and tolerates a missing file', () async {
       final dir = Directory.systemTemp.createTempSync('diana_config');
       addTearDown(() => dir.deleteSync(recursive: true));
-      final file = File('${dir.path}/application.yaml')..writeAsStringSync('''
+      final file = File('${dir.path}/application.yaml')
+        ..writeAsStringSync('''
 server:
   port: 3000
 app:
@@ -157,8 +165,10 @@ app:
       expect(config.get<String>('app.greeting'), 'hola');
       expect(config.contains('app.tags'), isTrue);
 
-      final missing =
-          await DianaConfig.load('${dir.path}/nope.yaml', environment: {});
+      final missing = await DianaConfig.load(
+        '${dir.path}/nope.yaml',
+        environment: {},
+      );
       expect(missing.get<int>('server.port', defaultValue: 8080), 8080);
     });
   });

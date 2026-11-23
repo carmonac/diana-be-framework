@@ -17,6 +17,7 @@ void main() {
       'diana_grpc',
       'diana_auth',
       'diana_data',
+      'diana_native',
     ]) {
       for (final file in _dartFiles('../$package/lib')) {
         if (file.readAsStringSync().contains("import 'package:opentelemetry")) {

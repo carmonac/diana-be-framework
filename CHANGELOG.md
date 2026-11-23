@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.16.0 — 2026-11-24
+
+### HTTP engine: relic 2
+- `diana` now runs on **relic 2.0** (`relic: ^2.0.0`). The only code
+  change is in `relic_adapter.dart`; the Diana API and the generated code
+  are unchanged (examples regenerate byte-identically).
+- **Minimum Dart SDK is now 3.10** for `diana` (relic 2 requires it).
+- Behavior changes inherited from relic 2:
+  - A `HEAD` request to a path without a `HEAD` route runs its `GET`
+    route and answers without a body (RFC 9110 §9.1).
+  - Cross-origin WebSocket upgrades (an `Origin` whose host differs from
+    the request's) are refused with 403; requests without `Origin` are
+    allowed.
+  - `Content-Type`/`Content-Length` come from the response body:
+    use `DianaResponse.mimeType`; setting them in `headers` has no effect.
+  - Header names/values with CR, LF or NUL are rejected.
+- Response MIME types with parameters (`text/csv; charset=utf-8`,
+  `multipart/mixed; boundary=…`) are now split into type, charset and
+  parameters instead of being passed through as the subtype.
+
+### Native HTTP engine (`diana_native`, new package)
+- New add-on `diana_native`: declare one
+  `@Component() class AppEngine extends DianaNativeEngine {}` and the app
+  serves through relic_native's Zig HTTP server instead of `dart:io`.
+  Measured through Diana's full pipeline on one isolate: 56k → 146k
+  requests/s on plain text, 39k → 71k on 1 KB JSON.
+- Same `server.*` keys; HTTPS is TLS 1.3 only. Multi-isolate serving joins
+  every isolate to one native server.
+- Production builds must use `dart build cli` and ship the bundle
+  (`dart compile exe` rejects packages with build hooks).
+- Core: new `DianaHttpEngine`/`DianaEngineBinding` contract
+  (`package:diana`), `DianaServer(engine:)`, and the startup log names a
+  non-default engine. The generator discovers one singleton
+  `DianaHttpEngine` provider by supertype and emits `engine:` only when it
+  exists, so apps without one generate byte-identical code. New
+  diagnostics: `Multiple DianaHttpEngine providers: …` and `X extends
+  DianaHttpEngine but is <scope>-scoped; HTTP engines must be singletons.`
+
 ## 0.15.1 — 2026-10-27
 
 ### Publishing to pub.dev

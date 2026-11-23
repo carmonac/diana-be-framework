@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0
+
+- Discovers a single singleton `DianaHttpEngine` provider by supertype and
+  passes it as `DianaServer(engine:)`; output is unchanged for apps without
+  one. New diagnostics for multiple or non-singleton engines.
+
 ## 0.15.1
 
 - Package metadata for pub.dev: MIT license, repository/documentation

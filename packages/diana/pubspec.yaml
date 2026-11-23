@@ -3,7 +3,7 @@ description: >-
   Spring-inspired, annotation-driven backend framework for Dart: compile-
   time dependency injection, declarative controllers, middleware and
   validation.
-version: 0.15.1
+version: 0.16.0
 repository: https://github.com/carmonac/diana-be-framework/tree/main/packages/diana
 issue_tracker: https://github.com/carmonac/diana-be-framework/issues
 documentation: https://carmonac.github.io/diana-be-framework/
@@ -15,16 +15,16 @@ topics:
   - backend
 
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.10.0
 
 resolution: workspace
 
 dependencies:
   collection: ^1.19.0
-  diana_annotation: ^0.15.1
+  diana_annotation: ^0.16.0
   meta: ^1.16.0
   mime: ^2.0.0
-  relic: ^1.1.0
+  relic: ^2.0.0
   web_socket: ^1.0.0
   xml: ">=6.5.0 <8.0.0"
   yaml: ^3.1.0

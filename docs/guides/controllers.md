@@ -47,6 +47,10 @@ class TodoController {
   `/todos/:id`; trailing slashes are dropped.
 - For methods without a shorthand (HEAD, OPTIONS), use the base annotation:
   `@HttpRoute('HEAD', '/status')`.
+- A `HEAD` request to a path with no `HEAD` route runs its `GET` route
+  (RFC 9110 §9.1): the client receives the GET's status and headers
+  without the body. Check `request.method` if a GET handler must not run
+  on HEAD.
 - Route methods must be **public instance methods**.
 - A request to an existing path with an unregistered method returns
   **405 Method Not Allowed**; an unknown path returns the JSON **404**.

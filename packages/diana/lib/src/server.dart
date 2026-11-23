@@ -5,6 +5,7 @@ import 'codec.dart';
 import 'config.dart';
 import 'content.dart';
 import 'cors.dart';
+import 'engine.dart';
 import 'http/method.dart';
 import 'http/request.dart';
 import 'http/response.dart';
@@ -38,6 +39,10 @@ class DianaServer {
   /// apps without an observability provider (zero overhead).
   final DianaObserver? observer;
 
+  /// Supplies the relic adapter (e.g. `diana_native`'s). `null` serves
+  /// through relic's `dart:io` adapter.
+  final DianaHttpEngine? engine;
+
   late final RelicAdapter _adapter = RelicAdapter(
     limits: DianaRequestLimits(
       maxBodyBytes: config.get<int>('server.maxBodyBytes',
@@ -49,6 +54,7 @@ class DianaServer {
     ),
     codecs: BodyCodecRegistry(bodyCodecs),
     onUnmatched: observer?.observeUnmatched,
+    engine: engine,
   );
 
   /// Global CORS policy from `server.cors.*`, if enabled.
@@ -67,6 +73,7 @@ class DianaServer {
     this.exceptionMapper,
     this.bodyCodecs = const [],
     this.observer,
+    this.engine,
     void Function(Object error, StackTrace stackTrace)? onUnhandled,
   }) : onUnhandled = onUnhandled ?? _defaultOnUnhandled;
 
@@ -194,7 +201,8 @@ class DianaServer {
     if (!quiet) {
       final scheme = certPath == null ? 'http' : 'https';
       // ignore: avoid_print
-      print('[diana] Listening on $scheme://$host:${_adapter.port}');
+      final via = engine == null ? '' : ' (engine: ${engine!.name})';
+      print('[diana] Listening on $scheme://$host:${_adapter.port}$via');
     }
   }
 

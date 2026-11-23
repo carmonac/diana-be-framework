@@ -109,6 +109,12 @@ class ChatHandler extends BaseWebSocketHandler {
   pipeline (advice, `HttpException` mapping).
 - Global middleware do **not** apply to handshakes — interceptors are
   explicit opt-in (mirroring Spring's `HandshakeInterceptor` registration).
+- **Cross-origin upgrades are refused with 403** (protection against
+  cross-site WebSocket hijacking). The engine compares the host of the
+  `Origin` header with the host the request was addressed to; scheme and
+  port are ignored (so a dev front-end on another port of `localhost`
+  works), and requests without `Origin` — non-browser clients — are
+  always allowed.
 
 ## What does *not* apply
 

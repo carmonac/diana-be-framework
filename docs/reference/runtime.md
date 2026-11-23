@@ -311,6 +311,8 @@ DianaServer({
   List<Middleware> globalMiddleware = const [],
   ExceptionMapper? exceptionMapper,
   List<BodyCodec> bodyCodecs = const [],
+  DianaObserver? observer,
+  DianaHttpEngine? engine,
   void Function(Object error, StackTrace stackTrace)? onUnhandled,
 })
 ```
@@ -330,6 +332,22 @@ for custom `onUnhandled` logging or programmatic route registration.
 
 Unmatched routes get `404 {"error":"not_found","message":"No route matches
 this path."}`.
+
+`engine` swaps the transport: `null` serves through relic's `dart:io`
+adapter; the generator passes the app's single `DianaHttpEngine` provider
+when there is one (see below).
+
+### Pluggable HTTP engine (`engine.dart`)
+
+- `abstract class DianaHttpEngine` — `String get name` (shown in the
+  startup log) and `FutureOr<Object> bind(DianaEngineBinding binding)`,
+  which returns a relic `Adapter` typed as `Object` (relic stays out of
+  the public API; a non-`Adapter` is a `StateError` at startup). Declare
+  one singleton provider extending it — usually `DianaNativeEngine` from
+  [`diana_native`](../guides/native-engine.md).
+- `final class DianaEngineBinding` — `InternetAddress address`, `int
+  port`, `String? sslCertPath`/`sslKeyPath`/`sslKeyPassword`, `bool shared`
+  (several isolates bind the same address/port) and `bool get secure`.
 
 ---
 
@@ -619,6 +637,24 @@ The helpers the generated `$Aspect$X` proxies call — usable directly too:
 
 See the [aspects guide](../guides/aspects.md) for the composition order and
 the pluggable-store contract.
+
+## Native engine (`package:diana_native`)
+
+The optional native transport. The only package importing
+`package:relic_native` (boundary-tested).
+
+- `class DianaNativeEngine extends DianaHttpEngine` —
+  `const DianaNativeEngine({NativeOptions options = const NativeOptions()})`;
+  `name` is `native`. `bind` reads the PEM files for HTTPS (TLS 1.3 only)
+  and joins isolates that bind with `shared: true` to one native server
+  through `static String bindGroup(DianaEngineBinding)`
+  (`diana_native/<pid>/<address>:<port>`).
+- `NativeOptions` — re-exported from `relic_native`: `maxConnections`,
+  `backlog`, `maxInlineBody`, `idleTimeout`, `headerTimeout`,
+  `bodyTimeout`, `writeTimeout`, `maxWebSocketMessage`,
+  `reactorCapacity`.
+
+See the [native engine guide](../guides/native-engine.md).
 
 ## Authentication (`package:diana_auth`)
 

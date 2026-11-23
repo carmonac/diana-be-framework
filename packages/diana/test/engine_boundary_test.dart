@@ -16,7 +16,10 @@ void main() {
         offenders.add(entity.path);
       }
     }
-    expect(offenders, isEmpty,
-        reason: 'relic may only be imported by the adapter');
+    expect(
+      offenders,
+      isEmpty,
+      reason: 'relic may only be imported by the adapter',
+    );
   });
 }

@@ -18,8 +18,8 @@ The design splits **authentication** (who are you?) from **authorization**
 ```yaml
 # pubspec.yaml
 dependencies:
-  diana: ^0.15.1
-  diana_auth: ^0.15.1
+  diana: ^0.16.0
+  diana_auth: ^0.16.0
 ```
 
 ## Assembling the authentication filter

@@ -126,7 +126,12 @@ void main() {
 
   test('only diana_grpc imports package:grpc (boundary)', () {
     final offenders = <String>[];
-    for (final package in ['diana', 'diana_annotation', 'diana_generator']) {
+    for (final package in [
+      'diana',
+      'diana_annotation',
+      'diana_generator',
+      'diana_native',
+    ]) {
       final dir = Directory('../$package/lib');
       for (final entity in dir.listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;

@@ -2402,6 +2402,94 @@ class StoreA extends DianaCacheStore {
     });
   });
 
+  group('pluggable HTTP engine (DianaHttpEngine)', () {
+    const engineLib = '''
+import 'package:diana/diana.dart';
+
+@Component()
+class AppEngine extends DianaHttpEngine {
+  @override
+  String get name => 'test';
+
+  @override
+  Object bind(DianaEngineBinding binding) => Object();
+}
+''';
+
+    test('threads the engine provider into DianaServer', () async {
+      await expectBootstrap(
+        {'lib/app.dart': app, 'lib/engine.dart': engineLib},
+        output: allOf([
+          matches(RegExp(r'(_i\d+\.)?DianaServer\(')),
+          matches(RegExp(r'engine: ctx\.appEngine[,)]')),
+        ]),
+      );
+    });
+
+    test('without an engine DianaServer gets no engine argument', () async {
+      await expectBootstrap(
+        {'lib/app.dart': app},
+        output: allOf([
+          matches(RegExp(r'(_i\d+\.)?DianaServer\(')),
+          isNot(contains('engine:')),
+        ]),
+      );
+    });
+
+    test('rejects multiple engines and non-singleton engines', () async {
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/engines.dart': '''
+import 'package:diana/diana.dart';
+
+@Component()
+class EngineA extends DianaHttpEngine {
+  @override
+  String get name => 'a';
+  @override
+  Object bind(DianaEngineBinding binding) => Object();
+}
+
+@Component()
+class EngineB extends DianaHttpEngine {
+  @override
+  String get name => 'b';
+  @override
+  Object bind(DianaEngineBinding binding) => Object();
+}
+''',
+        },
+        output: '',
+        expectedErrors: [
+          'Multiple DianaHttpEngine providers: EngineA (package:a/engines.dart), '
+              'EngineB (package:a/engines.dart). Declare exactly one.',
+        ],
+      );
+      await expectBootstrap(
+        {
+          'lib/app.dart': app,
+          'lib/engines.dart': '''
+import 'package:diana/diana.dart';
+
+@Component(scope: Scope.transient)
+class EngineA extends DianaHttpEngine {
+  @override
+  String get name => 'a';
+  @override
+  Object bind(DianaEngineBinding binding) => Object();
+}
+''',
+        },
+        output: '',
+        expectedErrors: [
+          'EngineA extends DianaHttpEngine but is transient-scoped; '
+              'HTTP engines must be singletons.',
+        ],
+      );
+    });
+  });
+
   group('aspect annotation diagnostics', () {
     Future<void> expectAspectError(String svc, String message) =>
         expectBootstrap(

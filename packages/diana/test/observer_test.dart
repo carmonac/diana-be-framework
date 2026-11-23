@@ -13,8 +13,12 @@ class RecordingObserver extends DianaObserver {
   final List<String> events = [];
 
   @override
-  FutureOr<DianaResponse> observeHttp(HttpMethod method, String routeTemplate,
-      DianaRequest request, DianaHandler next) async {
+  FutureOr<DianaResponse> observeHttp(
+    HttpMethod method,
+    String routeTemplate,
+    DianaRequest request,
+    DianaHandler next,
+  ) async {
     final res = await next(request);
     http.add((method.name, routeTemplate, res.statusCode));
     return res;
@@ -30,9 +34,11 @@ class RecordingObserver extends DianaObserver {
   }
 
   @override
-  void observeScheduledRun(String? name, Duration elapsed,
-          {required bool success}) =>
-      scheduled.add((name, success));
+  void observeScheduledRun(
+    String? name,
+    Duration elapsed, {
+    required bool success,
+  }) => scheduled.add((name, success));
 
   @override
   void observeEventDispatch(String eventType, Duration elapsed) =>
@@ -42,8 +48,10 @@ class RecordingObserver extends DianaObserver {
 Future<int> statusOf(int port, String path, {String method = 'GET'}) async {
   final client = HttpClient();
   try {
-    final req =
-        await client.openUrl(method, Uri.parse('http://127.0.0.1:$port$path'));
+    final req = await client.openUrl(
+      method,
+      Uri.parse('http://127.0.0.1:$port$path'),
+    );
     final res = await req.close();
     await res.drain<void>();
     return res.statusCode;
@@ -62,17 +70,21 @@ void main() {
 
     test('reports method, route template and final status', () async {
       server = DianaServer(observer: obs)
-        ..register(HttpMethod.get, '/todos/:id',
-            (req) => const DianaResponse.text('ok'));
+        ..register(
+          HttpMethod.get,
+          '/todos/:id',
+          (req) => const DianaResponse.text('ok'),
+        );
       await server.serve(port: 0);
       await statusOf(server.port!, '/todos/42');
       expect(obs.http, [('get', '/todos/:id', 200)]);
     });
 
     test('sees error-boundary status (500), not an exception', () async {
-      server = DianaServer(observer: obs, onUnhandled: (_, __) {})
-        ..register(
-            HttpMethod.get, '/boom', (req) => throw StateError('kaboom'));
+      server = DianaServer(
+        observer: obs,
+        onUnhandled: (_, __) {},
+      )..register(HttpMethod.get, '/boom', (req) => throw StateError('kaboom'));
       await server.serve(port: 0);
       final status = await statusOf(server.port!, '/boom');
       expect(status, 500);
@@ -90,7 +102,10 @@ void main() {
     test('a null observer adds no wrapping', () async {
       server = DianaServer()
         ..register(
-            HttpMethod.get, '/x', (req) => const DianaResponse.text('x'));
+          HttpMethod.get,
+          '/x',
+          (req) => const DianaResponse.text('x'),
+        );
       await server.serve(port: 0);
       expect(await statusOf(server.port!, '/x'), 200);
     });
@@ -98,13 +113,21 @@ void main() {
 
   test('liveness is a trivial UP; readiness aggregates indicators', () async {
     final liveness = livenessEndpointHandler();
-    final live = await liveness(DianaRequest(
-        method: HttpMethod.get, uri: Uri.parse('/actuator/health/liveness')));
+    final live = await liveness(
+      DianaRequest(
+        method: HttpMethod.get,
+        uri: Uri.parse('/actuator/health/liveness'),
+      ),
+    );
     expect(live.statusCode, 200);
 
     final readiness = readinessEndpointHandler([_DownIndicator()]);
-    final ready = await readiness(DianaRequest(
-        method: HttpMethod.get, uri: Uri.parse('/actuator/health/readiness')));
+    final ready = await readiness(
+      DianaRequest(
+        method: HttpMethod.get,
+        uri: Uri.parse('/actuator/health/readiness'),
+      ),
+    );
     expect(ready.statusCode, 503);
   });
 
@@ -114,9 +137,10 @@ void main() {
       final scheduler = DianaScheduler(observer: obs, onError: (_, __) {})
         ..schedule(task: () async {}, fixedDelayMs: 10, name: 'Job.ok')
         ..schedule(
-            task: () async => throw StateError('x'),
-            fixedRateMs: 10,
-            name: 'Job.fail')
+          task: () async => throw StateError('x'),
+          fixedRateMs: 10,
+          name: 'Job.fail',
+        )
         ..start();
       await Future<void>.delayed(const Duration(milliseconds: 40));
       await scheduler.stop();
@@ -127,13 +151,18 @@ void main() {
     test('a failed run keeps the original stack trace for onError', () async {
       final trace = StackTrace.fromString('the-original-frame');
       StackTrace? seen;
-      final scheduler = DianaScheduler(
-          observer: RecordingObserver(), onError: (_, st) => seen = st)
-        ..schedule(
-            task: () async => Error.throwWithStackTrace(StateError('x'), trace),
-            fixedDelayMs: 5,
-            name: 'Job.fail')
-        ..start();
+      final scheduler =
+          DianaScheduler(
+              observer: RecordingObserver(),
+              onError: (_, st) => seen = st,
+            )
+            ..schedule(
+              task: () async =>
+                  Error.throwWithStackTrace(StateError('x'), trace),
+              fixedDelayMs: 5,
+              name: 'Job.fail',
+            )
+            ..start();
       await Future<void>.delayed(const Duration(milliseconds: 30));
       await scheduler.stop();
       expect('$seen', contains('the-original-frame'));

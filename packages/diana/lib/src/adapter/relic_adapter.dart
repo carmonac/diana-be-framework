@@ -5,6 +5,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -12,6 +13,7 @@ import 'package:relic/relic.dart' as relic;
 import 'package:web_socket/web_socket.dart' as ws_events;
 
 import '../codec.dart';
+import '../engine.dart';
 import '../http/method.dart';
 import '../http/request.dart';
 import '../http/response.dart';
@@ -34,10 +36,15 @@ class RelicAdapter {
   /// Invoked once per request that matched no route (a 404).
   final void Function()? onUnmatched;
 
+  /// Supplies the relic adapter to serve through; `null` uses relic's
+  /// `dart:io` adapter.
+  final DianaHttpEngine? engine;
+
   RelicAdapter({
     this.limits = const DianaRequestLimits(),
     this.codecs = const BodyCodecRegistry(),
     this.onUnmatched,
+    this.engine,
   }) {
     _app.fallback = (req) {
       onUnmatched?.call();
@@ -175,14 +182,36 @@ class RelicAdapter {
     String? sslKeyPassword,
     bool shared = false,
   }) async {
+    if ((sslCertPath == null) != (sslKeyPath == null)) {
+      throw ArgumentError(
+        'Both server.ssl.certPath and server.ssl.keyPath must be set to '
+        'enable HTTPS.',
+      );
+    }
+    final engine = this.engine;
+    if (engine != null) {
+      final binding = DianaEngineBinding(
+        address: _parseHost(host),
+        port: port,
+        sslCertPath: sslCertPath,
+        sslKeyPath: sslKeyPath,
+        sslKeyPassword: sslKeyPassword,
+        shared: shared,
+      );
+      _server = await _app.run(() async {
+        final adapter = await engine.bind(binding);
+        if (adapter is! relic.Adapter) {
+          throw StateError(
+            'DianaHttpEngine "${engine.name}" returned '
+            '${adapter.runtimeType}, not a relic Adapter.',
+          );
+        }
+        return adapter;
+      });
+      return;
+    }
     SecurityContext? security;
-    if (sslCertPath != null || sslKeyPath != null) {
-      if (sslCertPath == null || sslKeyPath == null) {
-        throw ArgumentError(
-          'Both server.ssl.certPath and server.ssl.keyPath must be set to '
-          'enable HTTPS.',
-        );
-      }
+    if (sslCertPath != null && sslKeyPath != null) {
       security = SecurityContext()
         ..useCertificateChain(sslCertPath)
         ..usePrivateKey(sslKeyPath, password: sslKeyPassword);
@@ -247,6 +276,11 @@ class RelicAdapter {
   static String _headerSafe(String value) =>
       value.replaceAll(RegExp('[\r\n]+'), ' ');
 
+  /// Encodes framing text for the hijacked channel, which takes bytes only.
+  static Uint8List _ascii(String text) => utf8.encode(text);
+
+  static final Uint8List _crlf = Uint8List.fromList(const [13, 10]);
+
   relic.Hijack _hijackStream(DianaResponse response) {
     return relic.Hijack((channel) {
       final sink = channel.sink;
@@ -262,7 +296,7 @@ class RelicAdapter {
             '${_headerSafe(entry.key)}: ${_headerSafe(entry.value)}\r\n');
       }
       head.write('\r\n');
-      sink.add(head.toString().codeUnits);
+      sink.add(_ascii(head.toString()));
 
       var finished = false;
       late final StreamSubscription<List<int>> subscription;
@@ -270,7 +304,7 @@ class RelicAdapter {
       void finish({bool trailer = false}) {
         if (finished) return;
         finished = true;
-        if (trailer) sink.add('0\r\n\r\n'.codeUnits);
+        if (trailer) sink.add(_ascii('0\r\n\r\n'));
         sink.close();
       }
 
@@ -279,9 +313,9 @@ class RelicAdapter {
           // A zero-length chunk would frame as `0\r\n\r\n` — the HTTP/1.1
           // terminator — truncating the stream mid-body.
           if (chunk.isEmpty) return;
-          sink.add('${chunk.length.toRadixString(16)}\r\n'.codeUnits);
-          sink.add(chunk);
-          sink.add('\r\n'.codeUnits);
+          sink.add(_ascii('${chunk.length.toRadixString(16)}\r\n'));
+          sink.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
+          sink.add(_crlf);
         },
         onError: (Object _) {
           unawaited(subscription.cancel());
@@ -314,7 +348,8 @@ class RelicAdapter {
             _symbolName(e.key): e.value,
         },
         headers: {
-          for (final e in req.headers.entries) e.key: e.value.toList(),
+          for (final name in req.headers.names)
+            name.lower: req.headers.values(name).toList(),
         },
         bodyReader: req.readAsString,
         bytesReader: req.read,
@@ -326,20 +361,28 @@ class RelicAdapter {
     final mime = response.mimeType;
     relic.Body body;
     if (response.bodyStream != null) {
+      final type = _parseMime(mime ?? 'application/octet-stream');
       body = relic.Body.fromDataStream(
         response.bodyStream!.map(
             (chunk) => chunk is Uint8List ? chunk : Uint8List.fromList(chunk)),
-        mimeType: _parseMime(mime ?? 'application/octet-stream'),
+        mimeType: type.mimeType,
+        encoding: type.encoding,
+        parameters: type.parameters,
       );
     } else if (response.bodyText != null) {
+      // Text bodies are always UTF-8 encoded; relic stamps the charset.
       body = relic.Body.fromString(
         response.bodyText!,
-        mimeType: _parseMime(mime ?? 'text/plain'),
+        mimeType: _parseMime(mime ?? 'text/plain').mimeType,
       );
     } else if (response.bodyBytes != null) {
+      final type = _parseMime(mime ?? 'application/octet-stream');
+      final bytes = response.bodyBytes!;
       body = relic.Body.fromData(
-        Uint8List.fromList(response.bodyBytes!),
-        mimeType: _parseMime(mime ?? 'application/octet-stream'),
+        bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+        mimeType: type.mimeType,
+        encoding: type.encoding,
+        parameters: type.parameters,
       );
     } else {
       body = relic.Body.empty();
@@ -358,11 +401,39 @@ class RelicAdapter {
   static relic.Method _toRelicMethod(HttpMethod method) =>
       relic.Method.values.firstWhere((m) => m.name == method.name);
 
-  static relic.MimeType _parseMime(String value) {
-    final parts = value.split('/');
-    return parts.length == 2
-        ? relic.MimeType(parts[0], parts[1])
-        : relic.MimeType('application', 'octet-stream');
+  /// Splits a Content-Type value (`type/subtype; key=value…`) into relic's
+  /// parts. `charset` becomes the body encoding (relic rejects it as a
+  /// parameter); anything unparseable falls back to octet-stream.
+  static ({
+    relic.MimeType mimeType,
+    Encoding? encoding,
+    Map<String, String> parameters,
+  }) _parseMime(String value) {
+    final segments = value.split(';');
+    relic.MimeType mimeType;
+    try {
+      mimeType = relic.MimeType.parse(segments.first.trim().toLowerCase());
+    } on FormatException {
+      mimeType = relic.MimeType.octetStream;
+    }
+    Encoding? encoding;
+    final parameters = <String, String>{};
+    for (final segment in segments.skip(1)) {
+      final eq = segment.indexOf('=');
+      if (eq <= 0) continue;
+      final key = segment.substring(0, eq).trim().toLowerCase();
+      var val = segment.substring(eq + 1).trim();
+      if (val.length >= 2 && val.startsWith('"') && val.endsWith('"')) {
+        val = val.substring(1, val.length - 1);
+      }
+      if (key.isEmpty || val.isEmpty) continue;
+      if (key == 'charset') {
+        encoding = Encoding.getByName(val);
+      } else {
+        parameters[key] = val;
+      }
+    }
+    return (mimeType: mimeType, encoding: encoding, parameters: parameters);
   }
 
   static String _symbolName(Symbol symbol) {

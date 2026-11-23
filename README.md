@@ -110,6 +110,12 @@ class TodoController {
   event series, labelled by route template), OpenTelemetry tracing, an
   injectable `MeterRegistry`, and Kubernetes-style liveness/readiness
   probes.
+- **Native HTTP engine** — the optional
+  [`diana_native`](packages/diana_native) package serves the app through
+  [relic_native](https://pub.dev/packages/relic_native), a Zig HTTP server
+  (2–3x the requests/s of `dart:io` through Diana's full pipeline). One
+  `@Component() class AppEngine extends DianaNativeEngine {}` switches it
+  on; nothing else changes.
 - **Aspects** — `@Timed`, `@Cacheable` (in-memory TTL+LRU by default, or a
   pluggable `DianaCacheStore` for shared backends), `@Retryable` and
   `@CircuitBreaker` on service methods, composed with `@Transactional` at
@@ -142,11 +148,11 @@ generated code, build diagnostics) ·
 
 ```yaml
 dependencies:
-  diana: ^0.15.1
+  diana: ^0.16.0
 
 dev_dependencies:
   build_runner: ^2.12.0
-  diana_generator: ^0.15.1
+  diana_generator: ^0.16.0
 ```
 
 **2. Declare the application entrypoint** (`lib/app.dart`):
@@ -213,6 +219,7 @@ pass `overrides:` to swap providers.
 | [`packages/diana_auth`](packages/diana_auth) | Optional security: authenticator strategies, guards, JWT — the only package depending on `package:crypto`. |
 | [`packages/diana_data`](packages/diana_data) | Optional persistence: injectable query executor, `@Transactional`, migrations — the only package depending on `knex_dart`. |
 | [`packages/diana_observability`](packages/diana_observability) | Optional observability: Prometheus metrics, OpenTelemetry tracing, liveness/readiness — the only package depending on `package:opentelemetry`. |
+| [`packages/diana_native`](packages/diana_native) | Optional native HTTP engine over relic_native — the only package depending on `package:relic_native`. |
 | [`examples/todo_api`](examples/todo_api) | Complete example: controllers, DI, middleware, config, validation, advice, XML, SSE, events, auth. |
 | [`examples/greeter_grpc`](examples/greeter_grpc) | gRPC + HTTP side by side from one DI graph. |
 | [`examples/blog_api`](examples/blog_api) | Persistence with diana_data over SQLite: migrations, repository, transactions. |
@@ -233,7 +240,7 @@ Three builders run in sequence:
 
 ## Development (this repo)
 
-Dart ≥ 3.6 (pub workspaces). From the repo root:
+Dart ≥ 3.10 (pub workspaces; relic 2 requires it). From the repo root:
 
 ```bash
 tool/verify.sh   # pub get, builds, analyze, all test suites, determinism
@@ -248,7 +255,8 @@ the DI graph rewrite the bootstrap file and need a process restart.
 
 ## Status / Roadmap
 
-v0.15: the Spring-parity feature set above — including content negotiation
+v0.16: relic 2 as the HTTP engine plus the optional native transport
+(`diana_native`). v0.15: the Spring-parity feature set above — including content negotiation
 (XML), Server-Sent Events, gRPC, application events with a cross-isolate
 bridge, authentication/authorization (`diana_auth`, HS256 + RS256/JWKS),
 persistence with `@Transactional` and Spring-Data-style query methods

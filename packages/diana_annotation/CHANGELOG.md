@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.0
+
+- Version bump only (kept in lockstep with the workspace).
+
 ## 0.15.1
 
 - Package metadata for pub.dev: MIT license, repository/documentation

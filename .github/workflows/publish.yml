@@ -27,6 +27,7 @@ jobs:
         diana_data
         diana_grpc
         diana_observability
+        diana_native
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
